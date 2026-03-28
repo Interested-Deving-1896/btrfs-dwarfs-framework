@@ -30,6 +30,7 @@
 
 #include <linux/module.h>
 #include <linux/fs.h>
+#include <linux/fs_context.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/mutex.h>
@@ -43,11 +44,26 @@
 #include <linux/atomic.h>
 #include <linux/file.h>
 #include <linux/writeback.h>
+#include <linux/version.h>
 
 #include "bdfs_internal.h"
 
 #define BDFS_BLEND_FS_TYPE  "bdfs_blend"
 #define BDFS_BLEND_MAGIC    0xBD75B1E0
+
+/* Layer identifiers for bdfs_ioctl_resolve_path.layer (0=btrfs, 1=dwarfs) */
+#define BDFS_LAYER_UPPER    0
+#define BDFS_LAYER_LOWER    1
+
+/*
+ * SLAB_MEM_SPREAD was removed in kernel 6.15.  It was a no-op hint on most
+ * architectures, so dropping it is safe.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+# define BDFS_SLAB_FLAGS  (SLAB_RECLAIM_ACCOUNT | SLAB_ACCOUNT)
+#else
+# define BDFS_SLAB_FLAGS  (SLAB_RECLAIM_ACCOUNT | SLAB_MEM_SPREAD | SLAB_ACCOUNT)
+#endif
 
 /* Per-mount blend state */
 struct bdfs_blend_mount {
@@ -115,7 +131,7 @@ static void bdfs_copyup_register(const u8 uuid[16], u64 ino,
 	mutex_unlock(&bdfs_copyup_table_lock);
 }
 
-static struct inode *bdfs_copyup_lookup_and_remove(const u8 uuid[16], u64 ino)
+struct inode *bdfs_copyup_lookup_and_remove(const u8 uuid[16], u64 ino)
 {
 	struct bdfs_copyup_entry *e, *tmp;
 	struct inode *found = NULL;
@@ -284,9 +300,9 @@ static struct inode *bdfs_blend_make_inode(struct super_block *sb,
 	inode->i_uid   = real->i_uid;
 	inode->i_gid   = real->i_gid;
 	inode->i_size  = real->i_size;
-	inode->i_atime = real->i_atime;
-	inode->i_mtime = real->i_mtime;
-	inode->i_ctime = real->i_ctime;
+	inode_set_atime_to_ts(inode, inode_get_atime(real));
+	inode_set_mtime_to_ts(inode, inode_get_mtime(real));
+	inode_set_ctime_to_ts(inode, inode_get_ctime(real));
 	set_nlink(inode, real->i_nlink);
 
 	if (S_ISDIR(inode->i_mode)) {
@@ -487,11 +503,11 @@ static int bdfs_blend_getattr(struct mnt_idmap *idmap,
 
 	/* Refresh from real inode */
 	inode->i_size  = real->i_size;
-	inode->i_atime = real->i_atime;
-	inode->i_mtime = real->i_mtime;
-	inode->i_ctime = real->i_ctime;
+	inode_set_atime_to_ts(inode, inode_get_atime(real));
+	inode_set_mtime_to_ts(inode, inode_get_mtime(real));
+	inode_set_ctime_to_ts(inode, inode_get_ctime(real));
 
-	generic_fillattr(idmap, inode, stat);
+	generic_fillattr(idmap, request_mask, inode, stat);
 	return 0;
 }
 
@@ -704,9 +720,7 @@ static int bdfs_blend_create(struct mnt_idmap *idmap,
 			return ret;
 	}
 
-	upper_dentry = lookup_one_len(dentry->d_name.name,
-				      upper_parent.dentry,
-				      dentry->d_name.len);
+	upper_dentry = lookup_one(idmap, &dentry->d_name, upper_parent.dentry);
 	if (IS_ERR(upper_dentry)) {
 		path_put(&upper_parent);
 		return PTR_ERR(upper_dentry);
@@ -736,21 +750,25 @@ static int bdfs_blend_create(struct mnt_idmap *idmap,
 
 /*
  * bdfs_blend_mkdir - Create a directory on the BTRFS upper layer.
+ *
+ * In kernel 6.17+, .mkdir returns struct dentry * (like .lookup/.create).
+ * vfs_mkdir() also returns struct dentry * on success, ERR_PTR on error.
  */
-static int bdfs_blend_mkdir(struct mnt_idmap *idmap,
-			    struct inode *dir, struct dentry *dentry,
-			    umode_t mode)
+static struct dentry *bdfs_blend_mkdir(struct mnt_idmap *idmap,
+				       struct inode *dir, struct dentry *dentry,
+				       umode_t mode)
 {
 	struct super_block *sb = dir->i_sb;
 	struct bdfs_blend_mount *bm = sb->s_fs_info;
 	struct bdfs_blend_inode_info *parent_bi = BDFS_I(dir);
 	struct path upper_parent;
 	struct dentry *upper_dentry;
+	struct dentry *real_dentry;
 	struct inode *new_inode;
 	int ret;
 
 	if (!bm || !bm->btrfs_mnt)
-		return -EIO;
+		return ERR_PTR(-EIO);
 
 	/* See bdfs_blend_create for the rationale behind the lower-layer path. */
 	if (parent_bi->is_upper) {
@@ -761,49 +779,47 @@ static int bdfs_blend_mkdir(struct mnt_idmap *idmap,
 		char *relpath;
 
 		if (!relpath_buf)
-			return -ENOMEM;
+			return ERR_PTR(-ENOMEM);
 
 		relpath = bdfs_blend_rel_path(parent_bi->real_path.dentry,
 					      relpath_buf, PATH_MAX);
 		if (IS_ERR(relpath)) {
 			kfree(relpath_buf);
-			return PTR_ERR(relpath);
+			return ERR_CAST(relpath);
 		}
 
 		ret = vfs_path_lookup(bm->btrfs_mnt->mnt_root,
 				      bm->btrfs_mnt, relpath, 0, &upper_parent);
 		kfree(relpath_buf);
 		if (ret)
-			return ret;
+			return ERR_PTR(ret);
 	}
 
-	upper_dentry = lookup_one_len(dentry->d_name.name,
-				      upper_parent.dentry,
-				      dentry->d_name.len);
+	upper_dentry = lookup_one(idmap, &dentry->d_name, upper_parent.dentry);
 	if (IS_ERR(upper_dentry)) {
 		path_put(&upper_parent);
-		return PTR_ERR(upper_dentry);
+		return upper_dentry;
 	}
 
-	ret = vfs_mkdir(idmap, d_inode(upper_parent.dentry),
-			upper_dentry, mode);
-	if (ret) {
-		dput(upper_dentry);
+	/* vfs_mkdir returns the new dentry (or ERR_PTR) in 6.17+ */
+	real_dentry = vfs_mkdir(idmap, d_inode(upper_parent.dentry),
+				upper_dentry, mode);
+	dput(upper_dentry);
+	if (IS_ERR(real_dentry)) {
 		path_put(&upper_parent);
-		return ret;
+		return real_dentry;
 	}
 
 	struct path new_path = { .mnt = upper_parent.mnt,
-				 .dentry = upper_dentry };
+				 .dentry = real_dentry };
 	new_inode = bdfs_blend_make_inode(sb, &new_path, true);
-	dput(upper_dentry);
+	dput(real_dentry);
 	path_put(&upper_parent);
 
 	if (!new_inode)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
-	d_instantiate(dentry, new_inode);
-	return 0;
+	return d_splice_alias(new_inode, dentry);
 }
 
 /*
@@ -875,22 +891,20 @@ static int bdfs_blend_rename(struct mnt_idmap *idmap,
 	 * corresponding dentry in the BTRFS upper layer so vfs_rename
 	 * operates entirely within one real filesystem.
 	 */
-	real_new_dentry = lookup_one_len(new_dentry->d_name.name,
-					 new_par_bi->real_path.dentry,
-					 new_dentry->d_name.len);
+	real_new_dentry = lookup_one(idmap, &new_dentry->d_name,
+				     new_par_bi->real_path.dentry);
 	if (IS_ERR(real_new_dentry))
 		return PTR_ERR(real_new_dentry);
 
-	ret = vfs_rename(idmap,
-			 &(struct renamedata){
-				.old_mnt_idmap = idmap,
-				.old_dir       = d_inode(old_par_bi->real_path.dentry),
-				.old_dentry    = src_bi->real_path.dentry,
-				.new_mnt_idmap = idmap,
-				.new_dir       = d_inode(new_par_bi->real_path.dentry),
-				.new_dentry    = real_new_dentry,
-				.flags         = flags,
-			 });
+	ret = vfs_rename(&(struct renamedata){
+			.old_mnt_idmap = idmap,
+			.old_parent    = old_par_bi->real_path.dentry,
+			.old_dentry    = src_bi->real_path.dentry,
+			.new_mnt_idmap = idmap,
+			.new_parent    = new_par_bi->real_path.dentry,
+			.new_dentry    = real_new_dentry,
+			.flags         = flags,
+		});
 
 	dput(real_new_dentry);
 	return ret;
@@ -939,9 +953,7 @@ static int bdfs_blend_symlink(struct mnt_idmap *idmap,
 			return ret;
 	}
 
-	upper_dentry = lookup_one_len(dentry->d_name.name,
-				      upper_parent.dentry,
-				      dentry->d_name.len);
+	upper_dentry = lookup_one(idmap, &dentry->d_name, upper_parent.dentry);
 	if (IS_ERR(upper_dentry)) {
 		path_put(&upper_parent);
 		return PTR_ERR(upper_dentry);
@@ -986,13 +998,11 @@ static int bdfs_blend_link(struct dentry *old_dentry, struct inode *dir,
 	if (!src_bi->is_upper || !parent_bi->is_upper)
 		return -EPERM;
 
-	real_new_dentry = lookup_one_len(new_dentry->d_name.name,
-					 parent_bi->real_path.dentry,
-					 new_dentry->d_name.len);
+	idmap = mnt_idmap(src_bi->real_path.mnt);
+	real_new_dentry = lookup_one(idmap, &new_dentry->d_name,
+				     parent_bi->real_path.dentry);
 	if (IS_ERR(real_new_dentry))
 		return PTR_ERR(real_new_dentry);
-
-	idmap = mnt_idmap(src_bi->real_path.mnt);
 	ret = vfs_link(src_bi->real_path.dentry, idmap,
 		       d_inode(parent_bi->real_path.dentry),
 		       real_new_dentry, NULL);
@@ -1591,7 +1601,7 @@ int bdfs_blend_init(void)
 	bdfs_inode_cachep = kmem_cache_create(
 		"bdfs_inode_cache",
 		sizeof(struct bdfs_blend_inode_info), 0,
-		SLAB_RECLAIM_ACCOUNT | SLAB_MEM_SPREAD | SLAB_ACCOUNT,
+		BDFS_SLAB_FLAGS,
 		bdfs_inode_init_once);
 	if (!bdfs_inode_cachep) {
 		pr_err("bdfs: failed to create inode cache\n");

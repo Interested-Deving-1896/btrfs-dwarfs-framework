@@ -11,8 +11,18 @@
 #include <linux/kref.h>
 #include "../../include/uapi/bdfs_ioctl.h"
 
-/* Forward declaration */
-struct bdfs_partition_entry;
+/*
+ * Per-partition registry entry.  Defined here so that all translation units
+ * that need to dereference it (bdfs_blend.c, bdfs_btrfs_part.c, etc.) can
+ * do so without including bdfs_main.c internals.
+ */
+struct bdfs_partition_entry {
+	struct list_head        list;
+	struct bdfs_partition   desc;
+	struct bdfs_part_ops   *ops;        /* backend operations */
+	void                   *private;    /* backend private data */
+	struct kref             refcount;
+};
 
 /*
  * Backend operations vtable.  Each partition type (DwarFS-backed,

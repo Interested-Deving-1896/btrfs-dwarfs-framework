@@ -46,13 +46,7 @@ static struct sock *bdfs_nl_sock;
 
 /* ── Partition registry ─────────────────────────────────────────────────── */
 
-struct bdfs_partition_entry {
-	struct list_head        list;
-	struct bdfs_partition   desc;
-	struct bdfs_part_ops   *ops;        /* backend operations */
-	void                   *private;    /* backend private data */
-	struct kref             refcount;
-};
+/* struct bdfs_partition_entry is defined in bdfs_internal.h */
 
 static struct bdfs_partition_entry *
 bdfs_find_partition_locked(const u8 uuid[16])
