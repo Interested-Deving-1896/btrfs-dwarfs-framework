@@ -16,7 +16,17 @@
  *   3. Update statistics.
  */
 
-#define _GNU_SOURCE
+
+/*
+ * TAILQ_FOREACH_SAFE is a BSD extension absent from glibc's <sys/queue.h>.
+ * Provide a portable fallback for Linux builds.
+ */
+#ifndef TAILQ_FOREACH_SAFE
+#define TAILQ_FOREACH_SAFE(var, head, field, tvar)           \
+	for ((var) = TAILQ_FIRST((head));                    \
+	     (var) && ((tvar) = TAILQ_NEXT((var), field), 1); \
+	     (var) = (tvar))
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -151,7 +161,17 @@ static uint64_t btrfs_qgroup_exclusive(int fd, uint64_t subvol_id)
 
 	struct btrfs_qgroup_info_item *qi =
 		(struct btrfs_qgroup_info_item *)(sh + 1);
+	/*
+	 * The field was renamed from 'exclusive' to 'excl' in btrfs-progs
+	 * kernel headers around v5.15 (kernel 5.15+). CMake detects which
+	 * name is present and defines BDFS_BTRFS_QGROUP_EXCL_FIELD accordingly.
+	 * See userspace/CMakeLists.txt check_struct_has_member() call.
+	 */
+#ifdef BDFS_BTRFS_QGROUP_HAS_EXCL
+	return le64_to_cpu(qi->excl);
+#else
 	return le64_to_cpu(qi->exclusive);
+#endif
 }
 
 #endif /* HAVE_BTRFS_IOCTL */
@@ -399,11 +419,20 @@ uint64_t bdfs_policy_add_rule(struct bdfs_policy_engine *pe,
 	if (!rule)
 		return 0;
 
+	/*
+	 * Copy caller-supplied template fields (age_days, min_size_bytes,
+	 * name_pattern, compression, etc.).  Assign rule_id and enabled
+	 * explicitly afterwards so they are always initialised by this
+	 * function regardless of what the template contained.  This also
+	 * silences cppcheck uninitvar warnings that arise because cppcheck
+	 * cannot prove the template fields are set before the memcpy.
+	 */
 	memcpy(rule, template, sizeof(*rule));
+	rule->rule_id = 0;   /* assigned below under lock */
+	rule->enabled = true;
 
 	pthread_mutex_lock(&pe->rules_lock);
 	rule->rule_id = pe->next_rule_id++;
-	rule->enabled = true;
 	TAILQ_INSERT_TAIL(&pe->rules, rule, entry);
 	pthread_mutex_unlock(&pe->rules_lock);
 

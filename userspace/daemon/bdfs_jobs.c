@@ -23,13 +23,13 @@
  *   4. Notify the kernel module of completion.
  */
 
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <syslog.h>
 #include <sys/stat.h>
 #include <sys/sendfile.h>
@@ -54,7 +54,7 @@ int bdfs_job_export_to_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job)
 	 * This ensures the DwarFS image captures a consistent point-in-time
 	 * view even if the source subvolume is being written to.
 	 */
-	snprintf(snap_path, sizeof(snap_path), "%s/.bdfs_snap_%llu",
+	snprintf(snap_path, sizeof(snap_path), "%s/.bdfs_snap_%" PRIu64 "",
 		 j->export_to_dwarfs.btrfs_mount,
 		 j->export_to_dwarfs.subvol_id);
 
@@ -72,7 +72,7 @@ int bdfs_job_export_to_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job)
 	 * We use btrfs send | btrfs receive to get a clean POSIX tree
 	 * that mkdwarfs can process without needing btrfs-specific ioctls.
 	 */
-	snprintf(extract_dir, sizeof(extract_dir), "%s/.bdfs_extract_%llu",
+	snprintf(extract_dir, sizeof(extract_dir), "%s/.bdfs_extract_%" PRIu64 "",
 		 d->cfg.state_dir, j->export_to_dwarfs.subvol_id);
 
 	if (mkdir(extract_dir, 0700) < 0 && errno != EEXIST) {
@@ -147,7 +147,7 @@ int bdfs_job_export_to_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job)
 		goto cleanup;
 	}
 
-	syslog(LOG_INFO, "bdfs: export complete: subvol %llu → %s",
+	syslog(LOG_INFO, "bdfs: export complete: subvol %" PRIu64 " → %s",
 	       j->export_to_dwarfs.subvol_id,
 	       j->export_to_dwarfs.image_path);
 	ret = 0;

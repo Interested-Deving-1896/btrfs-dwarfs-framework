@@ -7,7 +7,6 @@
  * enters the event loop.
  */
 
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +18,17 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <syslog.h>
+
+/*
+ * TAILQ_FOREACH_SAFE is a BSD extension not present in glibc's <sys/queue.h>.
+ * Provide a portable fallback so the code compiles on Linux without modification.
+ */
+#ifndef TAILQ_FOREACH_SAFE
+#define TAILQ_FOREACH_SAFE(var, head, field, tvar)          \
+	for ((var) = TAILQ_FIRST((head));                   \
+	     (var) && ((tvar) = TAILQ_NEXT((var), field), 1); \
+	     (var) = (tvar))
+#endif
 
 #include "bdfs_daemon.h"
 #include "bdfs_policy.h"
@@ -369,7 +379,8 @@ int bdfs_daemon_enqueue(struct bdfs_daemon *d, struct bdfs_job *job)
 
 int main(int argc, char *argv[])
 {
-	struct bdfs_daemon daemon;
+	/* Renamed from 'daemon' to avoid shadowing the POSIX daemon(3) function. */
+	struct bdfs_daemon bdfs;
 	struct bdfs_daemon_config cfg;
 	int opt, ret;
 
@@ -421,13 +432,13 @@ int main(int argc, char *argv[])
 	signal(SIGINT, signal_handler);
 	signal(SIGPIPE, SIG_IGN);
 
-	ret = bdfs_daemon_init(&daemon, &cfg);
+	ret = bdfs_daemon_init(&bdfs, &cfg);
 	if (ret) {
 		syslog(LOG_ERR, "bdfs: init failed: %d", ret);
 		return 1;
 	}
 
-	ret = bdfs_daemon_run(&daemon);
+	ret = bdfs_daemon_run(&bdfs);
 	closelog();
 	return ret ? 1 : 0;
 }

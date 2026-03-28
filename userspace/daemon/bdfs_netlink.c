@@ -6,12 +6,12 @@
  * into bdfs_job entries dispatched to the worker pool.
  */
 
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <syslog.h>
 #include <sys/socket.h>
 #include <linux/netlink.h>
@@ -75,7 +75,7 @@ static void bdfs_handle_event(struct bdfs_daemon *d,
 		uint32_t compression = BDFS_COMPRESS_ZSTD;
 
 		sscanf(evt->message,
-		       "export subvol=%llu image=%255s compression=%u",
+		       "export subvol=%" SCNu64 " image=%255s compression=%u",
 		       &subvol_id, image_name, &compression);
 
 		job = bdfs_job_alloc(BDFS_JOB_EXPORT_TO_DWARFS);
@@ -101,7 +101,7 @@ static void bdfs_handle_event(struct bdfs_daemon *d,
 		uint32_t cache_mb = 256;
 
 		sscanf(evt->message,
-		       "mount image_id=%llu path=%4095s mount=%4095s cache_mb=%u",
+		       "mount image_id=%" SCNu64 " path=%4095s mount=%4095s cache_mb=%u",
 		       &image_id, path, mount, &cache_mb);
 
 		job = bdfs_job_alloc(BDFS_JOB_MOUNT_DWARFS);
@@ -158,7 +158,7 @@ static void bdfs_handle_event(struct bdfs_daemon *d,
 			uint32_t flags = 0;
 
 			sscanf(evt->message,
-			       "import image_id=%llu subvol=%255s btrfs=%4095s flags=0x%x",
+			       "import image_id=%" SCNu64 " subvol=%255s btrfs=%4095s flags=0x%x",
 			       &image_id, subvol, btrfs_mnt, &flags);
 
 			job = bdfs_job_alloc(BDFS_JOB_IMPORT_FROM_DWARFS);
@@ -186,7 +186,7 @@ static void bdfs_handle_event(struct bdfs_daemon *d,
 		int readonly = 0;
 
 		sscanf(evt->message,
-		       "snapshot image_id=%llu snap=%255s readonly=%d",
+		       "snapshot image_id=%" SCNu64 " snap=%255s readonly=%d",
 		       &image_id, snap_name, &readonly);
 
 		job = bdfs_job_alloc(BDFS_JOB_SNAPSHOT_CONTAINER);

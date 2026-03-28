@@ -29,6 +29,23 @@ if(ENABLE_ASAN)
     add_link_options(-fsanitize=address,undefined)
 endif()
 
+# ── Kernel header feature detection ─────────────────────────────────────────
+# btrfs_qgroup_info_item.exclusive was renamed to .excl in kernel 5.15+.
+# Detect which name is present so bdfs_policy.c compiles against both.
+include(CheckStructHasMember)
+check_struct_has_member(
+    "struct btrfs_qgroup_info_item" excl
+    "linux/btrfs_tree.h"
+    BDFS_BTRFS_QGROUP_HAS_EXCL
+    LANGUAGE C
+)
+if(BDFS_BTRFS_QGROUP_HAS_EXCL)
+    add_compile_definitions(BDFS_BTRFS_QGROUP_HAS_EXCL)
+    message(STATUS "btrfs_qgroup_info_item: using field 'excl' (kernel >= 5.15)")
+else()
+    message(STATUS "btrfs_qgroup_info_item: using field 'exclusive' (kernel < 5.15)")
+endif()
+
 # ── Include paths ────────────────────────────────────────────────────────────
 include_directories(
     ${CMAKE_SOURCE_DIR}/../include
