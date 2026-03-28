@@ -1,0 +1,314 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * bdfs_exec.c - Tool execution helpers
+ *
+ * Wrappers around mkdwarfs, dwarfs, dwarfsextract, and btrfs-progs.
+ * Each function forks a child process, sets up pipes where needed,
+ * and waits for completion.  Stdout/stderr are forwarded to syslog
+ * when verbose mode is enabled.
+ */
+
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <signal.h>
+#include <syslog.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+
+#include "bdfs_daemon.h"
+
+/* Compression algorithm name for mkdwarfs --compression flag */
+static const char *compression_name(uint32_t c)
+{
+	switch (c) {
+	case BDFS_COMPRESS_LZMA:   return "lzma";
+	case BDFS_COMPRESS_ZSTD:   return "zstd";
+	case BDFS_COMPRESS_LZ4:    return "lz4";
+	case BDFS_COMPRESS_BROTLI: return "brotli";
+	default:                   return "null";
+	}
+}
+
+/*
+ * bdfs_exec_wait - Fork, exec argv[], and wait for exit.
+ * Returns 0 on success, -errno on fork failure, or the child exit code.
+ */
+static int bdfs_exec_wait(const char *const argv[])
+{
+	pid_t pid;
+	int status;
+
+	pid = fork();
+	if (pid < 0)
+		return -errno;
+
+	if (pid == 0) {
+		/* Child: redirect stdout/stderr to /dev/null unless verbose */
+		int devnull = open("/dev/null", O_WRONLY);
+		if (devnull >= 0) {
+			dup2(devnull, STDOUT_FILENO);
+			dup2(devnull, STDERR_FILENO);
+			close(devnull);
+		}
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+
+	if (waitpid(pid, &status, 0) < 0)
+		return -errno;
+
+	if (WIFEXITED(status))
+		return WEXITSTATUS(status) == 0 ? 0 : -EIO;
+
+	return -EIO;
+}
+
+/* ── mkdwarfs ───────────────────────────────────────────────────────────── */
+
+/*
+ * bdfs_exec_mkdwarfs - Create a DwarFS image from a directory.
+ *
+ * Equivalent to:
+ *   mkdwarfs -i <input_dir> -o <output_image>
+ *            --compression <algo>
+ *            --block-size-bits <bits>
+ *            --num-workers <n>
+ *            --categorize
+ */
+int bdfs_exec_mkdwarfs(struct bdfs_daemon *d,
+		       const char *input_dir,
+		       const char *output_image,
+		       uint32_t compression,
+		       uint32_t block_size_bits,
+		       int worker_threads)
+{
+	char bits_str[16], workers_str[16];
+	const char *argv[32];
+	int i = 0;
+
+	snprintf(bits_str, sizeof(bits_str), "%u",
+		 block_size_bits ? block_size_bits : 22);
+	snprintf(workers_str, sizeof(workers_str), "%d",
+		 worker_threads ? worker_threads : 4);
+
+	argv[i++] = d->cfg.mkdwarfs_bin;
+	argv[i++] = "-i"; argv[i++] = input_dir;
+	argv[i++] = "-o"; argv[i++] = output_image;
+	argv[i++] = "--compression"; argv[i++] = compression_name(compression);
+	argv[i++] = "--block-size-bits"; argv[i++] = bits_str;
+	argv[i++] = "--num-workers"; argv[i++] = workers_str;
+	argv[i++] = "--categorize";
+	argv[i++] = NULL;
+
+	syslog(LOG_INFO, "bdfs: mkdwarfs %s → %s (compression=%s)",
+	       input_dir, output_image, compression_name(compression));
+
+	return bdfs_exec_wait(argv);
+}
+
+/* ── dwarfsextract ──────────────────────────────────────────────────────── */
+
+/*
+ * bdfs_exec_dwarfsextract - Extract a DwarFS image to a directory.
+ *
+ * Equivalent to:
+ *   dwarfsextract -i <image_path> -o <output_dir>
+ */
+int bdfs_exec_dwarfsextract(struct bdfs_daemon *d,
+			    const char *image_path,
+			    const char *output_dir)
+{
+	const char *argv[] = {
+		d->cfg.dwarfsextract_bin,
+		"-i", image_path,
+		"-o", output_dir,
+		NULL
+	};
+
+	syslog(LOG_INFO, "bdfs: dwarfsextract %s → %s", image_path, output_dir);
+	return bdfs_exec_wait(argv);
+}
+
+/* ── dwarfs FUSE mount ──────────────────────────────────────────────────── */
+
+/*
+ * bdfs_exec_dwarfs_mount - FUSE-mount a DwarFS image.
+ *
+ * Equivalent to:
+ *   dwarfs <image_path> <mount_point> -o cache_size=<N>m
+ *
+ * The dwarfs FUSE driver runs in the background by default.
+ */
+int bdfs_exec_dwarfs_mount(struct bdfs_daemon *d,
+			   const char *image_path,
+			   const char *mount_point,
+			   uint32_t cache_mb)
+{
+	char cache_opt[64];
+	const char *argv[16];
+	int i = 0;
+
+	snprintf(cache_opt, sizeof(cache_opt), "cache_size=%um",
+		 cache_mb ? cache_mb : 256);
+
+	argv[i++] = d->cfg.dwarfs_bin;
+	argv[i++] = image_path;
+	argv[i++] = mount_point;
+	argv[i++] = "-o"; argv[i++] = cache_opt;
+	argv[i++] = NULL;
+
+	syslog(LOG_INFO, "bdfs: dwarfs mount %s → %s (cache=%um)",
+	       image_path, mount_point, cache_mb);
+
+	return bdfs_exec_wait(argv);
+}
+
+/* ── dwarfs FUSE unmount ────────────────────────────────────────────────── */
+
+int bdfs_exec_dwarfs_umount(struct bdfs_daemon *d,
+			    const char *mount_point)
+{
+	const char *argv[] = {
+		"fusermount", "-u", mount_point, NULL
+	};
+	(void)d;
+
+	syslog(LOG_INFO, "bdfs: fusermount -u %s", mount_point);
+	return bdfs_exec_wait(argv);
+}
+
+/* ── btrfs send ─────────────────────────────────────────────────────────── */
+
+/*
+ * bdfs_exec_btrfs_send - Start a `btrfs send` process and return the read
+ * end of its output pipe.
+ *
+ * The caller is responsible for reading from *pipe_read_fd_out and closing
+ * it when done.  The child process is reaped by the caller via waitpid on
+ * the returned pid (stored in *child_pid_out).
+ *
+ * Equivalent to:
+ *   btrfs send <subvol_path>   (stdout → pipe)
+ */
+int bdfs_exec_btrfs_send(struct bdfs_daemon *d,
+			 const char *subvol_path,
+			 int *pipe_read_fd_out)
+{
+	int pipefd[2];
+	pid_t pid;
+
+	if (pipe2(pipefd, O_CLOEXEC) < 0)
+		return -errno;
+
+	pid = fork();
+	if (pid < 0) {
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return -errno;
+	}
+
+	if (pid == 0) {
+		/* Child: write send stream to pipe write end */
+		close(pipefd[0]);
+		dup2(pipefd[1], STDOUT_FILENO);
+		close(pipefd[1]);
+
+		execlp(d->cfg.btrfs_bin, "btrfs", "send", subvol_path, NULL);
+		_exit(127);
+	}
+
+	/* Parent: return read end */
+	close(pipefd[1]);
+	*pipe_read_fd_out = pipefd[0];
+
+	syslog(LOG_INFO, "bdfs: btrfs send %s (pid=%d)", subvol_path, pid);
+	return (int)pid;
+}
+
+/* ── btrfs receive ──────────────────────────────────────────────────────── */
+
+/*
+ * bdfs_exec_btrfs_receive - Start a `btrfs receive` process reading from
+ * a pipe.
+ *
+ * Equivalent to:
+ *   btrfs receive <dest_dir>   (stdin ← pipe)
+ */
+int bdfs_exec_btrfs_receive(struct bdfs_daemon *d,
+			    const char *dest_dir,
+			    int pipe_read_fd)
+{
+	pid_t pid;
+	int status;
+
+	pid = fork();
+	if (pid < 0)
+		return -errno;
+
+	if (pid == 0) {
+		dup2(pipe_read_fd, STDIN_FILENO);
+		execlp(d->cfg.btrfs_bin, "btrfs", "receive", dest_dir, NULL);
+		_exit(127);
+	}
+
+	if (waitpid(pid, &status, 0) < 0)
+		return -errno;
+
+	syslog(LOG_INFO, "bdfs: btrfs receive %s (exit=%d)",
+	       dest_dir, WEXITSTATUS(status));
+
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -EIO;
+}
+
+/* ── btrfs subvolume snapshot ───────────────────────────────────────────── */
+
+int bdfs_exec_btrfs_snapshot(struct bdfs_daemon *d,
+			     const char *source_subvol,
+			     const char *dest_path,
+			     bool readonly)
+{
+	const char *argv[8];
+	int i = 0;
+
+	argv[i++] = d->cfg.btrfs_bin;
+	argv[i++] = "subvolume";
+	argv[i++] = "snapshot";
+	if (readonly)
+		argv[i++] = "-r";
+	argv[i++] = source_subvol;
+	argv[i++] = dest_path;
+	argv[i++] = NULL;
+
+	syslog(LOG_INFO, "bdfs: btrfs snapshot %s → %s (ro=%d)",
+	       source_subvol, dest_path, readonly);
+	return bdfs_exec_wait(argv);
+}
+
+/* ── btrfs subvolume create ─────────────────────────────────────────────── */
+
+int bdfs_exec_btrfs_subvol_create(struct bdfs_daemon *d, const char *path)
+{
+	const char *argv[] = {
+		d->cfg.btrfs_bin, "subvolume", "create", path, NULL
+	};
+
+	syslog(LOG_INFO, "bdfs: btrfs subvolume create %s", path);
+	return bdfs_exec_wait(argv);
+}
+
+/* ── btrfs subvolume delete ─────────────────────────────────────────────── */
+
+int bdfs_exec_btrfs_subvol_delete(struct bdfs_daemon *d, const char *path)
+{
+	const char *argv[] = {
+		d->cfg.btrfs_bin, "subvolume", "delete", path, NULL
+	};
+
+	syslog(LOG_INFO, "bdfs: btrfs subvolume delete %s", path);
+	return bdfs_exec_wait(argv);
+}
