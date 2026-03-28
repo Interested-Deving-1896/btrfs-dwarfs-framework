@@ -36,6 +36,7 @@
 #include <sys/ioctl.h>
 #include <sys/mount.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 
 #include "bdfs_daemon.h"
 
@@ -85,6 +86,7 @@ int bdfs_job_export_to_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job)
 		int pipe_fd;
 		pid_t send_pid;
 		const char *parent = NULL;
+		int send_status;
 
 		/*
 		 * Incremental export: pass the parent snapshot path to
@@ -107,6 +109,21 @@ int bdfs_job_export_to_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job)
 
 		ret = bdfs_exec_btrfs_receive(d, extract_dir, pipe_fd);
 		close(pipe_fd);
+
+		/*
+		 * Reap the btrfs-send child.  bdfs_exec_btrfs_send_incremental
+		 * returns the pid but does not wait for it; failing to call
+		 * waitpid here would leave a zombie until the daemon exits.
+		 * We wait regardless of whether btrfs-receive succeeded so the
+		 * process table is always cleaned up.
+		 */
+		if (waitpid(send_pid, &send_status, 0) < 0)
+			syslog(LOG_WARNING, "bdfs: export: waitpid send: %m");
+		else if (!WIFEXITED(send_status) || WEXITSTATUS(send_status))
+			syslog(LOG_WARNING,
+			       "bdfs: export: btrfs send exited with status %d",
+			       WIFEXITED(send_status)
+				       ? WEXITSTATUS(send_status) : -1);
 
 		if (ret) {
 			syslog(LOG_ERR, "bdfs: export: btrfs receive failed: %d",
@@ -150,6 +167,27 @@ int bdfs_job_export_to_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job)
 	syslog(LOG_INFO, "bdfs: export complete: subvol %" PRIu64 " → %s",
 	       j->export_to_dwarfs.subvol_id,
 	       j->export_to_dwarfs.image_path);
+
+	/*
+	 * If the caller requested deletion of the source subvolume after a
+	 * successful export (demote-and-free), do it now.  We use the original
+	 * btrfs_mount path as the subvolume to delete.  Failure here is logged
+	 * but does not change the export return code — the image was written
+	 * successfully and the caller can retry the deletion manually.
+	 */
+	if (j->export_to_dwarfs.flags & BDFS_DEMOTE_DELETE_SUBVOL) {
+		int del_ret = bdfs_exec_btrfs_subvol_delete(
+				d, j->export_to_dwarfs.btrfs_mount);
+		if (del_ret)
+			syslog(LOG_WARNING,
+			       "bdfs: export: delete subvol %s failed: %d "
+			       "(image written successfully)",
+			       j->export_to_dwarfs.btrfs_mount, del_ret);
+		else
+			syslog(LOG_INFO, "bdfs: export: deleted source subvol %s",
+			       j->export_to_dwarfs.btrfs_mount);
+	}
+
 	ret = 0;
 
 cleanup:

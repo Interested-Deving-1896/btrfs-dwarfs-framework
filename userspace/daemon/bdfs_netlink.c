@@ -258,12 +258,19 @@ static void bdfs_handle_event(struct bdfs_daemon *d,
 		break;
 	}
 
-	case BDFS_EVT_BLEND_MOUNTED: {
-		job = bdfs_job_alloc(BDFS_JOB_MOUNT_BLEND);
-		if (!job) break;
-		/* blend mount details are in the message */
-		break;
-	}
+	case BDFS_EVT_BLEND_MOUNTED:
+		/*
+		 * This event is a kernel-side notification that a blend mount
+		 * has been registered via BDFS_IOC_MOUNT_BLEND.  The actual
+		 * mount(2) call is performed by bdfs_job_mount_blend(), which
+		 * the daemon dispatches directly in response to the CLI command
+		 * — not in response to this netlink event.  Spawning a second
+		 * mount job here would be redundant and incorrect.
+		 *
+		 * Log the event for observability and return.
+		 */
+		syslog(LOG_INFO, "bdfs: blend mounted: %s", evt->message);
+		return;
 
 	case BDFS_EVT_PARTITION_ADDED:
 	case BDFS_EVT_PARTITION_REMOVED:

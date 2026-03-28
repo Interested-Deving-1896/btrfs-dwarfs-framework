@@ -349,7 +349,7 @@ int bdfs_policy_scan(struct bdfs_policy_engine *pe)
 
 			if (rule->delete_after_demote)
 				job->export_to_dwarfs.flags |=
-					BDFS_EXPORT_INCREMENTAL; /* reuse flag slot */
+					BDFS_DEMOTE_DELETE_SUBVOL;
 
 			bdfs_daemon_enqueue(pe->daemon, job);
 			total_demoted++;
