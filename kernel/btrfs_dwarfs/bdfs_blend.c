@@ -683,13 +683,36 @@ static int bdfs_blend_create(struct mnt_idmap *idmap,
 	if (!bm || !bm->btrfs_mnt)
 		return -EIO;
 
-	/* Resolve the parent directory on the upper layer */
+	/*
+	 * Resolve the parent directory on the BTRFS upper layer.
+	 *
+	 * When the parent blend inode is already on the upper layer we can
+	 * use its cached real_path directly.  When it is a lower-layer inode
+	 * we must look up the full relative path from the BTRFS root so that
+	 * nested directories (e.g. "a/b/c") are resolved correctly — using
+	 * an empty path would land at the BTRFS root instead of the right
+	 * subdirectory.
+	 */
 	if (parent_bi->is_upper) {
 		path_get(&parent_bi->real_path);
 		upper_parent = parent_bi->real_path;
 	} else {
+		char *relpath_buf = kmalloc(PATH_MAX, GFP_KERNEL);
+		char *relpath;
+
+		if (!relpath_buf)
+			return -ENOMEM;
+
+		relpath = bdfs_blend_rel_path(parent_bi->real_path.dentry,
+					      relpath_buf, PATH_MAX);
+		if (IS_ERR(relpath)) {
+			kfree(relpath_buf);
+			return PTR_ERR(relpath);
+		}
+
 		ret = vfs_path_lookup(bm->btrfs_mnt->mnt_root,
-				      bm->btrfs_mnt, "", 0, &upper_parent);
+				      bm->btrfs_mnt, relpath, 0, &upper_parent);
+		kfree(relpath_buf);
 		if (ret)
 			return ret;
 	}
@@ -742,12 +765,27 @@ static int bdfs_blend_mkdir(struct mnt_idmap *idmap,
 	if (!bm || !bm->btrfs_mnt)
 		return -EIO;
 
+	/* See bdfs_blend_create for the rationale behind the lower-layer path. */
 	if (parent_bi->is_upper) {
 		path_get(&parent_bi->real_path);
 		upper_parent = parent_bi->real_path;
 	} else {
+		char *relpath_buf = kmalloc(PATH_MAX, GFP_KERNEL);
+		char *relpath;
+
+		if (!relpath_buf)
+			return -ENOMEM;
+
+		relpath = bdfs_blend_rel_path(parent_bi->real_path.dentry,
+					      relpath_buf, PATH_MAX);
+		if (IS_ERR(relpath)) {
+			kfree(relpath_buf);
+			return PTR_ERR(relpath);
+		}
+
 		ret = vfs_path_lookup(bm->btrfs_mnt->mnt_root,
-				      bm->btrfs_mnt, "", 0, &upper_parent);
+				      bm->btrfs_mnt, relpath, 0, &upper_parent);
+		kfree(relpath_buf);
 		if (ret)
 			return ret;
 	}
@@ -889,12 +927,27 @@ static int bdfs_blend_symlink(struct mnt_idmap *idmap,
 	if (!bm || !bm->btrfs_mnt)
 		return -EIO;
 
+	/* See bdfs_blend_create for the rationale behind the lower-layer path. */
 	if (parent_bi->is_upper) {
 		path_get(&parent_bi->real_path);
 		upper_parent = parent_bi->real_path;
 	} else {
+		char *relpath_buf = kmalloc(PATH_MAX, GFP_KERNEL);
+		char *relpath;
+
+		if (!relpath_buf)
+			return -ENOMEM;
+
+		relpath = bdfs_blend_rel_path(parent_bi->real_path.dentry,
+					      relpath_buf, PATH_MAX);
+		if (IS_ERR(relpath)) {
+			kfree(relpath_buf);
+			return PTR_ERR(relpath);
+		}
+
 		ret = vfs_path_lookup(bm->btrfs_mnt->mnt_root,
-				      bm->btrfs_mnt, "", 0, &upper_parent);
+				      bm->btrfs_mnt, relpath, 0, &upper_parent);
+		kfree(relpath_buf);
 		if (ret)
 			return ret;
 	}
@@ -1148,16 +1201,36 @@ static int bdfs_blend_iterate_shared(struct file *file,
 	if (bm) {
 		list_for_each_entry(layer, &bm->dwarfs_layers, list) {
 			struct path lower_path;
+			char *relpath_buf;
+			char *relpath;
 			int err;
 
 			if (!layer->mnt)
 				continue;
 
-			/* Resolve the same relative path on the lower layer */
+			/*
+			 * Build the full relative path from the layer root to
+			 * this directory (e.g. "usr/share/doc") so that nested
+			 * directories are resolved correctly.  Using only the
+			 * final dentry name component would fail for any
+			 * directory that is not at the top level of the layer.
+			 */
+			relpath_buf = kmalloc(PATH_MAX, GFP_KERNEL);
+			if (!relpath_buf)
+				continue;
+
+			relpath = bdfs_blend_rel_path(bi->real_path.dentry,
+						      relpath_buf, PATH_MAX);
+			if (IS_ERR(relpath)) {
+				kfree(relpath_buf);
+				continue;
+			}
+
 			err = vfs_path_lookup(layer->mnt->mnt_root,
 					      layer->mnt,
-					      bi->real_path.dentry->d_name.name,
+					      relpath,
 					      0, &lower_path);
+			kfree(relpath_buf);
 			if (err)
 				continue;
 
