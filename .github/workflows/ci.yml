@@ -268,9 +268,9 @@ jobs:
 
       - name: Check formatting
         run: |
+          # Use .clang-format file; BasedOnStyle: Linux was removed in clang-format 14+
           find kernel userspace include -name '*.c' -o -name '*.h' | \
-            xargs clang-format --dry-run --Werror \
-              --style="{BasedOnStyle: Linux, IndentWidth: 8}" \
+            xargs clang-format --dry-run --Werror --style=file \
             2>&1 | head -40 || \
             echo "Format issues found — run 'make fmt' to fix"
           # Non-fatal: formatting is enforced by convention, not hard gate
