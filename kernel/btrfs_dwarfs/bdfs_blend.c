@@ -77,6 +77,63 @@ struct bdfs_dwarfs_layer {
 static DEFINE_MUTEX(bdfs_blend_mounts_lock);
 static LIST_HEAD(bdfs_blend_mounts);
 
+/*
+ * Pending copy-up table — maps (btrfs_uuid, inode_no) → blend inode.
+ *
+ * When bdfs_blend_trigger_copyup() emits a BDFS_EVT_COPYUP_NEEDED event it
+ * registers the waiting blend inode here.  bdfs_copyup_complete() looks up
+ * the inode by (uuid, ino) and calls bdfs_blend_complete_copyup() on it.
+ * This avoids the incorrect ilookup(upper_sb, ino) approach which searched
+ * the wrong superblock.
+ */
+struct bdfs_copyup_entry {
+	struct list_head list;
+	u8               btrfs_uuid[16];
+	u64              inode_no;
+	struct inode    *inode;   /* blend inode; held with ihold() */
+};
+
+static DEFINE_MUTEX(bdfs_copyup_table_lock);
+static LIST_HEAD(bdfs_copyup_table);
+
+static void bdfs_copyup_register(const u8 uuid[16], u64 ino,
+				 struct inode *inode)
+{
+	struct bdfs_copyup_entry *e;
+
+	e = kmalloc(sizeof(*e), GFP_KERNEL);
+	if (!e)
+		return;
+
+	memcpy(e->btrfs_uuid, uuid, 16);
+	e->inode_no = ino;
+	e->inode    = inode;
+	ihold(inode);
+
+	mutex_lock(&bdfs_copyup_table_lock);
+	list_add(&e->list, &bdfs_copyup_table);
+	mutex_unlock(&bdfs_copyup_table_lock);
+}
+
+static struct inode *bdfs_copyup_lookup_and_remove(const u8 uuid[16], u64 ino)
+{
+	struct bdfs_copyup_entry *e, *tmp;
+	struct inode *found = NULL;
+
+	mutex_lock(&bdfs_copyup_table_lock);
+	list_for_each_entry_safe(e, tmp, &bdfs_copyup_table, list) {
+		if (e->inode_no == ino &&
+		    memcmp(e->btrfs_uuid, uuid, 16) == 0) {
+			found = e->inode; /* caller owns the ihold ref */
+			list_del(&e->list);
+			kfree(e);
+			break;
+		}
+	}
+	mutex_unlock(&bdfs_copyup_table_lock);
+	return found;
+}
+
 /* ── Superblock operations ───────────────────────────────────────────────── */
 
 static int bdfs_blend_statfs(struct dentry *dentry, struct kstatfs *buf)
@@ -371,14 +428,65 @@ static int bdfs_blend_trigger_copyup(struct inode *inode,
 	struct bdfs_blend_inode_info *bi = BDFS_I(inode);
 	long timeout;
 
+	/* Register in the copyup table so bdfs_copyup_complete can find us */
+	bdfs_copyup_register(bm->btrfs_uuid, inode->i_ino, inode);
+
 	/*
 	 * Emit the event.  The daemon listens on the netlink socket and will
-	 * start a BDFS_JOB_PROMOTE for this inode.  We encode the inode
-	 * number in object_id so the daemon can correlate the completion.
+	 * start a BDFS_JOB_PROMOTE_COPYUP for this inode.
+	 *
+	 * Message format:
+	 *   "copyup_needed lower=<lower_path> upper=<upper_path>"
+	 *
+	 * lower_path: the real path on the DwarFS FUSE mount (bi->real_path).
+	 * upper_path: the corresponding path on the BTRFS upper layer, derived
+	 *             by replacing the DwarFS mount root with the BTRFS root.
+	 *
+	 * We build the upper path by taking the dentry name relative to the
+	 * DwarFS layer root and appending it to the BTRFS upper mount root.
+	 * For the common case (single-level path) this is exact; for nested
+	 * paths the daemon must walk the dentry chain — we pass the full
+	 * dentry path via d_path() for both layers.
 	 */
-	bdfs_emit_event(BDFS_EVT_SNAPSHOT_CREATED,
-			bm->btrfs_uuid, inode->i_ino,
-			"copyup_needed");
+	{
+		char lower_buf[256] = {0};
+		char upper_buf[256] = {0};
+		char msg[sizeof(((struct bdfs_event *)0)->message)];
+
+		/* Resolve the real lower path */
+		if (bi->real_path.dentry && bi->real_path.mnt) {
+			char *p = d_path(&bi->real_path, lower_buf,
+					 sizeof(lower_buf));
+			if (!IS_ERR(p))
+				memmove(lower_buf, p,
+					strlen(p) + 1);
+		}
+
+		/* Derive the upper path: same relative path under BTRFS root */
+		if (bm->btrfs_mnt && lower_buf[0]) {
+			struct path btrfs_root = {
+				.mnt    = bm->btrfs_mnt,
+				.dentry = bm->btrfs_mnt->mnt_root,
+			};
+			char root_buf[256] = {0};
+			char *rp = d_path(&btrfs_root, root_buf,
+					  sizeof(root_buf));
+			if (!IS_ERR(rp)) {
+				/* upper = btrfs_root + basename(lower) */
+				const char *base = strrchr(lower_buf, '/');
+				if (base)
+					snprintf(upper_buf, sizeof(upper_buf),
+						 "%s%s", rp, base);
+			}
+		}
+
+		snprintf(msg, sizeof(msg),
+			 "copyup_needed lower=%s upper=%s",
+			 lower_buf, upper_buf);
+
+		bdfs_emit_event(BDFS_EVT_COPYUP_NEEDED,
+				bm->btrfs_uuid, inode->i_ino, msg);
+	}
 
 	/*
 	 * Wait for the daemon to signal completion.  The daemon calls
@@ -673,26 +781,131 @@ static int bdfs_blend_rename(struct mnt_idmap *idmap,
 			     struct inode *new_dir, struct dentry *new_dentry,
 			     unsigned int flags)
 {
-	struct bdfs_blend_inode_info *src_bi = BDFS_I(d_inode(old_dentry));
-	struct bdfs_blend_inode_info *old_parent_bi = BDFS_I(old_dir);
-	struct bdfs_blend_inode_info *new_parent_bi = BDFS_I(new_dir);
+	struct bdfs_blend_inode_info *src_bi      = BDFS_I(d_inode(old_dentry));
+	struct bdfs_blend_inode_info *old_par_bi  = BDFS_I(old_dir);
+	struct bdfs_blend_inode_info *new_par_bi  = BDFS_I(new_dir);
+	struct dentry *real_new_dentry;
+	int ret;
 
 	if (!src_bi->is_upper)
 		return -EPERM;
 
-	if (!old_parent_bi->is_upper || !new_parent_bi->is_upper)
+	if (!old_par_bi->is_upper || !new_par_bi->is_upper)
 		return -EPERM;
 
-	return vfs_rename(idmap,
-			  &(struct renamedata){
+	/*
+	 * new_dentry is a blend-layer dentry.  We must look up the
+	 * corresponding dentry in the BTRFS upper layer so vfs_rename
+	 * operates entirely within one real filesystem.
+	 */
+	real_new_dentry = lookup_one_len(new_dentry->d_name.name,
+					 new_par_bi->real_path.dentry,
+					 new_dentry->d_name.len);
+	if (IS_ERR(real_new_dentry))
+		return PTR_ERR(real_new_dentry);
+
+	ret = vfs_rename(idmap,
+			 &(struct renamedata){
 				.old_mnt_idmap = idmap,
-				.old_dir       = d_inode(old_parent_bi->real_path.dentry),
+				.old_dir       = d_inode(old_par_bi->real_path.dentry),
 				.old_dentry    = src_bi->real_path.dentry,
 				.new_mnt_idmap = idmap,
-				.new_dir       = d_inode(new_parent_bi->real_path.dentry),
-				.new_dentry    = new_dentry,
+				.new_dir       = d_inode(new_par_bi->real_path.dentry),
+				.new_dentry    = real_new_dentry,
 				.flags         = flags,
-			  });
+			 });
+
+	dput(real_new_dentry);
+	return ret;
+}
+
+/*
+ * bdfs_blend_symlink - Create a symbolic link on the BTRFS upper layer.
+ */
+static int bdfs_blend_symlink(struct mnt_idmap *idmap,
+			      struct inode *dir, struct dentry *dentry,
+			      const char *symname)
+{
+	struct super_block *sb = dir->i_sb;
+	struct bdfs_blend_mount *bm = sb->s_fs_info;
+	struct bdfs_blend_inode_info *parent_bi = BDFS_I(dir);
+	struct path upper_parent;
+	struct dentry *upper_dentry;
+	struct inode *new_inode;
+	int ret;
+
+	if (!bm || !bm->btrfs_mnt)
+		return -EIO;
+
+	if (parent_bi->is_upper) {
+		path_get(&parent_bi->real_path);
+		upper_parent = parent_bi->real_path;
+	} else {
+		ret = vfs_path_lookup(bm->btrfs_mnt->mnt_root,
+				      bm->btrfs_mnt, "", 0, &upper_parent);
+		if (ret)
+			return ret;
+	}
+
+	upper_dentry = lookup_one_len(dentry->d_name.name,
+				      upper_parent.dentry,
+				      dentry->d_name.len);
+	if (IS_ERR(upper_dentry)) {
+		path_put(&upper_parent);
+		return PTR_ERR(upper_dentry);
+	}
+
+	ret = vfs_symlink(idmap, d_inode(upper_parent.dentry),
+			  upper_dentry, symname);
+	if (ret) {
+		dput(upper_dentry);
+		path_put(&upper_parent);
+		return ret;
+	}
+
+	struct path new_path = { .mnt = upper_parent.mnt,
+				 .dentry = upper_dentry };
+	new_inode = bdfs_blend_make_inode(sb, &new_path, true);
+	dput(upper_dentry);
+	path_put(&upper_parent);
+
+	if (!new_inode)
+		return -ENOMEM;
+
+	d_instantiate(dentry, new_inode);
+	return 0;
+}
+
+/*
+ * bdfs_blend_link - Create a hard link on the BTRFS upper layer.
+ *
+ * Both the source inode and the target directory must be on the upper layer.
+ * Linking a lower-layer inode requires a prior promote.
+ */
+static int bdfs_blend_link(struct dentry *old_dentry, struct inode *dir,
+			   struct dentry *new_dentry)
+{
+	struct bdfs_blend_inode_info *src_bi    = BDFS_I(d_inode(old_dentry));
+	struct bdfs_blend_inode_info *parent_bi = BDFS_I(dir);
+	struct dentry *real_new_dentry;
+	struct mnt_idmap *idmap;
+	int ret;
+
+	if (!src_bi->is_upper || !parent_bi->is_upper)
+		return -EPERM;
+
+	real_new_dentry = lookup_one_len(new_dentry->d_name.name,
+					 parent_bi->real_path.dentry,
+					 new_dentry->d_name.len);
+	if (IS_ERR(real_new_dentry))
+		return PTR_ERR(real_new_dentry);
+
+	idmap = mnt_idmap(src_bi->real_path.mnt);
+	ret = vfs_link(src_bi->real_path.dentry, idmap,
+		       d_inode(parent_bi->real_path.dentry),
+		       real_new_dentry, NULL);
+	dput(real_new_dentry);
+	return ret;
 }
 
 /*
@@ -774,6 +987,8 @@ static const struct inode_operations bdfs_blend_dir_iops = {
 	.unlink  = bdfs_blend_unlink,
 	.rmdir   = bdfs_blend_rmdir,
 	.rename  = bdfs_blend_rename,
+	.symlink = bdfs_blend_symlink,
+	.link    = bdfs_blend_link,
 };
 
 /* ── Filesystem type registration ───────────────────────────────────────── */

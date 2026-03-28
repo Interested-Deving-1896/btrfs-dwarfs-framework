@@ -35,6 +35,7 @@
 #include <sys/sendfile.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
+#include <sys/time.h>
 
 #include "bdfs_daemon.h"
 
@@ -253,10 +254,14 @@ int bdfs_job_mount_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job)
 		j->mount_dwarfs.mount_point,
 		j->mount_dwarfs.cache_size_mb);
 
-	if (ret == 0)
+	if (ret == 0) {
 		syslog(LOG_INFO, "bdfs: mounted %s at %s",
 		       j->mount_dwarfs.image_path,
 		       j->mount_dwarfs.mount_point);
+		bdfs_mount_track(d, BDFS_MNT_DWARFS,
+				 j->partition_uuid, j->object_id,
+				 j->mount_dwarfs.mount_point);
+	}
 	return ret;
 }
 
@@ -264,7 +269,10 @@ int bdfs_job_mount_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job)
 
 int bdfs_job_umount_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job)
 {
-	return bdfs_exec_dwarfs_umount(d, job->umount_dwarfs.mount_point);
+	int ret = bdfs_exec_dwarfs_umount(d, job->umount_dwarfs.mount_point);
+	if (ret == 0)
+		bdfs_mount_untrack(d, job->umount_dwarfs.mount_point);
+	return ret;
 }
 
 /* ── Store DwarFS image onto BTRFS partition ────────────────────────────── */
@@ -360,6 +368,25 @@ int bdfs_job_snapshot_container(struct bdfs_daemon *d, struct bdfs_job *job)
 		j->snapshot_container.subvol_path,
 		j->snapshot_container.snapshot_path,
 		readonly);
+}
+
+/* ── Unmount blend layer ────────────────────────────────────────────────── */
+
+int bdfs_job_umount_blend(struct bdfs_daemon *d, struct bdfs_job *job)
+{
+	const struct bdfs_job *j = job;
+	const char *mnt = j->mount_blend.blend_mount;
+	int ret;
+
+	ret = umount2(mnt, MNT_DETACH);
+	if (ret < 0) {
+		syslog(LOG_ERR, "bdfs: blend umount %s: %m", mnt);
+		return -errno;
+	}
+
+	syslog(LOG_INFO, "bdfs: blend unmounted: %s", mnt);
+	bdfs_mount_untrack(d, mnt);
+	return 0;
 }
 
 /* ── Copy-up: promote DwarFS file to BTRFS upper layer ──────────────────── */
@@ -526,5 +553,8 @@ int bdfs_job_mount_blend(struct bdfs_daemon *d, struct bdfs_job *job)
 
 	syslog(LOG_INFO, "bdfs: blend mounted at %s",
 	       j->mount_blend.blend_mount);
+	bdfs_mount_track(d, BDFS_MNT_BLEND,
+			 j->partition_uuid, 0,
+			 j->mount_blend.blend_mount);
 	return 0;
 }

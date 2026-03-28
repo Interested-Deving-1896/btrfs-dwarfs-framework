@@ -105,6 +105,13 @@ int bdfs_blend_umount(void __user *uarg);
 void bdfs_blend_complete_copyup(struct inode *inode,
 				const struct path *upper_path);
 
+/*
+ * Look up and remove a pending copy-up entry by (btrfs_uuid, inode_no).
+ * Returns the blend inode with an ihold() reference, or NULL if not found.
+ * The caller must iput() the returned inode when done.
+ */
+struct inode *bdfs_copyup_lookup_and_remove(const u8 uuid[16], u64 ino);
+
 /* ── Partition list helpers (bdfs_main.c) ────────────────────────────── */
 
 int bdfs_list_partitions(void __user *uarg,

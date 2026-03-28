@@ -25,8 +25,29 @@
 #include <fnmatch.h>
 #include <syslog.h>
 #include <time.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
+
+/*
+ * BTRFS_IOC_SUBVOL_GETFLAGS and BTRFS_IOC_QUOTA_RESCAN_STATUS are in
+ * <linux/btrfs.h>.  BTRFS_IOC_TREE_SEARCH_V2 (used for qgroup accounting)
+ * is in <linux/btrfs_tree.h>.  We include both defensively; on kernels
+ * where btrfs_tree.h is absent we fall back to the du-based estimate.
+ */
+#ifdef __has_include
+#  if __has_include(<linux/btrfs.h>)
+#    include <linux/btrfs.h>
+#    define HAVE_BTRFS_IOCTL 1
+#  endif
+#  if __has_include(<linux/btrfs_tree.h>)
+#    include <linux/btrfs_tree.h>
+#  endif
+#else
+#  include <linux/btrfs.h>
+#  define HAVE_BTRFS_IOCTL 1
+#endif
 
 #include "bdfs_policy.h"
 
@@ -71,22 +92,101 @@ static time_t subvol_last_access(const char *path)
 }
 
 /*
- * subvol_size_bytes - Return the apparent size of a subvolume directory
- * using du(1).  Returns 0 on failure.
+ * subvol_size_bytes - Return the exclusive disk usage of a BTRFS subvolume.
+ *
+ * Uses BTRFS_IOC_TREE_SEARCH_V2 to query qgroup accounting for the
+ * subvolume's exclusive bytes (accurate for CoW-shared extents).
+ *
+ * Falls back to an nftw()-based directory walk when:
+ *   - BTRFS ioctl headers are unavailable at compile time, or
+ *   - Qgroups are not enabled on the filesystem.
+ *
+ * The walk-based fallback sums st_blocks * 512 and over-counts shared
+ * extents, making it a conservative upper bound for the demote threshold.
  */
+
+#ifdef HAVE_BTRFS_IOCTL
+
+static uint64_t btrfs_get_subvol_id(int fd)
+{
+	struct btrfs_ioctl_ino_lookup_args args;
+	memset(&args, 0, sizeof(args));
+	args.treeid   = 0;
+	args.objectid = BTRFS_FIRST_FREE_OBJECTID;
+	if (ioctl(fd, BTRFS_IOC_INO_LOOKUP, &args) < 0)
+		return 0;
+	return args.treeid;
+}
+
+static uint64_t btrfs_qgroup_exclusive(int fd, uint64_t subvol_id)
+{
+	struct {
+		struct btrfs_ioctl_search_args_v2 hdr;
+		char buf[4096];
+	} args;
+
+	memset(&args, 0, sizeof(args));
+	args.hdr.key.tree_id      = BTRFS_QUOTA_TREE_OBJECTID;
+	args.hdr.key.min_objectid = subvol_id;
+	args.hdr.key.max_objectid = subvol_id;
+	args.hdr.key.min_type     = BTRFS_QGROUP_INFO_KEY;
+	args.hdr.key.max_type     = BTRFS_QGROUP_INFO_KEY;
+	args.hdr.key.min_offset   = 0;
+	args.hdr.key.max_offset   = UINT64_MAX;
+	args.hdr.key.min_transid  = 0;
+	args.hdr.key.max_transid  = UINT64_MAX;
+	args.hdr.key.nr_items     = 1;
+	args.hdr.buf_size         = sizeof(args.buf);
+
+	if (ioctl(fd, BTRFS_IOC_TREE_SEARCH_V2, &args) < 0)
+		return UINT64_MAX;
+
+	if (args.hdr.key.nr_items == 0)
+		return UINT64_MAX;
+
+	struct btrfs_ioctl_search_header *sh =
+		(struct btrfs_ioctl_search_header *)args.buf;
+	if (sh->type != BTRFS_QGROUP_INFO_KEY)
+		return UINT64_MAX;
+
+	struct btrfs_qgroup_info_item *qi =
+		(struct btrfs_qgroup_info_item *)(sh + 1);
+	return le64_to_cpu(qi->exclusive);
+}
+
+#endif /* HAVE_BTRFS_IOCTL */
+
+#include <ftw.h>
+static uint64_t g_walk_bytes;
+static int walk_add_size(const char *fpath, const struct stat *sb,
+			 int typeflag, struct FTW *ftwbuf)
+{
+	(void)fpath; (void)typeflag; (void)ftwbuf;
+	if (S_ISREG(sb->st_mode))
+		g_walk_bytes += (uint64_t)sb->st_blocks * 512;
+	return 0;
+}
+
 static uint64_t subvol_size_bytes(const char *path)
 {
-	char cmd[BDFS_PATH_MAX + 32];
-	FILE *fp;
-	uint64_t kb = 0;
-
-	snprintf(cmd, sizeof(cmd), "du -sk %s 2>/dev/null", path);
-	fp = popen(cmd, "r");
-	if (!fp)
-		return 0;
-	fscanf(fp, "%llu", (unsigned long long *)&kb);
-	pclose(fp);
-	return kb * 1024;
+#ifdef HAVE_BTRFS_IOCTL
+	int fd = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	if (fd >= 0) {
+		uint64_t subvol_id = btrfs_get_subvol_id(fd);
+		if (subvol_id != 0) {
+			uint64_t excl = btrfs_qgroup_exclusive(fd, subvol_id);
+			close(fd);
+			if (excl != UINT64_MAX)
+				return excl;
+		} else {
+			close(fd);
+		}
+	}
+#endif
+	/* Fallback: directory walk */
+	g_walk_bytes = 0;
+	nftw(path, walk_add_size, 64, FTW_PHYS | FTW_MOUNT);
+	return g_walk_bytes;
 }
 
 /* ── Rule matching ───────────────────────────────────────────────────────── */

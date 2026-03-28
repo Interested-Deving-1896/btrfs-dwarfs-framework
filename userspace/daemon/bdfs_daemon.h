@@ -132,6 +132,27 @@ struct bdfs_job {
 
 TAILQ_HEAD(bdfs_job_queue, bdfs_job);
 
+/*
+ * Active FUSE / blend mount tracking.
+ *
+ * The daemon records every DwarFS FUSE mount and blend mount it manages so
+ * it can unmount them cleanly on shutdown and answer status queries.
+ */
+enum bdfs_mount_type {
+	BDFS_MNT_DWARFS = 1,   /* DwarFS FUSE mount */
+	BDFS_MNT_BLEND  = 2,   /* bdfs_blend overlay */
+};
+
+struct bdfs_mount_entry {
+	TAILQ_ENTRY(bdfs_mount_entry) entry;
+	enum bdfs_mount_type  type;
+	uint8_t               partition_uuid[16];
+	uint64_t              image_id;           /* DwarFS mounts only */
+	char                  mount_point[BDFS_PATH_MAX];
+};
+
+TAILQ_HEAD(bdfs_mount_table, bdfs_mount_entry);
+
 /* Daemon global state */
 struct bdfs_daemon {
 	struct bdfs_daemon_config   cfg;
@@ -147,9 +168,9 @@ struct bdfs_daemon {
 	pthread_cond_t              queue_cond;
 	bool                        shutdown;
 
-	/* Active FUSE mounts tracked by the daemon */
+	/* Active FUSE / blend mounts tracked by the daemon */
 	pthread_mutex_t             mounts_lock;
-	struct bdfs_mount_table    *mounts;
+	struct bdfs_mount_table     mounts;        /* embedded, not a pointer */
 
 	/* Auto-demote policy engine (started after init) */
 	struct bdfs_policy_engine  *policy;
@@ -175,7 +196,15 @@ int bdfs_job_umount_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job);
 int bdfs_job_store_image(struct bdfs_daemon *d, struct bdfs_job *job);
 int bdfs_job_snapshot_container(struct bdfs_daemon *d, struct bdfs_job *job);
 int bdfs_job_mount_blend(struct bdfs_daemon *d, struct bdfs_job *job);
+int bdfs_job_umount_blend(struct bdfs_daemon *d, struct bdfs_job *job);
 int bdfs_job_promote_copyup(struct bdfs_daemon *d, struct bdfs_job *job);
+
+/* mount table helpers */
+void bdfs_mount_track(struct bdfs_daemon *d, enum bdfs_mount_type type,
+		      const uint8_t uuid[16], uint64_t image_id,
+		      const char *mount_point);
+void bdfs_mount_untrack(struct bdfs_daemon *d, const char *mount_point);
+int  bdfs_mount_count(struct bdfs_daemon *d);
 
 /* netlink event listener (bdfs_netlink.c) */
 int  bdfs_netlink_init(struct bdfs_daemon *d);

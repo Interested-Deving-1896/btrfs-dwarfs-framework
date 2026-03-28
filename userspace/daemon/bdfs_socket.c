@@ -124,10 +124,12 @@ static void bdfs_handle_client(struct bdfs_daemon *d, int client_fd)
 			 "{\"status\":0,\"data\":{"
 			 "\"workers\":%d,"
 			 "\"queue_depth\":%d,"
+			 "\"active_mounts\":%d,"
 			 "\"policy_demotes\":%llu,"
 			 "\"policy_last_scan\":%lld"
 			 "}}\n",
 			 d->worker_count, queue_depth,
+			 bdfs_mount_count(d),
 			 (unsigned long long)total_demotes,
 			 (long long)last_scan);
 

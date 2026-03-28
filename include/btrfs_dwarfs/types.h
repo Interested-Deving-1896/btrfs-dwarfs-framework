@@ -150,6 +150,15 @@ enum bdfs_event_type {
 	BDFS_EVT_IMAGE_UNMOUNTED    = 7,
 	BDFS_EVT_BLEND_MOUNTED      = 8,
 	BDFS_EVT_BLEND_UNMOUNTED    = 9,
+	/*
+	 * Emitted by bdfs_blend_open() when a write-mode open is attempted
+	 * on a DwarFS lower-layer inode.  The daemon must copy the file to
+	 * the BTRFS upper layer and call BDFS_IOC_COPYUP_COMPLETE.
+	 * message format: "copyup_needed lower=<path> upper=<path>"
+	 * object_id: blend inode number
+	 * partition_uuid: BTRFS upper layer UUID
+	 */
+	BDFS_EVT_COPYUP_NEEDED      = 10,
 	BDFS_EVT_ERROR              = 255,
 };
 

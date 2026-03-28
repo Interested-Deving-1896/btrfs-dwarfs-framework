@@ -217,13 +217,12 @@ static int bdfs_copyup_complete(void __user *uarg)
 		return ret;
 
 	/*
-	 * Find the blend inode.  We iterate the superblock's inode list
-	 * looking for the inode number the daemon reported.  In a production
-	 * implementation this would use a dedicated hash table keyed on
-	 * (btrfs_uuid, inode_no); for now a linear scan is sufficient since
-	 * concurrent copy-ups are rare.
+	 * Look up the waiting blend inode via the copyup table registered
+	 * in bdfs_blend_trigger_copyup().  This is keyed on (btrfs_uuid,
+	 * inode_no) and lives in the blend superblock — not the BTRFS one —
+	 * so ilookup(upper_sb, ino) would always fail.
 	 */
-	inode = ilookup(upper_path.dentry->d_sb, (unsigned long)arg.inode_no);
+	inode = bdfs_copyup_lookup_and_remove(arg.btrfs_uuid, arg.inode_no);
 	if (!inode) {
 		path_put(&upper_path);
 		return -ENOENT;
@@ -231,7 +230,7 @@ static int bdfs_copyup_complete(void __user *uarg)
 
 	bdfs_blend_complete_copyup(inode, &upper_path);
 
-	iput(inode);
+	iput(inode);   /* release the ihold taken in bdfs_copyup_register */
 	path_put(&upper_path);
 	return 0;
 }

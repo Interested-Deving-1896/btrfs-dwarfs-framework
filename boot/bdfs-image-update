@@ -57,12 +57,13 @@ BDFS_IMAGE_PATH=""        # e.g. /images/system.dwarfs  (relative to BTRFS_PART)
 BDFS_UPDATE_URL=""        # e.g. https://example.com/images/system.dwarfs
 BDFS_UPDATE_CHECKSUM=""   # sha256 hex of the new image (optional inline)
 BDFS_SNAPSHOT_ON_UPDATE=1 # take BTRFS snapshot before rotating
+BDFS_MAX_SNAPSHOTS=10     # 0 = unlimited
 BDFS_GPG_KEYRING="/etc/bdfs/trusted.gpg"
 BDFS_REQUIRE_GPG=0        # set to 1 to make GPG mandatory
 
 if [[ -f "$CONF" ]]; then
     # shellcheck disable=SC1090
-    source <(grep -E '^(image_path|update_url|update_checksum|snapshot_on_update|gpg_keyring|require_gpg)' \
+    source <(grep -E '^(image_path|update_url|update_checksum|snapshot_on_update|max_snapshots|gpg_keyring|require_gpg)' \
              "$CONF" | sed 's/^/BDFS_/' | tr '[:lower:]' '[:upper:]' | \
              sed 's/ *= */=/')
 fi
@@ -242,7 +243,6 @@ fi
 # ── BTRFS snapshot before rotation ───────────────────────────────────────
 
 if [[ "$BDFS_SNAPSHOT_ON_UPDATE" -eq 1 ]]; then
-    IMAGES_DIR=$(dirname "$CURRENT_IMAGE")
     IMAGES_SUBVOL=$(dirname "$BDFS_IMAGE_PATH")
     SNAP_NAME="${IMAGES_SUBVOL}_snap_$(date +%Y%m%d_%H%M%S)"
     SNAP_PATH="${BTRFS_PART}${SNAP_NAME}"
@@ -255,6 +255,43 @@ if [[ "$BDFS_SNAPSHOT_ON_UPDATE" -eq 1 ]]; then
         "$SNAP_PATH" 2>/dev/null \
         && log "Snapshot created: $SNAP_PATH" \
         || warn "Snapshot failed (non-fatal)"
+
+    # ── Prune old snapshots ───────────────────────────────────────────────
+    #
+    # List all snapshots matching the naming pattern
+    # "<images_subvol>_snap_<timestamp>" sorted oldest-first, then delete
+    # any beyond the BDFS_MAX_SNAPSHOTS limit.
+    #
+    # We use `btrfs subvolume list` to enumerate subvolumes and filter by
+    # the snapshot prefix.  Deletion is skipped when MAX_SNAPSHOTS is 0.
+
+    if [[ "${BDFS_MAX_SNAPSHOTS:-10}" -gt 0 ]]; then
+        SNAP_PREFIX="${IMAGES_SUBVOL}_snap_"
+
+        # Collect snapshot paths sorted by creation time (name encodes timestamp)
+        mapfile -t ALL_SNAPS < <(
+            btrfs subvolume list -s --sort=gen "${BTRFS_PART}" 2>/dev/null \
+            | awk '{print $NF}' \
+            | grep "^${SNAP_PREFIX#/}" \
+            | sed "s|^|${BTRFS_PART}/|"
+        )
+
+        SNAP_COUNT=${#ALL_SNAPS[@]}
+        MAX="${BDFS_MAX_SNAPSHOTS:-10}"
+
+        if [[ "$SNAP_COUNT" -gt "$MAX" ]]; then
+            TO_DELETE=$(( SNAP_COUNT - MAX ))
+            log "Pruning $TO_DELETE old snapshot(s) (keeping $MAX of $SNAP_COUNT)"
+            for (( i=0; i<TO_DELETE; i++ )); do
+                SNAP_TO_DEL="${ALL_SNAPS[$i]}"
+                if btrfs subvolume delete "$SNAP_TO_DEL" 2>/dev/null; then
+                    log "Deleted old snapshot: $SNAP_TO_DEL"
+                else
+                    warn "Failed to delete snapshot: $SNAP_TO_DEL (non-fatal)"
+                fi
+            done
+        fi
+    fi
 fi
 
 # ── Rotate: current → .prev, new → current ───────────────────────────────

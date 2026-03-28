@@ -177,61 +177,84 @@ static void bdfs_handle_event(struct bdfs_daemon *d,
 
 	case BDFS_EVT_SNAPSHOT_CREATED: {
 		/*
-		 * Two sub-types share this event code:
-		 *
-		 * 1. Copy-up request from bdfs_blend_open():
-		 *    message = "copyup_needed"
-		 *    object_id = blend inode number
-		 *    partition_uuid = BTRFS upper layer UUID
-		 *
-		 * 2. Normal snapshot request:
-		 *    message = "snapshot image_id=<id> snap=<name> readonly=<0|1>"
+		 * Normal snapshot request.
+		 * Message format:
+		 *   "snapshot image_id=<id> snap=<name> readonly=<0|1>"
 		 */
-		if (strncmp(evt->message, "copyup_needed", 13) == 0) {
-			/*
-			 * The kernel is blocked in bdfs_blend_open() waiting
-			 * for this file to be promoted to the BTRFS upper layer.
-			 * Enqueue a BDFS_JOB_PROMOTE_COPYUP job.
-			 *
-			 * The lower_path and upper_path are not available from
-			 * the netlink event alone; the daemon resolves them from
-			 * the inode number via /proc/self/fd or a path cache.
-			 * For now we encode the inode number and let the job
-			 * handler resolve the paths from the blend mount table.
-			 */
-			job = bdfs_job_alloc(BDFS_JOB_PROMOTE_COPYUP);
-			if (!job) break;
+		uint64_t image_id = 0;
+		char snap_name[BDFS_NAME_MAX + 1] = {0};
+		int readonly = 0;
 
-			memcpy(job->promote_copyup.btrfs_uuid,
-			       evt->partition_uuid, 16);
-			job->promote_copyup.inode_no = evt->object_id;
-			/* lower_path / upper_path filled by job handler
-			 * using the blend mount table keyed on btrfs_uuid */
-		} else {
-			/*
-			 * Normal snapshot request.
-			 * Message format:
-			 *   "snapshot image_id=<id> snap=<name> readonly=<0|1>"
-			 */
-			uint64_t image_id = 0;
-			char snap_name[BDFS_NAME_MAX + 1] = {0};
-			int readonly = 0;
+		sscanf(evt->message,
+		       "snapshot image_id=%llu snap=%255s readonly=%d",
+		       &image_id, snap_name, &readonly);
 
-			sscanf(evt->message,
-			       "snapshot image_id=%llu snap=%255s readonly=%d",
-			       &image_id, snap_name, &readonly);
+		job = bdfs_job_alloc(BDFS_JOB_SNAPSHOT_CONTAINER);
+		if (!job) break;
 
-			job = bdfs_job_alloc(BDFS_JOB_SNAPSHOT_CONTAINER);
-			if (!job) break;
+		memcpy(job->partition_uuid, evt->partition_uuid, 16);
+		job->object_id = image_id;
+		job->snapshot_container.flags =
+			readonly ? BDFS_SNAP_READONLY : 0;
+		strncpy(job->snapshot_container.snapshot_path,
+			snap_name,
+			sizeof(job->snapshot_container.snapshot_path) - 1);
+		break;
+	}
 
-			memcpy(job->partition_uuid, evt->partition_uuid, 16);
-			job->object_id = image_id;
-			job->snapshot_container.flags =
-				readonly ? BDFS_SNAP_READONLY : 0;
-			strncpy(job->snapshot_container.snapshot_path,
-				snap_name,
-				sizeof(job->snapshot_container.snapshot_path) - 1);
+	case BDFS_EVT_COPYUP_NEEDED: {
+		/*
+		 * The kernel is blocked in bdfs_blend_open() waiting for a
+		 * DwarFS-backed file to be promoted to the BTRFS upper layer.
+		 *
+		 * Message format:
+		 *   "copyup_needed lower=<path> upper=<path>"
+		 * object_id: blend inode number
+		 * partition_uuid: BTRFS upper layer UUID
+		 */
+		char lower[BDFS_PATH_MAX] = {0};
+		char upper[BDFS_PATH_MAX] = {0};
+		const char *lp, *up;
+
+		lp = strstr(evt->message, "lower=");
+		up = strstr(evt->message, "upper=");
+
+		if (lp) {
+			lp += 6;
+			const char *end = strchr(lp, ' ');
+			size_t len = end ? (size_t)(end - lp)
+					 : strlen(lp);
+			if (len >= sizeof(lower))
+				len = sizeof(lower) - 1;
+			memcpy(lower, lp, len);
 		}
+		if (up) {
+			up += 6;
+			const char *end = strchr(up, ' ');
+			size_t len = end ? (size_t)(end - up)
+					 : strlen(up);
+			if (len >= sizeof(upper))
+				len = sizeof(upper) - 1;
+			memcpy(upper, up, len);
+		}
+
+		if (!lower[0] || !upper[0]) {
+			syslog(LOG_WARNING,
+			       "bdfs: copyup_needed event missing paths: %s",
+			       evt->message);
+			return;
+		}
+
+		job = bdfs_job_alloc(BDFS_JOB_PROMOTE_COPYUP);
+		if (!job) break;
+
+		memcpy(job->promote_copyup.btrfs_uuid,
+		       evt->partition_uuid, 16);
+		job->promote_copyup.inode_no = evt->object_id;
+		strncpy(job->promote_copyup.lower_path, lower,
+			sizeof(job->promote_copyup.lower_path) - 1);
+		strncpy(job->promote_copyup.upper_path, upper,
+			sizeof(job->promote_copyup.upper_path) - 1);
 		break;
 	}
 
@@ -245,6 +268,10 @@ static void bdfs_handle_event(struct bdfs_daemon *d,
 	case BDFS_EVT_PARTITION_ADDED:
 	case BDFS_EVT_PARTITION_REMOVED:
 		syslog(LOG_INFO, "bdfs: partition event type=%u", evt->type);
+		return;
+
+	case BDFS_EVT_BLEND_UNMOUNTED:
+		syslog(LOG_INFO, "bdfs: blend unmounted: %s", evt->message);
 		return;
 
 	case BDFS_EVT_ERROR:

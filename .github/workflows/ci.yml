@@ -63,6 +63,15 @@ jobs:
           cd build/asan
           ctest --output-on-failure --timeout 30
 
+      - name: Run standalone unit tests (policy, socket, exec, copyup)
+        run: |
+          for t in policy_engine socket_dispatch exec_wrappers copyup_job; do
+            gcc -std=gnu11 -Wall -DBDFS_UNIT_TEST \
+              -I include -I include/uapi -I userspace/daemon \
+              tests/unit/test_${t}.c -o /tmp/test_${t}
+            /tmp/test_${t}
+          done
+
       - name: Upload build artefacts
         uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-24.04'
@@ -175,8 +184,14 @@ jobs:
   integration-tests:
     name: Integration tests
     runs-on: ubuntu-24.04
-    # Only run on push to master/main to avoid burning minutes on every PR
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    # Run on every push and on PRs targeting master/main.
+    # The kernel module test skips gracefully when the .ko cannot be built,
+    # so this is safe to run on all branches without burning extra minutes
+    # on unrelated failures.
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' &&
+       (github.base_ref == 'master' || github.base_ref == 'main'))
 
     steps:
       - uses: actions/checkout@v4

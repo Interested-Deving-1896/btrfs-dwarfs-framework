@@ -83,6 +83,9 @@ static void *worker_thread(void *arg)
 		case BDFS_JOB_MOUNT_BLEND:
 			result = bdfs_job_mount_blend(d, job);
 			break;
+		case BDFS_JOB_UMOUNT_BLEND:
+			result = bdfs_job_umount_blend(d, job);
+			break;
 		case BDFS_JOB_PROMOTE_COPYUP:
 			result = bdfs_job_promote_copyup(d, job);
 			break;
@@ -156,8 +159,9 @@ int bdfs_daemon_init(struct bdfs_daemon *d, struct bdfs_daemon_config *cfg)
 		return -errno;
 	}
 
-	/* Initialise job queue */
+	/* Initialise job queue and mount table */
 	TAILQ_INIT(&d->job_queue);
+	TAILQ_INIT(&d->mounts);
 	pthread_mutex_init(&d->queue_lock, NULL);
 	pthread_cond_init(&d->queue_cond, NULL);
 	pthread_mutex_init(&d->mounts_lock, NULL);
@@ -273,9 +277,68 @@ void bdfs_daemon_shutdown(struct bdfs_daemon *d)
 		d->policy = NULL;
 	}
 
+	/* Free mount table entries (mounts were already unmounted by jobs) */
+	pthread_mutex_lock(&d->mounts_lock);
+	{
+		struct bdfs_mount_entry *me, *tmp;
+		TAILQ_FOREACH_SAFE(me, &d->mounts, entry, tmp) {
+			TAILQ_REMOVE(&d->mounts, me, entry);
+			free(me);
+		}
+	}
+	pthread_mutex_unlock(&d->mounts_lock);
+
 	pthread_mutex_destroy(&d->queue_lock);
 	pthread_cond_destroy(&d->queue_cond);
 	pthread_mutex_destroy(&d->mounts_lock);
+}
+
+/* ── Mount table helpers ────────────────────────────────────────────────── */
+
+void bdfs_mount_track(struct bdfs_daemon *d, enum bdfs_mount_type type,
+		      const uint8_t uuid[16], uint64_t image_id,
+		      const char *mount_point)
+{
+	struct bdfs_mount_entry *me = calloc(1, sizeof(*me));
+	if (!me)
+		return;
+
+	me->type     = type;
+	me->image_id = image_id;
+	if (uuid)
+		memcpy(me->partition_uuid, uuid, 16);
+	strncpy(me->mount_point, mount_point, sizeof(me->mount_point) - 1);
+
+	pthread_mutex_lock(&d->mounts_lock);
+	TAILQ_INSERT_TAIL(&d->mounts, me, entry);
+	pthread_mutex_unlock(&d->mounts_lock);
+}
+
+void bdfs_mount_untrack(struct bdfs_daemon *d, const char *mount_point)
+{
+	struct bdfs_mount_entry *me, *tmp;
+
+	pthread_mutex_lock(&d->mounts_lock);
+	TAILQ_FOREACH_SAFE(me, &d->mounts, entry, tmp) {
+		if (strcmp(me->mount_point, mount_point) == 0) {
+			TAILQ_REMOVE(&d->mounts, me, entry);
+			free(me);
+			break;
+		}
+	}
+	pthread_mutex_unlock(&d->mounts_lock);
+}
+
+int bdfs_mount_count(struct bdfs_daemon *d)
+{
+	struct bdfs_mount_entry *me;
+	int n = 0;
+
+	pthread_mutex_lock(&d->mounts_lock);
+	TAILQ_FOREACH(me, &d->mounts, entry)
+		n++;
+	pthread_mutex_unlock(&d->mounts_lock);
+	return n;
 }
 
 /* ── Job allocation ─────────────────────────────────────────────────────── */
