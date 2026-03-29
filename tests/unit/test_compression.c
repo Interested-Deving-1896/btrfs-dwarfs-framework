@@ -8,7 +8,9 @@
 #include <assert.h>
 
 #define main bdfs_cli_main_unused
-#include "../../userspace/cli/bdfs_main.c"
+#ifndef BDFS_CMAKE_BUILD
+#  include "../../userspace/cli/bdfs_main.c"
+#endif
 #undef main
 
 static int tests_run = 0, tests_failed = 0;
