@@ -381,6 +381,7 @@ int bdfs_daemon_enqueue(struct bdfs_daemon *d, struct bdfs_job *job)
 
 /* ── main ───────────────────────────────────────────────────────────────── */
 
+#ifndef BDFS_UNIT_TEST
 int main(int argc, char *argv[])
 {
 	/* Renamed from 'daemon' to avoid shadowing the POSIX daemon(3) function. */
@@ -446,3 +447,4 @@ int main(int argc, char *argv[])
 	closelog();
 	return ret ? 1 : 0;
 }
+#endif /* BDFS_UNIT_TEST */
