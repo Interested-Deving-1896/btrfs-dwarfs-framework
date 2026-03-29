@@ -19,10 +19,14 @@ static int stub_socket_init_called  = 0;
 #define main bdfs_daemon_main_unused
 #define bdfs_netlink_init(d) (stub_netlink_init_called++, (d)->nl_fd = -1, 0)
 #define bdfs_socket_init(d)  (stub_socket_init_called++,  (d)->sock_fd = -1, 0)
-#define open(path, flags) (-1)
-#include "../../userspace/daemon/bdfs_daemon.c"
+/* When building via cmake, bdfs_daemon.c is a separate compilation unit. */
+#ifndef BDFS_CMAKE_BUILD
+#  undef open
+#  define open(path, flags, ...) (-1)
+#  include "../../userspace/daemon/bdfs_daemon.c"
+#  undef open
+#endif
 #undef main
-#undef open
 
 static int tests_run = 0, tests_failed = 0;
 
