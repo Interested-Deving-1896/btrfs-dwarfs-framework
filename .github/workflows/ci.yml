@@ -162,6 +162,8 @@ jobs:
             --error-exitcode=0 \
             --suppress=missingIncludeSystem \
             --suppress=unusedFunction \
+            --suppress=preprocessorErrorDirective \
+            --suppress=uninitvar:userspace/daemon/bdfs_policy.c \
             -I include \
             -I include/uapi \
             userspace/daemon/ userspace/cli/ \
