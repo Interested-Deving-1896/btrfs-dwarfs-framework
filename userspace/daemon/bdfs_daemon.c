@@ -163,11 +163,15 @@ int bdfs_daemon_init(struct bdfs_daemon *d, struct bdfs_daemon_config *cfg)
 	}
 
 	/* Open control device */
+#ifdef BDFS_UNIT_TEST
+	d->ctl_fd = -1; /* stubbed for unit tests */
+#else
 	d->ctl_fd = open(d->cfg.ctl_device, O_RDWR | O_CLOEXEC);
 	if (d->ctl_fd < 0) {
 		syslog(LOG_ERR, "bdfs: cannot open %s: %s", d->cfg.ctl_device, strerror(errno));
 		return -errno;
 	}
+#endif
 
 	/* Initialise job queue and mount table */
 	TAILQ_INIT(&d->job_queue);
