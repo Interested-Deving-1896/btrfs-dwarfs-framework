@@ -9,7 +9,10 @@
 
 /* Pull in the helpers without the full CLI main() */
 #define main bdfs_cli_main_unused
-#ifndef BDFS_CMAKE_BUILD
+#ifdef BDFS_CMAKE_BUILD
+/* cmake build: include header for function declarations */
+#  include "../../userspace/cli/bdfs.h"
+#else
 #  include "../../userspace/cli/bdfs_main.c"
 #endif
 #undef main
