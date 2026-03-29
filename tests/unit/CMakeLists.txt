@@ -14,14 +14,12 @@ include_directories(
 )
 
 # ── test_uuid ────────────────────────────────────────────────────────────────
-add_executable(test_uuid test_uuid.c
-    ../../userspace/cli/bdfs_main.c)
+add_executable(test_uuid test_uuid.c)
 target_compile_definitions(test_uuid PRIVATE BDFS_UNIT_TEST)
 add_test(NAME uuid COMMAND test_uuid)
 
 # ── test_compression_names ───────────────────────────────────────────────────
-add_executable(test_compression test_compression.c
-    ../../userspace/cli/bdfs_main.c)
+add_executable(test_compression test_compression.c)
 target_compile_definitions(test_compression PRIVATE BDFS_UNIT_TEST)
 add_test(NAME compression COMMAND test_compression)
 
