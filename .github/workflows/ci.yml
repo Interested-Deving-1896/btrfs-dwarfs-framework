@@ -1,4 +1,3 @@
-```yaml
 name: CI
 
 on:
@@ -283,4 +282,3 @@ jobs:
             echo "Format issues found — run 'make fmt' to fix"
           # Non-fatal: formatting is enforced by convention, not hard gate
           exit 0
-```
