@@ -4,39 +4,32 @@
 [![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework)
 
 <!-- AI:start:what-it-does -->
-This project provides a hybrid filesystem framework that integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified namespace. It is designed for developers and system administrators who need efficient storage management, combining BTRFS's snapshot capabilities with DwarFS's high compression for read-heavy workloads.
+This project provides a hybrid filesystem framework that integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified namespace. It is designed for users who need efficient storage management and compression, such as system administrators and developers working with large datasets or containerized environments. The framework includes a kernel module, userspace tools, and optional automation for snapshot management.
 <!-- AI:end:what-it-does -->
 
 ## Architecture
 
 <!-- AI:start:architecture -->
-The framework combines BTRFS subvolumes/snapshots with DwarFS compressed images to create a unified filesystem namespace. It uses a layered architecture where BTRFS handles writable subvolumes and snapshots, while DwarFS provides read-only, highly compressed layers. A virtual filesystem layer merges these components, exposing a unified view to the user. The core is implemented in C, with additional scripts for automation and CI workflows. Key components include the BTRFS integration module, the DwarFS mount handler, and the namespace merger. CI workflows automate testing, labeling, and artifact mirroring.
+The framework consists of two primary components: a kernel module and userspace tools. The kernel module integrates with the BTRFS filesystem to enable hybrid functionality, while the userspace tools provide a daemon and CLI for managing the unified namespace and interacting with DwarFS compressed images. The kernel module handles low-level filesystem operations, while the userspace tools manage higher-level tasks such as snapshot creation, compression, and mounting.
+
+The directory structure is organized as follows:
 
 ```plaintext
 .
-├── src
-│   ├── btrfs
-│   │   ├── subvolume.c
-│   │   └── snapshot.c
-│   ├── dwarfs
-│   │   ├── mount.c
-│   │   └── image.c
-│   ├── namespace
-│   │   └── merger.c
-│   └── main.c
-├── include
-│   ├── btrfs.h
-│   ├── dwarfs.h
-│   └── namespace.h
-├── scripts
-│   ├── ci
-│   │   └── ci.yml
-│   ├── labeler.yml
-│   └── trigger-artifact-mirror.yml
-├── tests
-│   └── integration
-└── README.md
+├── kernel/             # Kernel module source code
+├── userspace/          # Userspace tools (daemon, CLI, utilities)
+├── configs/            # Configuration files and templates
+├── tests/              # Unit and integration tests
+├── doc/                # Documentation
+├── tools/              # Helper scripts and utilities
+├── integrations/       # Integration hooks (e.g., GitLab, autosnap)
+├── .github/            # GitHub workflows and CI configurations
+├── .gitlab-ci.yml      # GitLab CI pipeline configuration
+├── Makefile            # Build and installation targets
+└── README.md           # Project overview and usage instructions
 ```
+
+The kernel module and userspace tools communicate via a custom interface to coordinate operations. Optional integrations, such as autosnap hooks, extend functionality for package managers.
 <!-- AI:end:architecture -->
 
 ## Install
@@ -238,7 +231,7 @@ This repository is a mirror. The upstream source can be found at [original/btrfs
 ## Origins
 
 <!-- AI:start:origins -->
-_No dependency graph found. Run `generate-dep-graph.yml` to generate `dep-graph/origins.md`._
+_Original project — no upstream fork._
 <!-- AI:end:origins -->
 
 ## Resources
