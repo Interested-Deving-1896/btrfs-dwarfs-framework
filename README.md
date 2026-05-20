@@ -4,32 +4,32 @@
 [![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework)
 
 <!-- AI:start:what-it-does -->
-This project provides a hybrid filesystem framework that integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified namespace. It is designed for users who need efficient storage management and compression, such as system administrators and developers working with large datasets or containerized environments. The framework includes a kernel module, userspace tools, and optional automation for snapshot management.
+This project provides a hybrid filesystem framework that integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified namespace. It addresses the need for efficient storage and retrieval of large datasets while maintaining snapshot capabilities. It is used by system administrators and developers managing complex storage environments.
 <!-- AI:end:what-it-does -->
 
 ## Architecture
 
 <!-- AI:start:architecture -->
-The framework consists of two primary components: a kernel module and userspace tools. The kernel module integrates with the BTRFS filesystem to enable hybrid functionality, while the userspace tools provide a daemon and CLI for managing the unified namespace and interacting with DwarFS compressed images. The kernel module handles low-level filesystem operations, while the userspace tools manage higher-level tasks such as snapshot creation, compression, and mounting.
+The BTRFS+DwarFS framework consists of two primary components: a kernel module and userspace tools. The kernel module integrates with the BTRFS filesystem to manage subvolumes and snapshots. Userspace tools include a daemon and CLI utilities for managing DwarFS compressed images and providing a unified namespace. The framework also includes optional integration hooks, such as the autosnap package-manager hook for automated snapshot creation.
 
 The directory structure is organized as follows:
 
 ```plaintext
 .
-├── kernel/             # Kernel module source code
-├── userspace/          # Userspace tools (daemon, CLI, utilities)
-├── configs/            # Configuration files and templates
-├── tests/              # Unit and integration tests
-├── doc/                # Documentation
-├── tools/              # Helper scripts and utilities
-├── integrations/       # Integration hooks (e.g., GitLab, autosnap)
-├── .github/            # GitHub workflows and CI configurations
-├── .gitlab-ci.yml      # GitLab CI pipeline configuration
-├── Makefile            # Build and installation targets
-└── README.md           # Project overview and usage instructions
+├── kernel/          # Kernel module source code
+├── userspace/       # Userspace tools (daemon, CLI)
+├── integrations/    # Optional integrations (e.g., GitLab, autosnap)
+├── scripts/         # Helper scripts for build and deployment
+├── configs/         # Configuration files for runtime behavior
+├── tests/           # Unit and integration tests
+├── doc/             # Documentation
+├── tools/           # Additional utilities
+├── LICENSE          # License file
+├── Makefile         # Build and installation instructions
+└── README.md        # Project documentation
 ```
 
-The kernel module and userspace tools communicate via a custom interface to coordinate operations. Optional integrations, such as autosnap hooks, extend functionality for package managers.
+The kernel module communicates with the userspace daemon via a custom interface to synchronize BTRFS subvolume operations with DwarFS image management. The userspace tools handle mounting, unmounting, and namespace operations. Optional integrations, such as autosnap, extend functionality for specific use cases.
 <!-- AI:end:architecture -->
 
 ## Install
@@ -197,11 +197,13 @@ bdfs status --json
 ## CI
 
 <!-- AI:start:ci -->
-- **ci.yml**: Runs build and test jobs for the framework on supported platforms. Verifies code compiles and passes all tests. No secrets required.
-
-- **labeler.yml**: Automatically applies labels to pull requests based on file changes. Uses `.github/labeler.yml` for configuration. No secrets required.
-
-- **trigger-artifact-mirror.yml**: Triggers an external artifact mirroring process. Requires the `MIRROR_API_TOKEN` secret for authentication with the external service.
+- **ci.yml**: Runs unit tests (`make check`) and integration tests (`make test`) on supported platforms. No secrets required.
+- **cleanup-branches.yml**: Deletes stale branches in the repository. Requires `GITHUB_TOKEN` secret.
+- **mirror-artifacts.yml**: Syncs build artifacts to external storage. Requires `ARTIFACT_STORAGE_KEY` and `ARTIFACT_STORAGE_SECRET` secrets.
+- **rate-limit-status.yml**: Monitors API rate limits and logs usage. No secrets required.
+- **rotate-token.yml**: Rotates access tokens for external integrations. Requires `ADMIN_TOKEN` secret.
+- **sync-btrfs-devel-branches.yml**: Syncs development branches with upstream repositories. Requires `GITHUB_TOKEN` secret.
+- **validate-config.yml**: Validates YAML configuration files in the repository. No secrets required.
 <!-- AI:end:ci -->
 
 ## Mirror chain
@@ -221,11 +223,10 @@ Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-
 ## Contributors
 
 <!-- AI:start:contributors -->
-- [Interested-Deving-1896](https://github.com/Interested-Deving-1896) - 42 commits  
-- [TechGuru42](https://github.com/TechGuru42) - 15 commits  
-- [CodeCrafter88](https://github.com/CodeCrafter88) - 8 commits  
+- [@Interested-Deving-1896](https://github.com/Interested-Deving-1896): 155 commits  
+- [@ona-agent](https://github.com/ona-agent): 1 commit  
 
-This repository is a mirror. The upstream source can be found at [original/btrfs-dwarfs-framework](https://github.com/original/btrfs-dwarfs-framework).
+*Note: This repository is a mirror. Please refer to the upstream source for the original project.*
 <!-- AI:end:contributors -->
 
 ## Origins
