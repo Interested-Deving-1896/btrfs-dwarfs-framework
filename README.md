@@ -237,11 +237,14 @@ _Original project — no upstream fork._
 ## Resources
 
 <!-- AI:start:resources -->
-_No additional resource files found._
+| File | Description |
+|---|---|
+| [.gitlab/merge_request_templates/Default.md](https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework/blob/main/.gitlab/merge_request_templates/Default.md) | GitLab MR template |
+| [config/gitlab-subgroups.yml](https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework/blob/main/config/gitlab-subgroups.yml) | GitLab subgroup map |
 <!-- AI:end:resources -->
 
 ## License
 
 <!-- AI:start:license -->
-<!-- License not detected — add a LICENSE file to this repo. -->
+[MIT](https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework/blob/master/LICENSE) © 2026 [Interested-Deving-1896](https://github.com/Interested-Deving-1896)
 <!-- AI:end:license -->
