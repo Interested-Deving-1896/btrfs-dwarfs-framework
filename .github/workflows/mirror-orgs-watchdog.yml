@@ -67,7 +67,8 @@ jobs:
           echo "Retrying ${TARGET}..."
           gh workflow run "$TARGET" \
             --repo ${{ github.repository }} \
-            --ref main
+            --ref main \
+            --token $GH_TOKEN
           echo "Retry triggered."
 
       - name: Write summary
