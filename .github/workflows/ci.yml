@@ -217,7 +217,7 @@ jobs:
             sudo install -m755 dwarfs-universal-*/sbin/mkdwarfs     /usr/local/bin/mkdwarfs
             sudo install -m755 dwarfs-universal-*/sbin/dwarfs       /usr/local/bin/dwarfs
             sudo install -m755 dwarfs-universal-*/sbin/dwarfsextract /usr/local/bin/dwarfsextract
-            sudo install -m755 dwarfs-universal-*/sbin/dwarfsck     /usr/local/bin/dwarfsck
+            sudo install -m755 dwarfs-universal-*/sbin/dwarsck     /usr/local/bin/dwarsck
             echo "DwarFS tools installed"
           else
             echo "DwarFS release not available for this arch/version — skipping integration tests"
