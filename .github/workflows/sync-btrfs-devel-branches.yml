@@ -35,6 +35,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Update master branch
+        run: |
+          git fetch origin master
+          git checkout master
+          git pull origin master
+
       - name: Sync btrfs-devel branches into linux-merge
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
