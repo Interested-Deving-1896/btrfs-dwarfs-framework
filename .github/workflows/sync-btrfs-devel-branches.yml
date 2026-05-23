@@ -25,6 +25,7 @@ on:
 
 permissions:
   contents: write  # Changed from read to write
+  pull-requests: write  # Added permission for pull requests
 
 jobs:
   sync:
