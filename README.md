@@ -10,26 +10,30 @@ This project provides a hybrid filesystem framework that integrates BTRFS subvol
 ## Architecture
 
 <!-- AI:start:architecture -->
-The BTRFS+DwarFS framework consists of two primary components: a kernel module and userspace tools. The kernel module integrates with the BTRFS filesystem to manage subvolumes and snapshots. Userspace tools include a daemon and CLI utilities for managing DwarFS compressed images and providing a unified namespace. The framework also includes optional integration hooks, such as the autosnap package-manager hook for automated snapshot creation.
+The BTRFS+DwarFS framework integrates BTRFS subvolumes and snapshots with DwarFS compressed images, creating a unified filesystem namespace. The architecture consists of three main components:
 
-The directory structure is organized as follows:
+1. **BTRFS Subvolume Manager**: Handles creation, deletion, and management of BTRFS subvolumes and snapshots.
+2. **DwarFS Image Handler**: Manages mounting and unmounting of DwarFS compressed images, ensuring efficient storage and access.
+3. **Namespace Orchestrator**: Provides a unified view by overlaying BTRFS subvolumes and DwarFS images, resolving conflicts and ensuring seamless access.
+
+The components interact through shell scripts and configuration files, with workflows defined in CI/CD pipelines for automation. The directory structure is organized as follows:
 
 ```plaintext
 .
-├── kernel/          # Kernel module source code
-├── userspace/       # Userspace tools (daemon, CLI)
-├── integrations/    # Optional integrations (e.g., GitLab, autosnap)
-├── scripts/         # Helper scripts for build and deployment
-├── configs/         # Configuration files for runtime behavior
-├── tests/           # Unit and integration tests
-├── doc/             # Documentation
-├── tools/           # Additional utilities
-├── LICENSE          # License file
-├── Makefile         # Build and installation instructions
-└── README.md        # Project documentation
+├── bin/                  # Executable scripts
+├── cmd/                  # Command-line tools
+├── config/               # Configuration files
+├── doc/                  # Documentation
+├── examples/             # Example configurations and usage
+├── include/              # Header files
+├── scripts/              # Helper scripts
+├── workflows/            # CI/CD workflow definitions
+├── LICENSE               # License file
+├── README.md             # Project documentation
+└── install.sh            # Installation script
 ```
 
-The kernel module communicates with the userspace daemon via a custom interface to synchronize BTRFS subvolume operations with DwarFS image management. The userspace tools handle mounting, unmounting, and namespace operations. Optional integrations, such as autosnap, extend functionality for specific use cases.
+The framework relies on shell scripting for core functionality and integrates with CI/CD systems for automated tasks.
 <!-- AI:end:architecture -->
 
 ## Install
