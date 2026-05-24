@@ -113,7 +113,7 @@ workspace_set() {
         sed -i "s|^${key}=.*|${key}=${value}|" "$meta"
     else
         echo "${key}=${value}" >> "$meta"
-    }
+    fi
 }
 
 workspace_create_meta() {
