@@ -13,3 +13,24 @@
 [submodule "integrations/gitlab-enhanced"]
 	path = integrations/gitlab-enhanced
 	url = https://gitlab.com/openos-project/git-management_deving/gitlab-enhanced.git
+[submodule "integrations/devcontainers-spec"]
+	path = integrations/devcontainers-spec
+	url = https://github.com/devcontainers/spec.git
+[submodule "integrations/devcontainers-features"]
+	path = integrations/devcontainers-features
+	url = https://github.com/devcontainers/features.git
+[submodule "integrations/devcontainers-cli"]
+	path = integrations/devcontainers-cli
+	url = https://github.com/devcontainers/cli.git
+[submodule "integrations/devcontainers-templates"]
+	path = integrations/devcontainers-templates
+	url = https://github.com/devcontainers/templates.git
+[submodule "integrations/devcontainers-images"]
+	path = integrations/devcontainers-images
+	url = https://github.com/devcontainers/images.git
+[submodule "integrations/devcontainers-action"]
+	path = integrations/devcontainers-action
+	url = https://github.com/devcontainers/action.git
+[submodule "integrations/devcontainers-ci"]
+	path = integrations/devcontainers-ci
+	url = https://github.com/devcontainers/ci.git
