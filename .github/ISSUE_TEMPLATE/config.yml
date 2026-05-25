@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: XanMod upstream
-    url: https://gitlab.com/xanmod/linux/-/issues
-    about: For issues with the XanMod kernel patches themselves (not this build system)
-  - name: XanMod website
-    url: https://xanmod.org
-    about: Official XanMod documentation and pre-built packages for Debian/Ubuntu
+  - name: btrfs documentation
+    url: https://btrfs.readthedocs.io
+    about: Official btrfs filesystem documentation
+  - name: DwarFS upstream
+    url: https://github.com/mhx/dwarfs
+    about: DwarFS upstream project and issue tracker
