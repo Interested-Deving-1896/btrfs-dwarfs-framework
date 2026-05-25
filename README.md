@@ -10,33 +10,69 @@ This project provides a hybrid filesystem framework that integrates BTRFS subvol
 ## Architecture
 
 <!-- AI:start:architecture -->
-The BTRFS+DwarFS framework integrates BTRFS subvolumes and snapshots with DwarFS compressed images to create a unified filesystem namespace. The architecture consists of the following components:
+The BTRFS+DwarFS framework integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified namespace. Core components:
 
-1. **BTRFS Subvolumes and Snapshots**: Used for managing writable layers and versioning.
-2. **DwarFS Images**: Provides read-only, highly compressed filesystem layers.
-3. **Namespace Manager**: Merges BTRFS and DwarFS layers into a unified view.
-4. **CLI Tools**: Shell scripts for managing subvolumes, snapshots, and DwarFS images.
-5. **Workflow Automation**: CI/CD pipelines for building, testing, and deploying the framework.
-
-The directory structure is organized as follows:
+1. **BTRFS Subvolume Manager** — create, delete, snapshot, and promote/demote BTRFS subvolumes.
+2. **DwarFS Image Handler** — mount, export, import, and cache DwarFS compressed images.
+3. **Namespace Orchestrator** — unified overlay of BTRFS subvolumes and DwarFS images via kernel blend module or userspace fuse-overlayfs.
+4. **bdfs dev** — mutable development workspaces on top of any immutable root (OSTree deployment, bootc image, IncusOS root, dev container, or plain directory).
 
 ```plaintext
 .
-├── bin/                  # Executable scripts for CLI tools
-├── cmd/                  # Command definitions and utilities
-├── configs/              # Configuration files
-├── doc/                  # Documentation
-├── examples/             # Example configurations and usage
-├── include/              # Header files
-├── src/                  # Core source code
-├── workflows/            # CI/CD workflow definitions
-├── LICENSE               # License file
-├── README.md             # Project documentation
-└── install.sh            # Installation script
+├── bin/                        # Compiled binaries
+├── boot/                       # Boot integration (UEFI, systemd-boot, GRUB)
+├── cmd/                        # Go CLI entry points
+├── config/                     # gitlab-subgroups.yml, workflow-sync.yml, cost profiles
+├── doc/                        # Design docs and guides
+├── integrations/               # Per-ecosystem bdfs integration scripts
+│   ├── ostree/                 #   OSTree: commit, publish, export, import, prune
+│   ├── bootc/                  #   bootc: workspace, commit, switch, upgrade, export
+│   ├── incus-os/               #   IncusOS: workspace, export, import, update
+│   ├── devcontainer/           #   Dev Containers: snapshot, export, import, build, up
+│   ├── ashos/                  #   AshOS (submodule)
+│   ├── btrfs-assistant/        #   btrfs-assistant (submodule)
+│   ├── btr-fs-git/             #   btr-fs-git (submodule)
+│   ├── frzr-meta-root/         #   frzr-meta-root (submodule)
+│   ├── gitlab-enhanced/        #   gitlab-enhanced (submodule)
+│   └── devcontainers-*/        #   devcontainers org upstream sources (7 submodules)
+├── scripts/                    # bdfs CLI, mirror, sync, and validation scripts
+├── tests/                      # Integration and unit tests
+├── userspace/                  # FUSE daemon and socket layer
+└── lkm/                        # Linux kernel module (bdfs_blend)
 ```
-
-The framework uses shell scripts to interact with BTRFS and DwarFS, and CI workflows automate tasks like dependency updates, artifact mirroring, and repository synchronization.
 <!-- AI:end:architecture -->
+
+## Integrations
+
+Each subdirectory under `integrations/` bridges bdfs with a specific ecosystem.
+
+### bdfs integration scripts
+
+| Directory | CLI | What it does |
+|---|---|---|
+| [`integrations/ostree/`](integrations/ostree/) | `bdfs-ostree` | Commit bdfs workspaces to an OSTree repo, deploy as next boot target, round-trip through DwarFS images. Includes systemd units for auto-pruning old deployments. |
+| [`integrations/bootc/`](integrations/bootc/) | `bdfs-bootc` | Create bdfs workspaces from a live bootc root, pack them back into OCI images via podman, switch/upgrade the booted image, export root as DwarFS. |
+| [`integrations/incus-os/`](integrations/incus-os/) | `bdfs-incusos` | Create bdfs workspaces from a live IncusOS root, export as DwarFS, import DwarFS archives as Incus container/VM images, trigger in-place updates. |
+| [`integrations/devcontainer/`](integrations/devcontainer/) | `bdfs-devcontainer` | Snapshot running dev containers into bdfs workspaces, export/import via DwarFS for offline distribution, wrap `devcontainer up` with pre-snapshots. |
+
+### Upstream submodules
+
+These track upstream source repos and feed the GitLab mirror pipeline:
+
+| Directory | Upstream | Description |
+|---|---|---|
+| `integrations/ashos/` | [openos-project/ashos](https://gitlab.com/openos-project/linux-kernel_filesystem_deving/ashos) | AshOS immutable distro |
+| `integrations/btrfs-assistant/` | [openos-project/btrfs-assistant](https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btrfs-assistant) | BTRFS management GUI |
+| `integrations/btr-fs-git/` | [openos-project/btr-fs-git](https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btr-fs-git) | Git-on-BTRFS tooling |
+| `integrations/frzr-meta-root/` | [openos-project/frzr-meta-root](https://gitlab.com/openos-project/linux-kernel_filesystem_deving/frzr-meta-root) | frzr immutable root |
+| `integrations/gitlab-enhanced/` | [openos-project/gitlab-enhanced](https://gitlab.com/openos-project/git-management_deving/gitlab-enhanced) | GitLab workflow tooling |
+| `integrations/devcontainers-spec/` | [devcontainers/spec](https://github.com/devcontainers/spec) | Dev Container specification |
+| `integrations/devcontainers-features/` | [devcontainers/features](https://github.com/devcontainers/features) | Official Dev Container Features |
+| `integrations/devcontainers-cli/` | [devcontainers/cli](https://github.com/devcontainers/cli) | Reference CLI implementation |
+| `integrations/devcontainers-templates/` | [devcontainers/templates](https://github.com/devcontainers/templates) | Official Dev Container Templates |
+| `integrations/devcontainers-images/` | [devcontainers/images](https://github.com/devcontainers/images) | Pre-built dev container images |
+| `integrations/devcontainers-action/` | [devcontainers/action](https://github.com/devcontainers/action) | GitHub Action for publishing features/templates |
+| `integrations/devcontainers-ci/` | [devcontainers/ci](https://github.com/devcontainers/ci) | GitHub Action / Azure DevOps Task for CI |
 
 ## Install
 
