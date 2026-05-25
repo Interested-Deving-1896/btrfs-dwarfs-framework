@@ -29,11 +29,14 @@ The BTRFS+DwarFS framework integrates BTRFS subvolumes and snapshots with DwarFS
 │   ├── bootc/                  #   bootc: workspace, commit, switch, upgrade, export
 │   ├── incus-os/               #   IncusOS: workspace, export, import, update
 │   ├── devcontainer/           #   Dev Containers: snapshot, export, import, build, up
-│   ├── ashos/                  #   AshOS (submodule)
-│   ├── btrfs-assistant/        #   btrfs-assistant (submodule)
-│   ├── btr-fs-git/             #   btr-fs-git (submodule)
-│   ├── frzr-meta-root/         #   frzr-meta-root (submodule)
-│   ├── gitlab-enhanced/        #   gitlab-enhanced (submodule)
+│   ├── ostree-upstream/        #   ostreedev/ostree (submodule)
+│   ├── bootc-upstream/         #   bootc-dev/bootc (submodule)
+│   ├── incus-os-upstream/      #   lxc/incus-os (submodule)
+│   ├── ashos/                  #   openos-project/ashos (submodule)
+│   ├── btrfs-assistant/        #   openos-project/btrfs-assistant (submodule)
+│   ├── btr-fs-git/             #   openos-project/btr-fs-git (submodule)
+│   ├── frzr-meta-root/         #   openos-project/frzr-meta-root (submodule)
+│   ├── gitlab-enhanced/        #   openos-project/gitlab-enhanced (submodule)
 │   └── devcontainers-*/        #   devcontainers org upstream sources (7 submodules)
 ├── scripts/                    # bdfs CLI, mirror, sync, and validation scripts
 ├── tests/                      # Integration and unit tests
@@ -61,6 +64,9 @@ These track upstream source repos and feed the GitLab mirror pipeline:
 
 | Directory | Upstream | Description |
 |---|---|---|
+| `integrations/ostree-upstream/` | [ostreedev/ostree](https://github.com/ostreedev/ostree) | OSTree — OS and container binary deployment |
+| `integrations/bootc-upstream/` | [bootc-dev/bootc](https://github.com/bootc-dev/bootc) | bootc — OCI-container-as-OS tooling |
+| `integrations/incus-os-upstream/` | [lxc/incus-os](https://github.com/lxc/incus-os) | IncusOS — immutable OS for running Incus |
 | `integrations/ashos/` | [openos-project/ashos](https://gitlab.com/openos-project/linux-kernel_filesystem_deving/ashos) | AshOS immutable distro |
 | `integrations/btrfs-assistant/` | [openos-project/btrfs-assistant](https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btrfs-assistant) | BTRFS management GUI |
 | `integrations/btr-fs-git/` | [openos-project/btr-fs-git](https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btr-fs-git) | Git-on-BTRFS tooling |

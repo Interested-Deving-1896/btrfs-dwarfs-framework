@@ -34,3 +34,12 @@
 [submodule "integrations/devcontainers-ci"]
 	path = integrations/devcontainers-ci
 	url = https://github.com/devcontainers/ci.git
+[submodule "integrations/ostree-upstream"]
+	path = integrations/ostree-upstream
+	url = https://github.com/ostreedev/ostree.git
+[submodule "integrations/bootc-upstream"]
+	path = integrations/bootc-upstream
+	url = https://github.com/bootc-dev/bootc.git
+[submodule "integrations/incus-os-upstream"]
+	path = integrations/incus-os-upstream
+	url = https://github.com/lxc/incus-os.git
