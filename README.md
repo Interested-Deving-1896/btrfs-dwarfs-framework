@@ -4,36 +4,38 @@
 [![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework)
 
 <!-- AI:start:what-it-does -->
-This project provides a hybrid filesystem framework that integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified namespace. It addresses the need for efficient storage and retrieval of large datasets while maintaining snapshot capabilities. It is used by system administrators and developers managing complex storage environments.
+This project provides a hybrid filesystem framework that integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified namespace. It is designed for developers and system administrators who need efficient storage management and compression for Linux-based systems. The framework enables seamless interaction between BTRFS and DwarFS, optimizing storage usage and performance.
 <!-- AI:end:what-it-does -->
 
 ## Architecture
 
 <!-- AI:start:architecture -->
-The BTRFS+DwarFS framework integrates BTRFS subvolumes and snapshots with DwarFS compressed images, creating a unified filesystem namespace. The architecture consists of three main components:
+The BTRFS+DwarFS framework integrates BTRFS subvolumes and snapshots with DwarFS compressed images to create a unified filesystem namespace. The architecture consists of the following components:
 
-1. **BTRFS Subvolume Manager**: Handles creation, deletion, and management of BTRFS subvolumes and snapshots.
-2. **DwarFS Image Handler**: Manages mounting and unmounting of DwarFS compressed images, ensuring efficient storage and access.
-3. **Namespace Orchestrator**: Provides a unified view by overlaying BTRFS subvolumes and DwarFS images, resolving conflicts and ensuring seamless access.
+1. **BTRFS Subvolumes and Snapshots**: Used for managing writable layers and versioning.
+2. **DwarFS Images**: Provides read-only, highly compressed filesystem layers.
+3. **Namespace Manager**: Merges BTRFS and DwarFS layers into a unified view.
+4. **CLI Tools**: Shell scripts for managing subvolumes, snapshots, and DwarFS images.
+5. **Workflow Automation**: CI/CD pipelines for building, testing, and deploying the framework.
 
-The components interact through shell scripts and configuration files, with workflows defined in CI/CD pipelines for automation. The directory structure is organized as follows:
+The directory structure is organized as follows:
 
 ```plaintext
 .
-├── bin/                  # Executable scripts
-├── cmd/                  # Command-line tools
-├── config/               # Configuration files
+├── bin/                  # Executable scripts for CLI tools
+├── cmd/                  # Command definitions and utilities
+├── configs/              # Configuration files
 ├── doc/                  # Documentation
 ├── examples/             # Example configurations and usage
 ├── include/              # Header files
-├── scripts/              # Helper scripts
+├── src/                  # Core source code
 ├── workflows/            # CI/CD workflow definitions
 ├── LICENSE               # License file
 ├── README.md             # Project documentation
 └── install.sh            # Installation script
 ```
 
-The framework relies on shell scripting for core functionality and integrates with CI/CD systems for automated tasks.
+The framework uses shell scripts to interact with BTRFS and DwarFS, and CI workflows automate tasks like dependency updates, artifact mirroring, and repository synchronization.
 <!-- AI:end:architecture -->
 
 ## Install
@@ -201,13 +203,20 @@ bdfs status --json
 ## CI
 
 <!-- AI:start:ci -->
-- **ci.yml**: Runs unit tests (`make check`) and integration tests (`make test`) on supported platforms. No secrets required.
-- **cleanup-branches.yml**: Deletes stale branches in the repository. Requires `GITHUB_TOKEN` secret.
-- **mirror-artifacts.yml**: Syncs build artifacts to external storage. Requires `ARTIFACT_STORAGE_KEY` and `ARTIFACT_STORAGE_SECRET` secrets.
-- **rate-limit-status.yml**: Monitors API rate limits and logs usage. No secrets required.
-- **rotate-token.yml**: Rotates access tokens for external integrations. Requires `ADMIN_TOKEN` secret.
-- **sync-btrfs-devel-branches.yml**: Syncs development branches with upstream repositories. Requires `GITHUB_TOKEN` secret.
-- **validate-config.yml**: Validates YAML configuration files in the repository. No secrets required.
+The repository uses GitHub Actions for continuous integration and automation. Below are the key workflows and their purposes:
+
+- **build.yml**: Builds the project for all supported architectures. No secrets required.
+- **ci.yml**: Runs tests, linting, and static analysis. No secrets required.
+- **build-x86.yml**: Builds the project specifically for x86 architecture. No secrets required.
+- **build-arm64.yml**: Builds the project specifically for ARM64 architecture. No secrets required.
+- **cleanup-branches.yml**: Deletes stale branches. Requires `GITHUB_TOKEN`.
+- **mirror-artifacts.yml**: Mirrors build artifacts to external storage. Requires `ARTIFACT_STORAGE_KEY`.
+- **release.yaml**: Handles release creation and tagging. Requires `GITHUB_TOKEN`.
+- **rotate-token.yml**: Rotates API tokens for external integrations. Requires `ADMIN_TOKEN`.
+- **sync-to-gitlab.yml**: Syncs repository changes to GitLab. Requires `GITLAB_TOKEN`.
+- **update-readmes.yml**: Updates README files across repositories. No secrets required.
+
+Refer to `.github/workflows/` for additional workflows and their configurations.
 <!-- AI:end:ci -->
 
 ## Mirror chain
