@@ -20,7 +20,7 @@ jobs:
     if: github.repository == 'OpenOS-Project-OSP/btrfs-dwarfs-framework'
     steps:
       - name: Checkout full history
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -37,7 +37,7 @@ jobs:
             > ~/.git-credentials
 
           git remote add mirror \
-            "https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework.git"
+            "https://github.com/OpenOS-Project-Ecosystem-OOC/btrfs-dwarfs-framework.git"
 
           git push mirror --all --force
           git push mirror --tags --force
