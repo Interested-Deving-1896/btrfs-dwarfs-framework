@@ -1,0 +1,329 @@
+# workflow-sync.yml
+#
+# Single source of truth for the GitHub Actions ↔ GitLab CI job mapping.
+#
+# Each entry under `paired` describes one logical job that exists on both
+# platforms. The validator (scripts/validate-workflow-guards.py) checks:
+#   - github.workflow_file exists in .github/workflows/
+#   - gitlab.job exists in .gitlab-ci.yml
+#   - every script listed under scripts exists in scripts/
+#   - env_vars declared here are present in both workflow files
+#
+# Entries under `github_only` and `gitlab_only` are informational — they
+# document intentional asymmetry and suppress false-positive drift warnings.
+#
+# Fields:
+#   name          Human-readable description of what the job does
+#   scripts       Scripts called by both sides (the shared implementation)
+#   github:
+#     workflow_file   Filename under .github/workflows/
+#     schedule        GitHub cron expression (if scheduled)
+#   gitlab:
+#     job             Job name in .gitlab-ci.yml
+#     cadence         CADENCE variable value that activates this job
+#                     (poller | daily | weekly | manual | push)
+#   env_vars        Env vars that must be present in both platform configs
+#                   (secrets/CI variables are excluded — they differ by platform)
+#   notes           Optional explanation of known differences between platforms
+
+paired:
+
+  - name: Sync All Forks
+    scripts:
+      - sync-all-forks.sh   # GitHub entry point (also called by sync-forks.sh)
+    github:
+      workflow_file: sync-forks.yml
+      schedule: null        # no fixed schedule — triggered on demand
+    gitlab:
+      job: sync-forks
+      cadence: daily
+      script: sync-forks.sh  # GitLab wrapper — delegates to sync-all-forks.sh
+    env_vars:
+      - GH_TOKEN
+      - GITHUB_OWNER
+    notes: >
+      GitLab uses sync-forks.sh as a thin wrapper around sync-all-forks.sh
+      to adapt GitHub-centric env var names for the GitLab runner context.
+      The validator checks sync-forks.sh on the GitLab side.
+
+  - name: Mirror Artifacts
+    scripts:
+      - mirror-artifacts.sh
+    github:
+      workflow_file: mirror-artifacts.yml
+      schedule: null
+    gitlab:
+      job: mirror-artifacts
+      cadence: trigger   # activated by downstream pipeline trigger, not CADENCE schedule
+    env_vars:
+      - GH_TOKEN
+      - GITHUB_OWNER
+
+  - name: Mirror to OSP
+    scripts:
+      - mirror-to-osp.sh
+    github:
+      workflow_file: mirror-to-osp.yml
+      schedule: "0 * * * *"
+    gitlab:
+      job: mirror-to-ospf1896
+      cadence: weekly
+    env_vars:
+      - GH_TOKEN
+      - GITHUB_OWNER
+    notes: >
+      GitHub runs this hourly; GitLab runs it weekly as a fallback.
+      The GitHub schedule is the authoritative cadence.
+
+  - name: Add Mirror Repo
+    scripts:
+      - add-mirror-repo.sh
+    github:
+      workflow_file: add-mirror-repo.yml
+      schedule: null
+    gitlab:
+      job: add-mirror-repo
+      cadence: manual
+    env_vars:
+      - GH_TOKEN
+
+  - name: Setup OSP Mirrors
+    scripts:
+      - setup-osp-mirrors.sh
+    github:
+      workflow_file: setup-osp-mirrors.yml
+      schedule: null
+    gitlab:
+      job: setup-ospf1896-mirrors
+      cadence: manual
+    env_vars:
+      - GH_TOKEN
+
+  - name: Reconcile Org References
+    scripts:
+      - reconcile-org-refs.sh
+    github:
+      workflow_file: reconcile-org-refs.yml
+      schedule: null
+    gitlab:
+      job: reconcile-org-refs
+      cadence: weekly
+    env_vars:
+      - GH_TOKEN
+      - UPSTREAM_OWNER
+      - OSP_ORG
+      - OOC_ORG
+
+  - name: Rebuild LTS Branch
+    scripts:
+      - rebase-lts.sh
+    github:
+      workflow_file: rebase-lts.yml
+      schedule: null
+    gitlab:
+      job: rebase-lts
+      cadence: weekly
+    env_vars:
+      - GH_TOKEN
+
+  - name: Sync penguins-eggs Docs to Book
+    scripts:
+      - sync-eggs-docs-to-book.sh
+    github:
+      workflow_file: sync-eggs-docs-to-book.yml
+      schedule: null
+    gitlab:
+      job: sync-eggs-docs-to-book
+      cadence: daily
+    env_vars:
+      - GH_TOKEN
+
+  - name: Sync pieroproietti Forks
+    scripts:
+      - sync-pieroproietti-forks.sh
+    github:
+      workflow_file: sync-pieroproietti-forks.yml
+      schedule: null
+    gitlab:
+      job: sync-pieroproietti-forks
+      cadence: daily
+    env_vars:
+      - GH_TOKEN
+
+  - name: Upstream PRs
+    scripts:
+      - upstream-prs.sh
+    github:
+      workflow_file: upstream-prs.yml
+      schedule: null
+    gitlab:
+      job: upstream-prs
+      cadence: daily
+    env_vars:
+      - GH_TOKEN
+      - GITHUB_OWNER
+
+  - name: Resolve CI Failures
+    scripts:
+      - resolve-failures.sh
+    github:
+      workflow_file: resolve-failures.yml
+      schedule: null
+    gitlab:
+      job: resolve-failures
+      cadence: daily
+    env_vars:
+      - GH_TOKEN
+      - GITHUB_OWNER
+
+  - name: Rate-Limit Re-trigger
+    scripts:
+      - scan-rate-limit-failures.sh
+      - rerun-after-rate-limit.sh
+    github:
+      workflow_file: rate-limit-rerun.yml
+      schedule: "*/30 * * * *"
+    gitlab:
+      job: rate-limit-rerun
+      cadence: poller
+    env_vars:
+      - GH_TOKEN
+      - GITHUB_OWNER
+      - GITHUB_REPO
+    notes: >
+      Loop guard: re-dispatched GitHub workflows carry rate_limit_rerun=true.
+      The scanner skips runs whose logs contain that marker. See DOCS/OPERATIONS.md.
+
+  - name: Token Health Monitor
+    scripts:
+      - token-monitor.sh
+    github:
+      workflow_file: token-health.yml
+      schedule: "0 9 * * 1"
+    gitlab:
+      job: token-health
+      cadence: weekly
+    env_vars:
+      - GH_TOKEN
+    notes: >
+      GitLab job additionally checks GITLAB_TOKEN expiry inline (not via script).
+
+  - name: Cleanup Stale Branches
+    scripts:
+      - cleanup-branches.sh
+    github:
+      workflow_file: cleanup-branches.yml
+      schedule: "0 4 1 * *"
+    gitlab:
+      job: cleanup-branches
+      cadence: weekly
+    env_vars:
+      - GH_TOKEN
+      - GITHUB_OWNER
+
+  - name: Sync from GitLab
+    scripts:
+      - sync-from-gitlab.sh
+    github:
+      workflow_file: sync-from-gitlab.yml
+      schedule: "22 4 * * *"
+    gitlab:
+      job: sync-from-gitlab
+      cadence: push
+    env_vars:
+      - GH_TOKEN
+      - GITLAB_TOKEN
+      - GITHUB_OWNER
+    notes: >
+      GitLab triggers on push (primary); GitHub runs daily as fallback.
+      GitLab uses GH_SYNC_TOKEN mapped to GH_TOKEN — different secret name.
+
+# ── GitHub-only jobs ──────────────────────────────────────────────────────────
+# These workflows have no GitLab CI counterpart. Intentional — they either
+# operate on GitHub-specific APIs, are GitHub-to-GitLab push operations, or
+# are interactive tools not suited to scheduled CI.
+
+github_only:
+  - workflow_file: mirror-releases.yml
+    reason: Mirrors GitHub Releases — no GitLab equivalent concept
+  - workflow_file: mirror-osp-to-gitlab.yml
+    reason: Pushes from GitHub to GitLab — runs on GitHub by definition
+  - workflow_file: mirror-orgs-full.yml
+    reason: GitHub org mirror — GitHub API only
+  - workflow_file: mirror-orgs-watchdog.yml
+    reason: Watches GitHub Actions workflow_run events — GitHub-specific trigger
+  - workflow_file: upstream-commits.yml
+    reason: Upstreams commits via GitHub API — no GitLab equivalent
+  - workflow_file: sync-registered-imports.yml
+    reason: Reads registered-imports.json — GitHub-hosted config
+  - workflow_file: sync-to-gitlab.yml
+    reason: Pushes from GitHub to GitLab — runs on GitHub by definition
+  - workflow_file: sync-upstream-sources.yml
+    reason: Syncs upstream GitHub sources — GitHub API only
+  - workflow_file: create-readmes.yml
+    reason: Creates READMEs in GitHub repos via Contents API
+  - workflow_file: inject-badges.yml
+    reason: Injects badges into GitHub repo READMEs
+  - workflow_file: lts-readmes.yml
+    reason: Standardises READMEs in GitHub repos
+  - workflow_file: translate-readmes.yml
+    reason: Translates READMEs via GitHub Models API
+  - workflow_file: update-readmes.yml
+    reason: Updates READMEs in GitHub repos
+  - workflow_file: generate-dep-graph.yml
+    reason: Generates dependency graph committed to GitHub repo
+  - workflow_file: notify-poller.yml
+    reason: Polls GitHub notification API — GitHub-specific
+  - workflow_file: rate-limit-status.yml
+    reason: Interactive diagnostic tool — workflow_dispatch only
+  - workflow_file: sync-btrfs-devel-branches.yml
+    reason: Syncs btrfs-devel branches via GitHub API
+  - workflow_file: sync-template.yml
+    reason: Propagates template files to GitHub consumer repos
+  - workflow_file: pr-automation.yml
+    reason: Responds to GitHub pull_request events
+  - workflow_file: validate-config.yml
+    reason: Validates repo config — runs on GitHub push/PR
+  - workflow_file: readme-wizard.yml
+    reason: Interactive README generator — workflow_dispatch only
+  - workflow_file: repo-manifest.yml
+    reason: Generates repo manifest committed to GitHub
+  - workflow_file: rotate-token.yml
+    reason: Rotates GitHub secrets — GitHub API only
+  - workflow_file: import-repo.yml
+    reason: Imports repos into GitHub org
+  - workflow_file: fork-neon-repos.yml
+    reason: Forks KDE Neon repos into GitHub org
+  - workflow_file: clone-org.yml
+    reason: Clones external orgs into GitHub — interactive tool
+  - workflow_file: merge-to-monorepo.yml
+    reason: Merges repos into GitHub monorepo — interactive tool
+  - workflow_file: setup-gitlab-schedules.yml
+    reason: Configures GitLab CI schedules via GitLab API — runs from GitHub
+  - workflow_file: update-infra-deps.yml
+    reason: Updates infrastructure dependency versions in GitHub repos
+  - workflow_file: check-gitlab-sync.yml
+    reason: On-demand drift check between .gitlab-ci.yml and workflow-sync.yml manifest
+
+# ── GitLab-only jobs ──────────────────────────────────────────────────────────
+# These GitLab CI jobs have no GitHub Actions counterpart. Intentional.
+
+gitlab_only:
+  - job: secret-scan
+    reason: Scans for secrets in GitLab repo — GitLab-native security stage
+  - job: provision:maintenance
+    reason: Provisions GitLab runner maintenance — GitLab infrastructure
+  - job: provision:maintenance:dry-run
+    reason: Dry-run variant of provision:maintenance
+  - job: maintain:storage
+    reason: GitLab org storage maintenance — GitLab API only
+  - job: init-kde-groups-mirror
+    reason: One-time GitLab group mirror initialisation
+  - job: sync-upstream-mirrors
+    reason: Syncs upstream mirrors within GitLab — no GitHub counterpart
+  - job: sync-kde-groups-mirrors
+    reason: Syncs KDE group mirrors within GitLab
+  - job: sync-kde-neon-mirrors
+    reason: Syncs KDE Neon mirrors within GitLab
+  - job: sync-pieroproietti-gl-forks
+    reason: Syncs pieroproietti GitLab forks — GitLab-native operation
