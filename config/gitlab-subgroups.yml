@@ -26,6 +26,18 @@ subgroups:
     repos:
       - gitlab-enhanced
 
+  devcontainer_deving:
+    id: ~
+    path: openos-project/devcontainer_deving
+    repos:
+      - spec
+      - features
+      - cli
+      - templates
+      - images
+      - action
+      - ci
+
   penguins-eggs_deving:
     id: 130516402
     path: openos-project/penguins-eggs_deving
