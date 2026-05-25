@@ -72,6 +72,8 @@ subgroups:
       - xanmod-unified-kernel
       - btrfs-dwarfs-framework
       - linux-powerwash
+      - ostree-upstream
+      - bootc-upstream
 
   incus_deving:
     id: 130516536
@@ -85,6 +87,7 @@ subgroups:
       - talos
       - talos-incus
       - waydroid-toolkit
+      - incus-os-upstream
 
   neon-deving:
     id: 130739746
