@@ -17,7 +17,7 @@ jobs:
         os: [ubuntu-22.04, ubuntu-24.04]
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
@@ -74,7 +74,7 @@ jobs:
           done
 
       - name: Upload build artefacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # ratchet:actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-24.04'
         with:
           name: bdfs-binaries-${{ matrix.os }}
@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install kernel headers
         run: |
@@ -148,7 +148,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install tools
         run: |
@@ -197,7 +197,7 @@ jobs:
        (github.base_ref == 'master' || github.base_ref == 'main'))
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
@@ -215,7 +215,7 @@ jobs:
           if curl -fsSL "$URL" -o dwarfs.tar.zst 2>/dev/null; then
             tar --zstd -xf dwarfs.tar.zst
             sudo install -m755 dwarfs-universal-*/sbin/mkdwarfs     /usr/local/bin/mkdwarfs
-            sudo install -m755 dwarfs-universal-*/sbin/dwarfs       /usr/local/bin/dwarfs
+            sudo install -m755 dwarfs-universal-*/sbin/dwarfs       /usr/local/bin/dwars
             sudo install -m755 dwarfs-universal-*/sbin/dwarfsextract /usr/local/bin/dwarfsextract
             sudo install -m755 dwarfs-universal-*/sbin/dwarsck     /usr/local/bin/dwarsck
             echo "DwarFS tools installed"
@@ -269,7 +269,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install clang-format
         run: sudo apt-get install -y --no-install-recommends clang-format
