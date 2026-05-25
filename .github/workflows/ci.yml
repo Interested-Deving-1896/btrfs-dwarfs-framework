@@ -25,7 +25,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build gcc clang \
             libc6-dev libstdc++-12-dev \
-            pkg-config libglib2.0-dev
+            pkg-config libglib2.0-dev \
+            libfuse3-dev  # Added missing dependency
 
       - name: Configure (Release)
         run: |
