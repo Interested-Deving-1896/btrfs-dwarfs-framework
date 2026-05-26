@@ -4,45 +4,36 @@
 [![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework)
 
 <!-- AI:start:what-it-does -->
-This project provides a hybrid filesystem framework that integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified namespace. It is designed for developers and system administrators who need efficient storage management and compression for Linux-based systems. The framework enables seamless interaction between BTRFS and DwarFS, optimizing storage usage and performance.
+This project provides a hybrid filesystem framework that integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified namespace. It is designed for users and developers who need efficient storage management, combining BTRFS's snapshot capabilities with DwarFS's compression for optimized space usage. The framework includes kernel modules, userspace tools, and optional package manager hooks for automated snapshot management.
 <!-- AI:end:what-it-does -->
 
 ## Architecture
 
 <!-- AI:start:architecture -->
-The BTRFS+DwarFS framework integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified namespace. Core components:
+The BTRFS+DwarFS framework integrates BTRFS subvolumes and snapshots with DwarFS compressed images into a unified filesystem namespace. The architecture consists of a kernel module for BTRFS enhancements, userspace tools for managing the filesystem, and optional components like package manager hooks for automatic snapshotting. The kernel module interacts with the Linux kernel to extend BTRFS functionality, while the userspace tools provide CLI utilities for managing the hybrid filesystem. Optional integrations, such as GitLab-enhanced workflows and autosnap hooks, extend functionality for specific use cases.
 
-1. **BTRFS Subvolume Manager** — create, delete, snapshot, and promote/demote BTRFS subvolumes.
-2. **DwarFS Image Handler** — mount, export, import, and cache DwarFS compressed images.
-3. **Namespace Orchestrator** — unified overlay of BTRFS subvolumes and DwarFS images via kernel blend module or userspace fuse-overlayfs.
-4. **bdfs dev** — mutable development workspaces on top of any immutable root (OSTree deployment, bootc image, IncusOS root, dev container, or plain directory).
+The repository is structured as follows:
 
 ```plaintext
 .
-├── bin/                        # Compiled binaries
-├── boot/                       # Boot integration (UEFI, systemd-boot, GRUB)
-├── cmd/                        # Go CLI entry points
-├── config/                     # gitlab-subgroups.yml, workflow-sync.yml, cost profiles
-├── doc/                        # Design docs and guides
-├── integrations/               # Per-ecosystem bdfs integration scripts
-│   ├── ostree/                 #   OSTree: commit, publish, export, import, prune
-│   ├── bootc/                  #   bootc: workspace, commit, switch, upgrade, export
-│   ├── incus-os/               #   IncusOS: workspace, export, import, update
-│   ├── devcontainer/           #   Dev Containers: snapshot, export, import, build, up
-│   ├── ostree-upstream/        #   ostreedev/ostree (submodule)
-│   ├── bootc-upstream/         #   bootc-dev/bootc (submodule)
-│   ├── incus-os-upstream/      #   lxc/incus-os (submodule)
-│   ├── ashos/                  #   openos-project/ashos (submodule)
-│   ├── btrfs-assistant/        #   openos-project/btrfs-assistant (submodule)
-│   ├── btr-fs-git/             #   openos-project/btr-fs-git (submodule)
-│   ├── frzr-meta-root/         #   openos-project/frzr-meta-root (submodule)
-│   ├── gitlab-enhanced/        #   openos-project/gitlab-enhanced (submodule)
-│   └── devcontainers-*/        #   devcontainers org upstream sources (7 submodules)
-├── scripts/                    # bdfs CLI, mirror, sync, and validation scripts
-├── tests/                      # Integration and unit tests
-├── userspace/                  # FUSE daemon and socket layer
-└── lkm/                        # Linux kernel module (bdfs_blend)
+├── bin/                 # Executable scripts
+├── build/               # Build artifacts
+├── cmd/                 # CLI tools source code
+├── configs/             # Configuration files
+├── doc/                 # Documentation
+├── examples/            # Example configurations and usage
+├── include/             # Header files
+├── integrations/        # Optional integrations (e.g., GitLab, autosnap)
+├── kernel/              # Kernel module source code
+├── proto/               # Protocol definitions
+├── src/                 # Core framework source code
+├── tests/               # Unit and integration tests
+├── workflows/           # CI/CD workflows
+├── Makefile             # Build and installation targets
+└── README.md            # Project documentation
 ```
+
+Components interact through shared configuration files, IPC mechanisms, and the unified namespace provided by the kernel module.
 <!-- AI:end:architecture -->
 
 ## Integrations
@@ -245,20 +236,20 @@ bdfs status --json
 ## CI
 
 <!-- AI:start:ci -->
-The repository uses GitHub Actions for continuous integration and automation. Below are the key workflows and their purposes:
+The repository uses GitHub Actions for continuous integration. Below are the workflows and their purposes:
 
 - **build.yml**: Builds the project for all supported architectures. No secrets required.
-- **ci.yml**: Runs tests, linting, and static analysis. No secrets required.
 - **build-x86.yml**: Builds the project specifically for x86 architecture. No secrets required.
 - **build-arm64.yml**: Builds the project specifically for ARM64 architecture. No secrets required.
-- **cleanup-branches.yml**: Deletes stale branches. Requires `GITHUB_TOKEN`.
-- **mirror-artifacts.yml**: Mirrors build artifacts to external storage. Requires `ARTIFACT_STORAGE_KEY`.
-- **release.yaml**: Handles release creation and tagging. Requires `GITHUB_TOKEN`.
-- **rotate-token.yml**: Rotates API tokens for external integrations. Requires `ADMIN_TOKEN`.
-- **sync-to-gitlab.yml**: Syncs repository changes to GitLab. Requires `GITLAB_TOKEN`.
-- **update-readmes.yml**: Updates README files across repositories. No secrets required.
+- **test.yml**: Runs unit and integration tests. No secrets required.
+- **lint.yml**: Runs linting checks on the codebase. No secrets required.
+- **release.yml**: Handles the release process, including tagging and publishing artifacts. Requires `GITHUB_TOKEN`.
+- **cleanup-branches.yml**: Deletes stale branches after pull requests are merged. Requires `GITHUB_TOKEN`.
+- **mirror-to-osp.yml**: Mirrors the repository to an external Open Source Platform. Requires `OSP_TOKEN`.
+- **sync-from-gitlab.yml**: Syncs changes from the GitLab repository to GitHub. Requires `GITLAB_TOKEN`.
+- **rotate-token.yml**: Rotates API tokens for security. Requires `ADMIN_TOKEN`.
 
-Refer to `.github/workflows/` for additional workflows and their configurations.
+Secrets must be configured in the repository settings for workflows requiring them.
 <!-- AI:end:ci -->
 
 ## Mirror chain
