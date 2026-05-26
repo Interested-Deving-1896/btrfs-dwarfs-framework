@@ -35,11 +35,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Update master branch
+      - name: Update main branch
         run: |
-          git fetch origin master
-          git checkout master
-          git pull origin master
+          git fetch origin main
+          git checkout main
+          git pull origin main
 
       - name: Sync btrfs-devel branches into linux-merge
         env:
