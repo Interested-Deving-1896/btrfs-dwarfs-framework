@@ -11,7 +11,10 @@
 #   status       Show recent builds in the output directory
 #
 # Environment:
-#   BDFS_BIB_IMAGE      bootc-image-builder container image (default: quay.io/centos-bootc/bootc-image-builder:latest)
+#   BDFS_BIB_IMAGE      bootc-image-builder tool image. Despite the "centos-bootc" namespace,
+#                       this is a distro-neutral tool published by osbuild — it builds images
+#                       from ANY bootc-compatible OCI image, not just CentOS.
+#                       Default: quay.io/centos-bootc/bootc-image-builder:latest
 #   BDFS_BIB_OUTPUT     Output directory for built images (default: ./output)
 #   BDFS_BIB_CONFIG     Path to config.toml (default: ./config.toml if it exists)
 #   BDFS_BIB_ROOTLESS   Set to "true" to use rootless/KVM mode (default: false)
@@ -29,7 +32,7 @@
 
 set -euo pipefail
 
-BDFS_BIB_IMAGE="${BDFS_BIB_IMAGE:-quay.io/centos-bootc/bootc-image-builder:latest}"
+BDFS_BIB_IMAGE="${BDFS_BIB_IMAGE:-quay.io/centos-bootc/bootc-image-builder:latest}" # tool image — distro-neutral despite the name
 BDFS_BIB_OUTPUT="${BDFS_BIB_OUTPUT:-./output}"
 BDFS_BIB_CONFIG="${BDFS_BIB_CONFIG:-}"
 BDFS_BIB_ROOTLESS="${BDFS_BIB_ROOTLESS:-false}"

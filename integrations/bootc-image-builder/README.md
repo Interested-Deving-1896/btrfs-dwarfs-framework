@@ -4,6 +4,12 @@ Bridges [bootc-image-builder](https://github.com/osbuild/bootc-image-builder)'s
 disk image production with btrfs-dwarfs-framework's workspace and snapshot
 capabilities.
 
+> **Note on the tool image name:** bootc-image-builder is published at
+> `quay.io/centos-bootc/bootc-image-builder` — the `centos-bootc` namespace
+> reflects where osbuild chose to publish it, not what it builds. It is a
+> distro-neutral tool that produces disk images from **any** bootc-compatible
+> OCI image (Fedora, Debian, Ubuntu, custom, etc.).
+
 ## What this provides
 
 | File | Purpose |
