@@ -28,9 +28,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install shellcheck
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-
       - name: Run tests
         run: ./tests/run-tests.sh
 
