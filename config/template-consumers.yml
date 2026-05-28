@@ -156,6 +156,41 @@ consumers:
   - name: waydroid-toolkit
     profile: mirror
 
+  # ── fwupd org ───────────────────────────────────────────────────────────────
+  # Firmware update daemon and related tooling.
+  # fwupd integration lives in integrations/fwupd/ in btrfs-dwarfs-framework.
+  - name: fwupd
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: fwupd-efi
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: fwupd-signed
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: dbx-firmware
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: fwupd-snap-deb
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: fwupd.github.io
+    profile: infra-core
+    skip_osp_setup: true
+
+  - name: 8bitdo-firmware
+    profile: mirror
+    skip_osp_setup: true
+
+  - name: missing-firmware-hp
+    profile: mirror
+    skip_osp_setup: true
+
   # ── GitLab / infrastructure ─────────────────────────────────────────────────
   - name: gitlab-enhanced
     profile: mirror
