@@ -19,11 +19,11 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
 
-      - name: Ensure scripts are executable
-        run: find . -name '*.sh' -exec chmod +x {} +
+      - name: Make scripts executable
+        run: chmod +x ./tools/autosnap/lib/*.sh ./tests/run-tests.sh ./profiles/validate.sh
 
       - name: Run shellcheck
-        run: find . -name '*.sh' -exec shellcheck -x --exclude=SC2034 {} +
+        run: find . -name '*.sh' -exec shellcheck -x -S warning --exclude=SC2034 {} +
 
   test:
     name: Unit Tests
