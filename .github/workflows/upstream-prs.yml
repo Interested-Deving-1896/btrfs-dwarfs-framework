@@ -47,7 +47,7 @@ jobs:
 
       - name: Upstream open PRs from OSP and OOC
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Changed from SYNC_TOKEN to GH_TOKEN
           UPSTREAM_OWNER: Interested-Deving-1896
           MIRROR_ORGS: >-
             ${{
