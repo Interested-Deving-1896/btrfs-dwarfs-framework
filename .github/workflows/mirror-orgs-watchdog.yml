@@ -1,17 +1,5 @@
 name: Mirror Watchdog
 
-# Triggers when any of the three mirror workflows fail.
-# Waits 5 minutes (to allow transient GitHub API issues to clear) then
-# retries once. If the retry also fails, the failure surfaces normally
-# in the Actions tab and inbox.
-#
-# Covered workflows:
-#   Mirror Interested-Deving-1896 → OSP  (mirror-to-osp.yml)        — hourly at :00
-#   Mirror Orgs                          (mirror-orgs-full.yml)      — daily at 02:00
-#   Mirror OSP → GitLab                  (mirror-osp-to-gitlab.yml)  — hourly at :30
-#   Mirror Releases                      (mirror-releases.yml)       — hourly at :00
-#   Mirror Artifacts                     (mirror-artifacts.yml)      — hourly at :00
-
 on:
   workflow_run:
     workflows:
@@ -23,13 +11,11 @@ on:
     types: [completed]
 
 concurrency:
-  # One watchdog retry per workflow at a time — prevents retry storms when
-  # a mirror fails repeatedly. Uses the triggering workflow name as the key.
   group: mirror-watchdog-${{ github.event.workflow_run.name }}
-  cancel-in-progress: true  # If a newer retry is queued, cancel the older one
+  cancel-in-progress: true
 
 permissions:
-  actions: write   # needed to re-trigger workflows
+  actions: write
   contents: read
 
 jobs:
@@ -49,7 +35,7 @@ jobs:
           echo "  Started : ${{ github.event.workflow_run.created_at }}"
 
       - name: Wait before retry
-        run: sleep 300   # 5 minutes
+        run: sleep 300
 
       - name: Retry mirror
         env:
@@ -67,8 +53,7 @@ jobs:
           echo "Retrying ${TARGET}..."
           gh workflow run "$TARGET" \
             --repo ${{ github.repository }} \
-            --ref main \
-            --token $GH_TOKEN
+            --ref main
           echo "Retry triggered."
 
       - name: Write summary
