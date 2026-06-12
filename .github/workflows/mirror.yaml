@@ -29,11 +29,15 @@ jobs:
         env:
           MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
         run: |
+          if [ -z "$MIRROR_TOKEN" ]; then
+            echo "MIRROR_TOKEN is not set. Please check your repository secrets."
+            exit 1
+          fi
           git config --global credential.helper store
           printf 'https://x-access-token:%s@github.com\n' "$MIRROR_TOKEN" \
             > ~/.git-credentials
           git remote add mirror \
-            "https://x-access-token:${{ secrets.MIRROR_TOKEN }}@github.com/Interested-Deving-1896/eggs-ai.git"
+            "https://x-access-token:${MIRROR_TOKEN}@github.com/Interested-Deving-1896/eggs-ai.git"
           git push mirror 'refs/remotes/origin/*:refs/heads/*' --force
           git push mirror --tags --force
           rm -f ~/.git-credentials
