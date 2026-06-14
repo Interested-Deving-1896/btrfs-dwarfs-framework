@@ -1,0 +1,20 @@
+# ── Built with Ona ────────────────────────────────────────────────────────────
+# Ona automations template — propagated to consumer repos via sync-template.sh.
+#
+# To activate: copy or rename this file to .ona/automations.yaml in your repo.
+#
+# To open this repo in an Ona environment:
+#   https://app.ona.com/#https://github.com/YOUR_ORG/YOUR_REPO
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  headroom-proxy:
+    name: Headroom Proxy
+    description: >
+      Context compression proxy for AI agents. Sits on port 8787 and compresses
+      tool outputs, logs, and conversation history before they reach the LLM.
+      Reduces token consumption by 60-95% on typical agent workloads.
+      Use with: ANTHROPIC_BASE_URL=http://localhost:8787 or headroom wrap claude.
+    commands:
+      start: headroom proxy --port 8787 --no-ccr-inject-tool
+      ready: curl -sf http://localhost:8787/livez
