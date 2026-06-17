@@ -223,14 +223,14 @@ workflows:
   basis: code-audit
   notes: Branch sync calls per tracked branch
   synopsis: Syncs tracked btrfs-devel branches from the upstream kernel tree into the btrfs-dwarfs-framework fork.
-- name: Sync pieroproietti Forks
+- name: Sync Interested-Deving-1896 Forks
   min_quota: 100
   cost_low: 10
   cost_mid: 40
   cost_high: 100
   basis: code-audit
   notes: merge-upstream per fork branch
-  synopsis: Syncs all penguins-eggs forks owned by Interested-Deving-1896 with their upstream pieroproietti sources via merge-upstream.
+  synopsis: Syncs all penguins-eggs forks owned by Interested-Deving-1896 with their upstream Interested-Deving-1896 sources via merge-upstream.
 - name: Setup OSP Mirror Workflows
   min_quota: 200
   cost_low: 20
@@ -746,7 +746,7 @@ workflows:
   cost_mid: 15
   cost_high: 30
   basis: code-audit
-  synopsis: Rebases the all-features branch onto the upstream master after each pieroproietti sync, then force-pushes the
+  synopsis: Rebases the all-features branch onto the upstream master after each Interested-Deving-1896 sync, then force-pushes the
     result to the lts branch.
 - name: Repo Manifest
   min_quota: 100
