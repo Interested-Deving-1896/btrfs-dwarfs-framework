@@ -122,7 +122,7 @@ tiers:
     tier: 3
   - name: "Sync btrfs-devel Branches"
     tier: 3
-  - name: "Sync pieroproietti Forks"
+  - name: "Sync Interested-Deving-1896 Forks"
     tier: 3
   - name: "Resolve CI Failures"
     tier: 3
