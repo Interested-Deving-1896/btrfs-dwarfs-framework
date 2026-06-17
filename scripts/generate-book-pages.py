@@ -281,7 +281,7 @@ def generate_subgroup_map(subgroups_path: str, now: str) -> str:
         lines.append("| Repo | GitHub | GitLab |")
         lines.append("|---|---|---|")
         for repo in sorted(repos):
-            gh_url = f"https://github.com/OpenOS-Project-OSP/{repo}"
+            gh_url = f"https://github.com/Interested-Deving-1896/{repo}"
             gl_url = f"{GITLAB_BASE}/{slug}/{repo}"
             lines.append(f"| `{repo}` | [GitHub]({gh_url}) | [GitLab]({gl_url}) |")
         lines.append("")
