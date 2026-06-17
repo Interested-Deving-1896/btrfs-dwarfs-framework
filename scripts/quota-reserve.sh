@@ -121,7 +121,7 @@ WORKFLOW_TIER["Check OSP-Bound CI Status"]=3
 WORKFLOW_TIER["Rebase PRs"]=3
 WORKFLOW_TIER["Reconcile Org References"]=3
 WORKFLOW_TIER["Sync btrfs-devel Branches"]=3
-WORKFLOW_TIER["Sync pieroproietti Forks"]=3
+WORKFLOW_TIER["Sync Interested-Deving-1896 Forks"]=3
 
 # Tier 4 — LOW (cancelled first)
 WORKFLOW_TIER["Translate READMEs"]=4
