@@ -421,7 +421,7 @@ workflows:
   cost_high: 150
   basis: code-audit
   notes: Repo list per org + description reads
-  synopsis: Mirrors all repos from Interested-Deving-1896 to OpenOS-Project-OSP and OpenOS-Project-Ecosystem-OOC using bare
+  synopsis: Mirrors all repos from Interested-Deving-1896 to Interested-Deving-1896 and Interested-Deving-1896 using bare
     clone + push --mirror.
 - name: Resolve CI Failures
   min_quota: 100
