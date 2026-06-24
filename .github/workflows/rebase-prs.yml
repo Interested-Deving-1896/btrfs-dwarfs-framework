@@ -18,7 +18,7 @@ on:
     branches: [main]
     types: [completed]
   schedule:
-    - cron: '10 5 * * *'   # Daily at 05:10 UTC — staggered from full-chain-flush
+    - cron: '10 5 */2 * *'   # Every 2 days at 05:10 UTC — PRs don't need rebasing daily
   workflow_dispatch:
     inputs:
       repo:
@@ -67,31 +67,46 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
       - name: Quota pre-flight
         id: quota
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          MIN_QUOTA: "500"
+          MIN_QUOTA: "400"
         run: |
           remaining=$(curl -sf \
             -H "Authorization: token ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/rate_limit \
+            "https://api.github.com/rate_limit" \
             | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])" \
             || echo 0)
+          reset_at=$(curl -sf \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/rate_limit" \
+            | python3 -c "import sys,json; from datetime import datetime,timezone; r=json.load(sys.stdin)['resources']['core']['reset']; print(datetime.fromtimestamp(r,tz=timezone.utc).strftime('%H:%M UTC'))" \
+            || echo "unknown")
           echo "remaining=${remaining}" >> "$GITHUB_OUTPUT"
           if [[ "${remaining}" -lt "${MIN_QUOTA}" ]]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Quota too low (${remaining} < ${MIN_QUOTA}) — skipping"
+            echo "### ⚠️ Rebase PRs — quota too low" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Remaining | ${remaining} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Threshold | ${MIN_QUOTA} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Quota resets | ${reset_at} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "_rate-limit-rerun.yml will re-trigger this workflow after the reset._" >> "$GITHUB_STEP_SUMMARY"
+            echo "[rebase-prs] Quota too low (${remaining} < ${MIN_QUOTA}) — skipping (resets ${reset_at})" >&2
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "[rebase-prs] Quota OK (${remaining} >= ${MIN_QUOTA}) — proceeding" >&2
           fi
-
-      - name: Checkout
-        uses: actions/checkout@v6
 
       - name: Check FSA mode
         id: fsa
+        if: steps.quota.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           FSA_MANAGED: ${{ vars.FSA_MANAGED }}
