@@ -50,7 +50,7 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
           MIN_QUOTA: 50
         run: |
-          source scripts/eco/includes/quota-snapshot.sh
+          source ./scripts/eco/includes/quota-snapshot.sh
           quota_snapshot
 
       # ── Eco CI energy measurement — start ───────────────────────────────────
