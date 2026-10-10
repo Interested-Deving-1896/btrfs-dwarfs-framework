@@ -2,274 +2,289 @@
 # bdfs-devcontainer — Dev Container integration for btrfs-dwarfs-framework
 #
 # Bridges the Dev Container spec (https://containers.dev) with bdfs's
-# snapshot and workspace capabilities. Provides helpers for:
+# snapshot and workspace capabilities. Uses Incus as the container runtime
+# backend instead of Docker or Podman.
 #
-#   snapshot    Snapshot a running dev container's filesystem into a bdfs workspace
-#   export      Export a dev container image or workspace as a DwarFS archive
-#   import      Import a DwarFS archive as a container image usable by devcontainer up
-#   build       Build a dev container image and optionally pack it as DwarFS
-#   up          Wrap `devcontainer up` with a pre-snapshot of the workspace root
-#   status      Show running dev containers and any bdfs workspaces derived from them
+# Dev Containers can run inside Incus system containers or VMs. Docker/Podman
+# can still be used *inside* an Incus instance (nested) if the devcontainer
+# spec requires it — see bdfs-incus-runtime.sh nested-docker.
+#
+# Subcommands:
+#   snapshot    Snapshot a running Incus devcontainer into a bdfs workspace
+#   export      Export a devcontainer instance or workspace as a DwarFS archive
+#   import      Import a DwarFS archive as an Incus image for devcontainer use
+#   build       Build a devcontainer image via devcontainer CLI, import to Incus
+#   up          Launch a devcontainer as an Incus instance
+#   status      Show running Incus devcontainer instances and bdfs workspaces
 #
 # Environment:
-#   BDFS_DC_WORKSPACE_FOLDER   Default --workspace-folder path
-#   BDFS_DC_IMAGE_STORE        Directory for exported DwarFS images
+#   BDFS_DC_WORKSPACE_FOLDER  Default --workspace-folder path (default: $PWD)
+#   BDFS_DC_IMAGE_STORE       Directory for exported DwarFS images
+#   BDFS_DC_INSTANCE_PREFIX   Prefix for Incus instance names (default: devcontainer)
+#   INCUS_CMD                 Incus CLI binary (default: incus)
 #
-# Dependencies: devcontainer CLI, docker or podman, bdfs, mkdwarfs/dwarfs
+# Dependencies: devcontainer CLI, incus, bdfs
 #
 # Usage:
-#   bdfs-devcontainer.sh snapshot [--container ID|NAME] [--name WORKSPACE]
-#   bdfs-devcontainer.sh export   [--container ID|NAME] --out PATH [--compression zstd]
-#   bdfs-devcontainer.sh import   <image-path> --tag IMAGE[:TAG]
+#   bdfs-devcontainer.sh snapshot [--instance NAME] [--name WORKSPACE]
+#   bdfs-devcontainer.sh export   [--instance NAME] --out PATH [--compression zstd]
+#   bdfs-devcontainer.sh import   <image-path> --alias ALIAS
 #   bdfs-devcontainer.sh build    [--workspace-folder PATH] [--pack --out PATH]
-#   bdfs-devcontainer.sh up       [--workspace-folder PATH] [--snapshot]
+#   bdfs-devcontainer.sh up       [--workspace-folder PATH] [--instance NAME] [--vm]
 #   bdfs-devcontainer.sh status
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/bdfs-incus.sh"
+
 BDFS_CMD="${BDFS_CMD:-bdfs}"
 DC_CMD="${DC_CMD:-devcontainer}"
-DOCKER_CMD="${DOCKER_CMD:-docker}"
-
 BDFS_DC_WORKSPACE_FOLDER="${BDFS_DC_WORKSPACE_FOLDER:-$PWD}"
 BDFS_DC_IMAGE_STORE="${BDFS_DC_IMAGE_STORE:-/var/lib/bdfs/devcontainer-images}"
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
+BDFS_DC_INSTANCE_PREFIX="${BDFS_DC_INSTANCE_PREFIX:-devcontainer}"
 
 info() { echo "[bdfs-devcontainer] $*"; }
-die()  { echo "[bdfs-devcontainer] ERROR: $*" >&2; exit "${2:-1}"; }
+warn() { echo "[bdfs-devcontainer] WARN: $*" >&2; }
+die()  { echo "[bdfs-devcontainer] ERROR: $*" >&2; exit 1; }
 
-require_cmd() {
-    command -v "$1" &>/dev/null || die "'$1' not found — install $2"
-}
+require_bdfs() { command -v bdfs &>/dev/null || die "bdfs not found"; }
+require_dc()   { command -v "$DC_CMD" &>/dev/null || die "devcontainer CLI not found"; }
 
-require_bdfs()        { require_cmd bdfs        "btrfs-dwarfs-framework"; }
-require_devcontainer(){ require_cmd devcontainer "devcontainer CLI (https://github.com/devcontainers/cli)"; }
-require_docker()      {
-    command -v docker  &>/dev/null && DOCKER_CMD=docker  && return
-    command -v podman  &>/dev/null && DOCKER_CMD=podman  && return
-    die "docker or podman required"
-}
-
-container_rootfs() {
-    # Returns the merged/overlay rootfs path for a running container.
-    local id="$1"
-    $DOCKER_CMD inspect --format '{{.GraphDriver.Data.MergedDir}}' "$id" 2>/dev/null \
-        || $DOCKER_CMD inspect --format '{{.GraphDriver.Data.UpperDir}}' "$id" 2>/dev/null \
-        || die "Cannot determine rootfs for container '$id' — is it running?"
+# Derive a safe Incus instance name from a workspace folder path
+_dc_instance_name() {
+    local folder="${1:-$BDFS_DC_WORKSPACE_FOLDER}"
+    local base
+    base="$(basename "$folder" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-*$//')"
+    echo "${BDFS_DC_INSTANCE_PREFIX}-${base}"
 }
 
 # ── snapshot ──────────────────────────────────────────────────────────────────
+# Snapshot a running Incus devcontainer instance into a bdfs workspace.
 
 cmd_snapshot() {
-    local container="" name="devcontainer-snapshot-$(date +%Y%m%d-%H%M%S)"
+    require_bdfs; _bdfs_incus_require
+    local instance="" ws_name=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --container) container="$2"; shift 2 ;;
-            --name)      name="$2";      shift 2 ;;
-            -*)          die "Unknown option: $1" ;;
-            *)           die "Unexpected argument: $1" ;;
+            --instance) instance="$2"; shift 2 ;;
+            --name)     ws_name="$2";  shift 2 ;;
+            *) die "Unknown option: $1" ;;
         esac
     done
 
-    require_bdfs
-    require_docker
+    [[ -z "$instance" ]] && instance="$(_dc_instance_name)"
+    [[ -z "$ws_name"  ]] && ws_name="${instance}-snapshot-$(date +%Y%m%d%H%M%S)"
 
-    if [[ -z "$container" ]]; then
-        # Auto-detect: find the most recently started devcontainer
-        container="$($DOCKER_CMD ps --filter "label=devcontainer.local_folder" \
-            --format "{{.ID}}" | head -1)"
-        [[ -n "$container" ]] || die "No running dev container found — use --container ID"
-        info "Auto-detected container: $container"
-    fi
-
+    # Get the rootfs path of the running Incus container
     local rootfs
-    rootfs="$(container_rootfs "$container")"
+    rootfs="$(_bdfs_incus_rootfs_path "$instance")" \
+        || die "Could not locate rootfs for instance: ${instance}"
 
-    info "Snapshotting container '$container' rootfs → bdfs workspace '$name'"
-    $BDFS_CMD dev create "$name" --source "$rootfs"
-    info "Snapshot ready. Enter with: bdfs dev shell $name"
+    info "Snapshotting Incus instance '${instance}' → bdfs workspace '${ws_name}'"
+    "$BDFS_CMD" workspace create --name "$ws_name" --source "$rootfs"
+    info "Workspace created: ${ws_name}"
 }
 
 # ── export ────────────────────────────────────────────────────────────────────
 
 cmd_export() {
-    local container="" out="" compression="zstd"
+    require_bdfs; _bdfs_incus_require
+    local instance="" out="" compression="zstd"
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --container)   container="$2";   shift 2 ;;
+            --instance)    instance="$2";    shift 2 ;;
             --out)         out="$2";         shift 2 ;;
             --compression) compression="$2"; shift 2 ;;
-            -*)            die "Unknown option: $1" ;;
-            *)             die "Unexpected argument: $1" ;;
+            *) die "Unknown option: $1" ;;
         esac
     done
-    [[ -n "$out" ]] || die "--out PATH required"
+    [[ -n "$out" ]] || die "--out required"
+    [[ -z "$instance" ]] && instance="$(_dc_instance_name)"
 
-    require_docker
-    require_cmd mkdwarfs "dwarfs (mkdwarfs)"
+    local rootfs
+    rootfs="$(_bdfs_incus_rootfs_path "$instance")"
 
-    local tmpdir
-    tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-export.XXXXXX)"
-    trap "rm -rf '$tmpdir'" EXIT
-
-    if [[ -n "$container" ]]; then
-        # Export from a running container's rootfs
-        local rootfs
-        rootfs="$(container_rootfs "$container")"
-        info "Exporting container '$container' rootfs → DwarFS: $out"
-        mkdwarfs -i "$rootfs" -o "$out" --compression "$compression" \
-            --exclude-caches \
-            --filter "- /proc/**" \
-            --filter "- /sys/**" \
-            --filter "- /dev/**" \
-            --filter "- /run/**" \
-            --filter "- /tmp/**"
-    else
-        die "--container ID required for export"
-    fi
-
-    mkdir -p "$(dirname "$out")"
-    info "Exported: $out ($(du -sh "$out" | cut -f1))"
+    info "Exporting '${instance}' → ${out}"
+    "$BDFS_CMD" export --source "$rootfs" --out "$out" \
+        --compression "$compression"
+    info "Exported: ${out}"
 }
 
 # ── import ────────────────────────────────────────────────────────────────────
+# Import a DwarFS archive (or any tarball) as an Incus image.
 
 cmd_import() {
-    local image="" tag=""
+    _bdfs_incus_require
+    local image_path="" alias=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --tag) tag="$2"; shift 2 ;;
-            -*)    die "Unknown option: $1" ;;
-            *)     image="$1"; shift ;;
+            --alias) alias="$2"; shift 2 ;;
+            -*)      die "Unknown option: $1" ;;
+            *)       image_path="$1"; shift ;;
         esac
     done
-    [[ -n "$image" ]] || die "Usage: bdfs-devcontainer import <image-path> --tag IMAGE[:TAG]"
-    [[ -f "$image" ]] || die "Image not found: $image"
-    [[ -n "$tag"   ]] || die "--tag IMAGE[:TAG] required"
+    [[ -n "$image_path" ]] || die "Usage: bdfs-devcontainer.sh import <image-path> --alias ALIAS"
+    [[ -n "$alias"      ]] || alias="${BDFS_DC_INSTANCE_PREFIX}-import-$(date +%Y%m%d%H%M%S)"
 
-    require_docker
-    require_cmd dwarfs "dwarfs"
-
-    local tmpdir mp
-    tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-import.XXXXXX)"
-    mp="$tmpdir/mount"
-    mkdir -p "$mp"
-    trap "fusermount -u '$mp' 2>/dev/null; rm -rf '$tmpdir'" EXIT
-
-    info "Mounting DwarFS image: $image"
-    dwarfs "$image" "$mp"
-
-    info "Importing as container image: $tag"
-    tar -C "$mp" -c . | $DOCKER_CMD import - "$tag"
-    info "Imported. Use in devcontainer.json: \"image\": \"$tag\""
+    local result_alias
+    result_alias="$(_bdfs_incus_image_import "$image_path" "$alias")"
+    info "Imported as Incus image: alias='${result_alias}'"
+    info "Launch with: incus launch local:${result_alias} <instance-name>"
 }
 
 # ── build ─────────────────────────────────────────────────────────────────────
+# Build a devcontainer image using the devcontainer CLI, then import the
+# resulting OCI image into the Incus local image store.
 
 cmd_build() {
-    local workspace="" pack=false out=""
+    require_dc; _bdfs_incus_require
+    local workspace_folder="$BDFS_DC_WORKSPACE_FOLDER"
+    local pack=false out=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --workspace-folder) workspace="$2"; shift 2 ;;
-            --pack)             pack=true;      shift ;;
-            --out)              out="$2";       shift 2 ;;
-            -*)                 die "Unknown option: $1" ;;
-            *)                  die "Unexpected argument: $1" ;;
+            --workspace-folder) workspace_folder="$2"; shift 2 ;;
+            --pack)             pack=true;             shift   ;;
+            --out)              out="$2";              shift 2 ;;
+            *) die "Unknown option: $1" ;;
         esac
     done
-    workspace="${workspace:-$BDFS_DC_WORKSPACE_FOLDER}"
 
-    require_devcontainer
-    require_docker
+    local image_name
+    image_name="${BDFS_DC_INSTANCE_PREFIX}-$(basename "$workspace_folder" \
+        | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-*$//')"
 
-    info "Building dev container for: $workspace"
-    local image_id
-    image_id="$($DC_CMD build --workspace-folder "$workspace" --output '{"type":"image"}' \
-        2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('imageName',''))" \
-        2>/dev/null || true)"
+    info "Building devcontainer image for: ${workspace_folder}"
 
-    $DC_CMD build --workspace-folder "$workspace"
+    # devcontainer build writes an OCI image. We capture the image ID.
+    local build_out
+    build_out="$("$DC_CMD" build \
+        --workspace-folder "$workspace_folder" \
+        --image-name "$image_name" \
+        2>&1)" || die "devcontainer build failed"
 
-    if $pack; then
-        [[ -n "$out" ]] || die "--out PATH required with --pack"
-        require_cmd mkdwarfs "dwarfs (mkdwarfs)"
-        local tmpdir
-        tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-build.XXXXXX)"
-        trap "rm -rf '$tmpdir'" EXIT
-        info "Exporting built image to DwarFS: $out"
-        # Save image as tar, extract, pack with mkdwarfs
-        $DOCKER_CMD save "${image_id:-devcontainer}" | tar -x -C "$tmpdir" 2>/dev/null || true
-        mkdwarfs -i "$tmpdir" -o "$out" --compression zstd
-        info "Packed: $out ($(du -sh "$out" | cut -f1))"
+    info "devcontainer build output:"
+    echo "$build_out" | sed 's/^/  /'
+
+    # The devcontainer CLI uses Docker/Podman internally for the build step.
+    # We need to export the resulting image and import it into Incus.
+    # Try docker save, then podman save, then skip if neither available.
+    local tmp_tar
+    tmp_tar="$(mktemp /tmp/bdfs-dc-XXXXXX.tar)"
+
+    if command -v docker &>/dev/null; then
+        docker save "$image_name" -o "$tmp_tar" \
+            || die "docker save failed for: ${image_name}"
+    elif command -v podman &>/dev/null; then
+        podman save "$image_name" -o "$tmp_tar" \
+            || die "podman save failed for: ${image_name}"
+    else
+        warn "Neither docker nor podman found — cannot export built image to Incus"
+        warn "The image '${image_name}' was built but not imported into Incus."
+        rm -f "$tmp_tar"
+        return 0
+    fi
+
+    local alias
+    alias="$(_bdfs_incus_image_import "$tmp_tar" "$image_name")"
+    rm -f "$tmp_tar"
+    info "Imported into Incus: alias='${alias}'"
+
+    if $pack && [[ -n "$out" ]]; then
+        mkdir -p "$(dirname "$out")"
+        _bdfs_incus_image_export "$alias" "$(dirname "$out")"
+        info "Packed: ${out}"
     fi
 }
 
 # ── up ────────────────────────────────────────────────────────────────────────
+# Launch a devcontainer as an Incus instance, bind-mounting the workspace
+# folder into the instance at /workspace.
 
 cmd_up() {
-    local workspace="" snapshot=false
+    _bdfs_incus_require
+    local workspace_folder="$BDFS_DC_WORKSPACE_FOLDER"
+    local instance="" vm=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --workspace-folder) workspace="$2"; shift 2 ;;
-            --snapshot)         snapshot=true;  shift ;;
-            -*)                 die "Unknown option: $1" ;;
-            *)                  die "Unexpected argument: $1" ;;
+            --workspace-folder) workspace_folder="$2"; shift 2 ;;
+            --instance)         instance="$2";         shift 2 ;;
+            --vm)               vm=true;               shift   ;;
+            *) die "Unknown option: $1" ;;
         esac
     done
-    workspace="${workspace:-$BDFS_DC_WORKSPACE_FOLDER}"
 
-    require_devcontainer
+    [[ -z "$instance" ]] && instance="$(_dc_instance_name "$workspace_folder")"
 
-    if $snapshot; then
-        require_bdfs
-        local snap_name="pre-up-$(basename "$workspace")-$(date +%Y%m%d-%H%M%S)"
-        info "Pre-snapshot of workspace root → bdfs workspace '$snap_name'"
-        $BDFS_CMD dev create "$snap_name" --source "$workspace"
-        info "Snapshot saved. Continuing with devcontainer up..."
+    # Read the devcontainer.json to find the base image
+    local dc_json="${workspace_folder}/.devcontainer/devcontainer.json"
+    [[ -f "$dc_json" ]] || dc_json="${workspace_folder}/.devcontainer.json"
+    [[ -f "$dc_json" ]] || die "No devcontainer.json found in: ${workspace_folder}"
+
+    local base_image
+    base_image="$(python3 -c "
+import json, re, sys
+raw = open('${dc_json}').read()
+# Strip JSON comments
+raw = re.sub(r'//.*', '', raw)
+raw = re.sub(r'/\*.*?\*/', '', raw, flags=re.DOTALL)
+d = json.loads(raw)
+print(d.get('image', d.get('build', {}).get('image', '')))
+" 2>/dev/null)" || base_image=""
+
+    if [[ -z "$base_image" ]]; then
+        warn "Could not extract base image from devcontainer.json"
+        warn "Using ubuntu:24.04 as fallback"
+        base_image="ubuntu:24.04"
     fi
 
-    info "Starting dev container for: $workspace"
-    $DC_CMD up --workspace-folder "$workspace"
+    local abs_workspace
+    abs_workspace="$(realpath "$workspace_folder")"
+
+    local -a launch_args=(
+        --device "workspace,type=disk,source=${abs_workspace},path=/workspace"
+        --config "environment.WORKSPACE_FOLDER=/workspace"
+    )
+    $vm && launch_args+=(--vm)
+
+    info "Launching devcontainer '${instance}' from image: ${base_image}"
+    _bdfs_incus_launch "$base_image" "$instance" "${launch_args[@]}"
+    _bdfs_incus_wait_ready "$instance" 60
+
+    info "Instance running: ${instance}"
+    info "Connect with: incus exec ${instance} -- bash"
+    info "Workspace at: /workspace (inside instance)"
 }
 
 # ── status ────────────────────────────────────────────────────────────────────
 
 cmd_status() {
-    require_docker
-
-    echo "=== Running dev containers ==="
-    $DOCKER_CMD ps --filter "label=devcontainer.local_folder" \
-        --format "table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Label \"devcontainer.local_folder\"}}" \
-        2>/dev/null || $DOCKER_CMD ps 2>/dev/null | head -10
-
+    echo "[bdfs-devcontainer] Status"; echo ""
+    _bdfs_incus_require
+    echo "  Incus devcontainer instances:"
+    "$INCUS_CMD" list --format csv 2>/dev/null \
+        | grep "^${BDFS_DC_INSTANCE_PREFIX}" | sed 's/^/    /' \
+        || echo "    none"
     echo ""
-    echo "=== bdfs workspaces ==="
-    $BDFS_CMD dev list 2>/dev/null || echo "(no bdfs workspaces)"
+    if command -v bdfs &>/dev/null; then
+        echo "  bdfs workspaces (devcontainer):"
+        bdfs workspace list 2>/dev/null | grep -i devcontainer | sed 's/^/    /' \
+            || echo "    none"
+    fi
 }
 
-# ── Dispatch ──────────────────────────────────────────────────────────────────
+# ── dispatch ──────────────────────────────────────────────────────────────────
 
-SUBCOMMAND="${1:-}"
-shift || true
-
-case "$SUBCOMMAND" in
+SUBCMD="${1:-}"
+[[ -z "$SUBCMD" ]] && { sed -n '2,/^$/p' "$0" | grep '^#' | sed 's/^# \?//'; exit 1; }
+shift
+case "$SUBCMD" in
     snapshot) cmd_snapshot "$@" ;;
     export)   cmd_export   "$@" ;;
     import)   cmd_import   "$@" ;;
     build)    cmd_build    "$@" ;;
     up)       cmd_up       "$@" ;;
     status)   cmd_status   "$@" ;;
-    ""|help)
-        echo "Usage: bdfs-devcontainer <subcommand> [options]"
-        echo ""
-        echo "Subcommands:"
-        echo "  snapshot  Snapshot a running dev container into a bdfs workspace"
-        echo "  export    Export a dev container rootfs as a DwarFS archive"
-        echo "  import    Import a DwarFS archive as a container image"
-        echo "  build     Build a dev container image [--pack --out PATH]"
-        echo "  up        Start a dev container [--snapshot] [--workspace-folder PATH]"
-        echo "  status    Show running dev containers and bdfs workspaces"
-        ;;
-    *) die "Unknown subcommand: $SUBCOMMAND (run bdfs-devcontainer help)" ;;
+    --help|-h) sed -n '2,/^$/p' "$0" | grep '^#' | sed 's/^# \?//'; exit 0 ;;
+    *) die "Unknown subcommand: ${SUBCMD}. Try: snapshot|export|import|build|up|status" ;;
 esac
