@@ -1,0 +1,70 @@
+name: BDFS external-module build
+
+on:
+  pull_request:
+    paths:
+      - "kernel/**"
+      - "include/**"
+      - "integrations/kernels/**"
+      - ".github/workflows/kernel-module-build.yml"
+  push:
+    branches: [main]
+    paths:
+      - "kernel/**"
+      - "include/**"
+      - "integrations/kernels/**"
+      - ".github/workflows/kernel-module-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bdfs-module-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-6-12:
+    name: Build external module against Linux 6.12.1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out BDFS
+        uses: actions/checkout@v4
+
+      - name: Install kernel build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ca-certificates dwarves flex git \
+            libelf-dev libncurses-dev libssl-dev
+
+      - name: Fetch Linux stable 6.12.1
+        run: |
+          git clone --depth 1 --branch v6.12.1 \
+            https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git \
+            "$RUNNER_TEMP/linux-6.12.1"
+
+      - name: Configure kernel prerequisites
+        run: |
+          make -C "$RUNNER_TEMP/linux-6.12.1" defconfig
+          "$RUNNER_TEMP/linux-6.12.1/scripts/config" \
+            --module BTRFS_FS \
+            --module FUSE_FS \
+            --enable NET
+          make -C "$RUNNER_TEMP/linux-6.12.1" olddefconfig
+          grep -E '^(CONFIG_BTRFS_FS|CONFIG_FUSE_FS|CONFIG_NET)=[ym]$' \
+            "$RUNNER_TEMP/linux-6.12.1/.config"
+
+      - name: Build kernel modules to generate Module.symvers
+        run: |
+          make -C "$RUNNER_TEMP/linux-6.12.1" -j"$(nproc)" modules
+        timeout-minutes: 35
+
+      - name: Build BDFS external module
+        run: |
+          bash integrations/kernels/build-module.sh \
+            "$RUNNER_TEMP/linux-6.12.1" \
+            "$RUNNER_TEMP/bdfs-artifacts"
+          test -s "$RUNNER_TEMP/bdfs-artifacts/btrfs_dwarfs.ko"
+          modinfo "$RUNNER_TEMP/bdfs-artifacts/btrfs_dwarfs.ko"
