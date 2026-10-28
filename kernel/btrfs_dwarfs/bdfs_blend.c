@@ -51,7 +51,6 @@
 #include <linux/security.h>
 #include <linux/posix_acl.h>
 #include <linux/posix_acl_xattr.h>
-#include <linux/stringhash.h>
 
 #include "bdfs_internal.h"
 
@@ -161,7 +160,6 @@ static struct dentry *bdfs_lookup_one_name(struct mnt_idmap *idmap,
 	struct qstr q = {
 		.name = name,
 		.len = len,
-		.hash = full_name_hash(parent, name, len),
 	};
 	return lookup_one(idmap, &q, parent);
 #else
