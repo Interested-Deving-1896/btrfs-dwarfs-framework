@@ -24,10 +24,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  linux-6-12:
-    name: Build external module against Linux 6.12.1
+  build:
+    name: Linux ${{ matrix.version }} external module
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - version: "7.3"
+            ref: "v7.3"
+          - version: "7.2.12"
+            ref: "v7.2.12"
+          - version: "6.18.58"
+            ref: "v6.18.58"
+          - version: "6.12.114"
+            ref: "v6.12.114"
+          - version: "6.6.160"
+            ref: "v6.6.160"
+          - version: "6.1.190"
+            ref: "v6.1.190"
+          - version: "5.15.223"
+            ref: "v5.15.223"
+          - version: "5.10.272"
+            ref: "v5.10.272"
     steps:
       - name: Check out BDFS
         uses: actions/checkout@v4
@@ -39,37 +60,36 @@ jobs:
             bc bison build-essential ca-certificates dwarves flex git \
             libelf-dev libncurses-dev libssl-dev
 
-      - name: Fetch Linux stable 6.12.1
+      - name: Fetch Linux kernel source
         run: |
-          git clone --depth 1 --branch v6.12.1 \
+          git clone --depth 1 --branch "${{ matrix.ref }}" \
             https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git \
-            "$RUNNER_TEMP/linux-6.12.1"
+            "$RUNNER_TEMP/linux-${{ matrix.version }}"
 
       - name: Configure kernel prerequisites
         run: |
-          make -C "$RUNNER_TEMP/linux-6.12.1" defconfig
-          "$RUNNER_TEMP/linux-6.12.1/scripts/config" \
-            --file "$RUNNER_TEMP/linux-6.12.1/.config" \
+          KDIR="$RUNNER_TEMP/linux-${{ matrix.version }}"
+          make -C "$KDIR" defconfig
+          "$KDIR/scripts/config" --file "$KDIR/.config" \
             --module BTRFS_FS \
             --module FUSE_FS \
             --enable NET
-          make -C "$RUNNER_TEMP/linux-6.12.1" olddefconfig
+          make -C "$KDIR" olddefconfig
           for symbol in CONFIG_BTRFS_FS CONFIG_FUSE_FS CONFIG_NET; do
-            if ! grep -Eq "^${symbol}=[ym]$" "$RUNNER_TEMP/linux-6.12.1/.config"; then
-              echo "ERROR: ${symbol} was not enabled by kernel configuration." >&2
+            if ! grep -Eq "^$${symbol}=[ym]$" "$KDIR/.config"; then
+              echo "ERROR: $${symbol} was not enabled by kernel configuration." >&2
               exit 1
             fi
           done
 
-      - name: Build vmlinux and modules to generate Module.symvers
+      - name: Build kernel and modules to generate Module.symvers
         run: |
-          make -C "$RUNNER_TEMP/linux-6.12.1" -j"$(nproc)" vmlinux modules
-        timeout-minutes: 35
+          make -C "$RUNNER_TEMP/linux-${{ matrix.version }}" -j"$(nproc)" vmlinux modules
 
       - name: Build BDFS external module
         run: |
           bash integrations/kernels/build-module.sh \
-            "$RUNNER_TEMP/linux-6.12.1" \
-            "$RUNNER_TEMP/bdfs-artifacts"
-          test -s "$RUNNER_TEMP/bdfs-artifacts/btrfs_dwarfs.ko"
-          modinfo "$RUNNER_TEMP/bdfs-artifacts/btrfs_dwarfs.ko"
+            "$RUNNER_TEMP/linux-${{ matrix.version }}" \
+            "$RUNNER_TEMP/bdfs-artifacts-${{ matrix.version }}"
+          test -s "$RUNNER_TEMP/bdfs-artifacts-${{ matrix.version }}/btrfs_dwarfs.ko"
+          modinfo "$RUNNER_TEMP/bdfs-artifacts-${{ matrix.version }}/btrfs_dwarfs.ko"
