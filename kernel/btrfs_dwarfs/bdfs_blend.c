@@ -76,6 +76,18 @@
 /* Maximum xattr value size we handle inline (larger values use vmalloc). */
 #define BDFS_XATTR_INLINE_MAX  256
 
+/* Forward declarations for types and callbacks referenced before definition. */
+struct bdfs_blend_inode_info;
+struct bdfs_blend_mount;
+static struct inode *bdfs_blend_alloc_inode(struct super_block *sb);
+static void bdfs_blend_free_inode(struct inode *inode);
+static struct kmem_cache *bdfs_inode_cachep;
+static const struct inode_operations bdfs_blend_dir_iops;
+static const struct file_operations bdfs_blend_dir_fops;
+static const struct inode_operations bdfs_blend_file_iops;
+static const struct file_operations bdfs_blend_file_fops;
+static const struct inode_operations bdfs_blend_symlink_iops;
+
 /* Forward declarations for functions defined after the ops tables. */
 static ssize_t bdfs_blend_copy_file_range(struct file *file_in, loff_t pos_in,
 					  struct file *file_out, loff_t pos_out,
@@ -97,15 +109,8 @@ static int   bdfs_blend_create_whiteout(struct inode *dir,
 					const char *name, size_t namelen,
 					struct bdfs_blend_mount *bm);
 
-/*
- * SLAB_MEM_SPREAD was removed in kernel 6.15.  It was a no-op hint on most
- * architectures, so dropping it is safe.
- */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
-# define BDFS_SLAB_FLAGS  (SLAB_RECLAIM_ACCOUNT | SLAB_ACCOUNT)
-#else
-# define BDFS_SLAB_FLAGS  (SLAB_RECLAIM_ACCOUNT | SLAB_MEM_SPREAD | SLAB_ACCOUNT)
-#endif
+/* SLAB_MEM_SPREAD is unavailable in some supported kernel configurations. */
+#define BDFS_SLAB_FLAGS  (SLAB_RECLAIM_ACCOUNT | SLAB_ACCOUNT)
 
 /* Per-mount blend state */
 struct bdfs_blend_mount {
@@ -131,6 +136,37 @@ struct bdfs_dwarfs_layer {
 	u64                     image_id;
 	int                     priority;       /* lower = checked first */
 };
+
+/*
+ * lookup_one() changed from a name/length API to a qstr API in Linux 6.19.
+ */
+static struct dentry *bdfs_lookup_one_qstr(struct mnt_idmap *idmap,
+					   const struct qstr *name,
+					   struct dentry *parent)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
+	struct qstr q = *name;
+	return lookup_one(idmap, &q, parent);
+#else
+	return lookup_one(idmap, name->name, parent, name->len);
+#endif
+}
+
+static struct dentry *bdfs_lookup_one_name(struct mnt_idmap *idmap,
+					   const char *name, size_t len,
+					   struct dentry *parent)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
+	struct qstr q = {
+		.name = name,
+		.len = len,
+		.hash = full_name_hash(parent, name, len),
+	};
+	return lookup_one(idmap, &q, parent);
+#else
+	return lookup_one(idmap, name, parent, len);
+#endif
+}
 
 static DEFINE_MUTEX(bdfs_blend_mounts_lock);
 static LIST_HEAD(bdfs_blend_mounts);
@@ -332,9 +368,7 @@ static void bdfs_blend_free_inode(struct inode *inode)
 	kmem_cache_free(bdfs_inode_cachep, bi);
 }
 
-/* Inode cache — allocated once at module init */
-static struct kmem_cache *bdfs_inode_cachep;
-
+/* Inode cache — allocated once at module init. */
 static void bdfs_inode_init_once(void *obj)
 {
 	struct bdfs_blend_inode_info *bi = obj;
@@ -808,7 +842,7 @@ static int bdfs_blend_create(struct mnt_idmap *idmap,
 			return ret;
 	}
 
-	upper_dentry = lookup_one(idmap, &dentry->d_name, upper_parent.dentry);
+	upper_dentry = bdfs_lookup_one_qstr(idmap, &dentry->d_name, upper_parent.dentry);
 	if (IS_ERR(upper_dentry)) {
 		path_put(&upper_parent);
 		return PTR_ERR(upper_dentry);
@@ -883,13 +917,13 @@ static struct dentry *bdfs_blend_mkdir(struct mnt_idmap *idmap,
 			return ERR_PTR(ret);
 	}
 
-	upper_dentry = lookup_one(idmap, &dentry->d_name, upper_parent.dentry);
+	upper_dentry = bdfs_lookup_one_qstr(idmap, &dentry->d_name, upper_parent.dentry);
 	if (IS_ERR(upper_dentry)) {
 		path_put(&upper_parent);
 		return upper_dentry;
 	}
 
-	/* vfs_mkdir returns the new dentry (or ERR_PTR) in 6.17+ */
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
 	real_dentry = vfs_mkdir(idmap, d_inode(upper_parent.dentry),
 				upper_dentry, mode);
 	dput(upper_dentry);
@@ -897,6 +931,15 @@ static struct dentry *bdfs_blend_mkdir(struct mnt_idmap *idmap,
 		path_put(&upper_parent);
 		return real_dentry;
 	}
+#else
+	ret = vfs_mkdir(idmap, d_inode(upper_parent.dentry), upper_dentry, mode);
+	if (ret) {
+		dput(upper_dentry);
+		path_put(&upper_parent);
+		return ERR_PTR(ret);
+	}
+	real_dentry = upper_dentry;
+#endif
 
 	struct path new_path = { .mnt = upper_parent.mnt,
 				 .dentry = real_dentry };
@@ -1059,20 +1102,31 @@ static int bdfs_blend_rename(struct mnt_idmap *idmap,
 	 * corresponding dentry in the BTRFS upper layer so vfs_rename
 	 * operates entirely within one real filesystem.
 	 */
-	real_new_dentry = lookup_one(idmap, &new_dentry->d_name,
+	real_new_dentry = bdfs_lookup_one_qstr(idmap, &new_dentry->d_name,
 				     new_par_bi->real_path.dentry);
 	if (IS_ERR(real_new_dentry))
 		return PTR_ERR(real_new_dentry);
 
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
+	ret = vfs_rename(&(struct renamedata){
+			.mnt_idmap  = idmap,
+			.old_parent = old_par_bi->real_path.dentry,
+			.old_dentry = src_bi->real_path.dentry,
+			.new_parent = new_par_bi->real_path.dentry,
+			.new_dentry = real_new_dentry,
+			.flags      = flags,
+		});
+#else
 	ret = vfs_rename(&(struct renamedata){
 			.old_mnt_idmap = idmap,
-			.old_parent    = old_par_bi->real_path.dentry,
+			.old_dir       = d_inode(old_par_bi->real_path.dentry),
 			.old_dentry    = src_bi->real_path.dentry,
 			.new_mnt_idmap = idmap,
-			.new_parent    = new_par_bi->real_path.dentry,
+			.new_dir       = d_inode(new_par_bi->real_path.dentry),
 			.new_dentry    = real_new_dentry,
 			.flags         = flags,
 		});
+#endif
 
 	dput(real_new_dentry);
 	return ret;
@@ -1121,7 +1175,7 @@ static int bdfs_blend_symlink(struct mnt_idmap *idmap,
 			return ret;
 	}
 
-	upper_dentry = lookup_one(idmap, &dentry->d_name, upper_parent.dentry);
+	upper_dentry = bdfs_lookup_one_qstr(idmap, &dentry->d_name, upper_parent.dentry);
 	if (IS_ERR(upper_dentry)) {
 		path_put(&upper_parent);
 		return PTR_ERR(upper_dentry);
@@ -1167,7 +1221,7 @@ static int bdfs_blend_link(struct dentry *old_dentry, struct inode *dir,
 		return -EPERM;
 
 	idmap = mnt_idmap(src_bi->real_path.mnt);
-	real_new_dentry = lookup_one(idmap, &new_dentry->d_name,
+	real_new_dentry = bdfs_lookup_one_qstr(idmap, &new_dentry->d_name,
 				     parent_bi->real_path.dentry);
 	if (IS_ERR(real_new_dentry))
 		return PTR_ERR(real_new_dentry);
@@ -1822,8 +1876,8 @@ static bool bdfs_blend_check_whiteout(struct bdfs_blend_inode_info *parent_bi,
 	 * only ever an internal helper); we use lookup_one() throughout.
 	 */
 	inode_lock_shared(d_inode(parent_dentry));
-	wh_dentry = lookup_one(mnt_idmap(parent_bi->real_path.mnt),
-			       wh_name, parent_dentry, strlen(wh_name));
+	wh_dentry = bdfs_lookup_one_name(mnt_idmap(parent_bi->real_path.mnt),
+				     wh_name, strlen(wh_name), parent_dentry);
 	inode_unlock_shared(d_inode(parent_dentry));
 
 	if (IS_ERR(wh_dentry))
@@ -1872,7 +1926,7 @@ static int bdfs_blend_create_whiteout(struct inode *dir,
 	idmap = mnt_idmap(parent_bi->real_path.mnt);
 
 	inode_lock(d_inode(parent_dentry));
-	wh_dentry = lookup_one(idmap, wh_name, parent_dentry, strlen(wh_name));
+	wh_dentry = bdfs_lookup_one_name(idmap, wh_name, strlen(wh_name), parent_dentry);
 	if (IS_ERR(wh_dentry)) {
 		inode_unlock(d_inode(parent_dentry));
 		return PTR_ERR(wh_dentry);
@@ -1971,8 +2025,28 @@ static ssize_t bdfs_blend_copy_file_range(struct file *file_in,
 	 * generic implementation which uses read_iter + write_iter.  This is
 	 * correct but not zero-copy.
 	 */
-	return generic_copy_file_range(file_in, pos_in,
-				       file_out, pos_out, len, flags);
+	/* generic_copy_file_range() is not available to modules on all kernels. */
+	{
+		int in_flags = O_RDONLY | O_LARGEFILE;
+		int out_flags = O_RDWR | O_LARGEFILE;
+
+		real_in = bi_in->upper_file
+			  ? (get_file(bi_in->upper_file), bi_in->upper_file)
+			  : dentry_open(&bi_in->real_path, in_flags, current_cred());
+		if (IS_ERR(real_in))
+			return PTR_ERR(real_in);
+		real_out = bi_out->upper_file
+			   ? (get_file(bi_out->upper_file), bi_out->upper_file)
+			   : dentry_open(&bi_out->real_path, out_flags, current_cred());
+		if (IS_ERR(real_out)) {
+			fput(real_in);
+			return PTR_ERR(real_out);
+		}
+		ret = vfs_copy_file_range(real_in, pos_in, real_out, pos_out, len, flags);
+		fput(real_in);
+		fput(real_out);
+		return ret;
+	}
 }
 
 /* ── FS_IOC_GETFLAGS / FS_IOC_SETFLAGS ──────────────────────────────────── */
@@ -2268,9 +2342,9 @@ int bdfs_blend_attach_mounts(void __user *uarg)
 	/* Attach BTRFS upper-layer mount. */
 	if (arg.btrfs_fd >= 0) {
 		f = fdget(arg.btrfs_fd);
-		if (!f.file)
+		if (!fd_file(f))
 			return -EBADF;
-		mnt = mntget(f.file->f_path.mnt);
+		mnt = mntget(fd_file(f)->f_path.mnt);
 		fdput(f);
 
 		/* Drop any previous reference. */
@@ -2287,9 +2361,9 @@ int bdfs_blend_attach_mounts(void __user *uarg)
 			continue;
 
 		f = fdget(arg.dwarfs_fds[i]);
-		if (!f.file)
+		if (!fd_file(f))
 			continue;
-		mnt = mntget(f.file->f_path.mnt);
+		mnt = mntget(fd_file(f)->f_path.mnt);
 		fdput(f);
 
 		/* Find or allocate the layer slot. */
