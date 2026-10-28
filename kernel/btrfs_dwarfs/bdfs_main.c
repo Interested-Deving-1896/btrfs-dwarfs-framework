@@ -62,21 +62,32 @@ bdfs_find_partition_locked(const u8 uuid[16])
 
 static int bdfs_register_partition(struct bdfs_ioctl_register_partition __user *uarg)
 {
-	struct bdfs_ioctl_register_partition arg;
+	struct bdfs_ioctl_register_partition *arg;
 	struct bdfs_partition_entry *entry;
 	int ret = 0;
 
-	if (copy_from_user(&arg, uarg, sizeof(arg)))
-		return -EFAULT;
-
-	if (arg.part.magic != BDFS_MAGIC)
-		return -EINVAL;
-
-	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
-	if (!entry)
+	/* The UAPI structure embeds a large partition descriptor; keep it off-stack. */
+	arg = kzalloc(sizeof(*arg), GFP_KERNEL);
+	if (!arg)
 		return -ENOMEM;
 
-	memcpy(&entry->desc, &arg.part, sizeof(arg.part));
+	if (copy_from_user(arg, uarg, sizeof(*arg))) {
+		kfree(arg);
+		return -EFAULT;
+	}
+
+	if (arg->part.magic != BDFS_MAGIC) {
+		kfree(arg);
+		return -EINVAL;
+	}
+
+	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+	if (!entry) {
+		kfree(arg);
+		return -ENOMEM;
+	}
+
+	memcpy(&entry->desc, &arg->part, sizeof(arg->part));
 
 	/* Assign a UUID if not provided */
 	if (memchr_inv(entry->desc.uuid, 0, 16) == NULL)
@@ -97,12 +108,14 @@ static int bdfs_register_partition(struct bdfs_ioctl_register_partition __user *
 		break;
 	default:
 		kfree(entry);
+		kfree(arg);
 		return -EINVAL;
 	}
 
 	ret = entry->ops->init(entry);
 	if (ret) {
 		kfree(entry);
+		kfree(arg);
 		return ret;
 	}
 
@@ -112,12 +125,15 @@ static int bdfs_register_partition(struct bdfs_ioctl_register_partition __user *
 	mutex_unlock(&bdfs_registry_lock);
 
 	/* Return the UUID to userspace */
-	if (copy_to_user(arg.uuid_out, entry->desc.uuid, 16)) {
+	if (copy_to_user((char __user *)uarg +
+			 offsetof(struct bdfs_ioctl_register_partition, uuid_out),
+			 entry->desc.uuid, sizeof(arg->uuid_out))) {
 		/* Best-effort; partition is registered regardless */
 		ret = -EFAULT;
 	}
 
 	bdfs_emit_event(BDFS_EVT_PARTITION_ADDED, entry->desc.uuid, 0, NULL);
+	kfree(arg);
 	return ret;
 }
 
@@ -197,18 +213,27 @@ EXPORT_SYMBOL_GPL(bdfs_emit_event);
  */
 static int bdfs_copyup_complete(void __user *uarg)
 {
-	struct bdfs_ioctl_copyup_complete arg;
+	struct bdfs_ioctl_copyup_complete *arg;
 	struct path upper_path;
 	struct inode *inode;
 	int ret;
 
-	if (copy_from_user(&arg, uarg, sizeof(arg)))
+	/* The path field is 4096 bytes; allocate the UAPI payload off-stack. */
+	arg = kzalloc(sizeof(*arg), GFP_KERNEL);
+	if (!arg)
+		return -ENOMEM;
+
+	if (copy_from_user(arg, uarg, sizeof(*arg))) {
+		kfree(arg);
 		return -EFAULT;
+	}
 
 	/* Resolve the upper-layer path provided by the daemon */
-	ret = kern_path(arg.upper_path, LOOKUP_FOLLOW, &upper_path);
-	if (ret)
+	ret = kern_path(arg->upper_path, LOOKUP_FOLLOW, &upper_path);
+	if (ret) {
+		kfree(arg);
 		return ret;
+	}
 
 	/*
 	 * Look up the waiting blend inode via the copyup table registered
@@ -216,9 +241,10 @@ static int bdfs_copyup_complete(void __user *uarg)
 	 * inode_no) and lives in the blend superblock — not the BTRFS one —
 	 * so ilookup(upper_sb, ino) would always fail.
 	 */
-	inode = bdfs_copyup_lookup_and_remove(arg.btrfs_uuid, arg.inode_no);
+	inode = bdfs_copyup_lookup_and_remove(arg->btrfs_uuid, arg->inode_no);
 	if (!inode) {
 		path_put(&upper_path);
+		kfree(arg);
 		return -ENOENT;
 	}
 
@@ -226,6 +252,7 @@ static int bdfs_copyup_complete(void __user *uarg)
 
 	iput(inode);   /* release the ihold taken in bdfs_copyup_register */
 	path_put(&upper_path);
+	kfree(arg);
 	return 0;
 }
 
