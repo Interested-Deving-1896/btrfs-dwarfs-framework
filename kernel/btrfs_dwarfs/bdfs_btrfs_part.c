@@ -231,9 +231,10 @@ int bdfs_btrfs_import(void __user *uarg,
 	}
 	mutex_unlock(lock);
 
-	if (!entry)
+	if (!entry) {
 		ret = -ENOENT;
 		goto out;
+}
 
 	priv = entry->private;
 
@@ -285,7 +286,7 @@ int bdfs_btrfs_import(void __user *uarg,
 	pr_info("bdfs: import queued: image %llu → subvol '%s'\n",
 		arg->image_id, arg->subvol_name);
 	ret = 0;
-		goto out;
+	goto out;
 out:
 	kfree(arg);
 	return ret;
