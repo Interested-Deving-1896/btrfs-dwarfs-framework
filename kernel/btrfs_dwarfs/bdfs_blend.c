@@ -51,6 +51,7 @@
 #include <linux/security.h>
 #include <linux/posix_acl.h>
 #include <linux/posix_acl_xattr.h>
+#include <linux/stringhash.h>
 
 #include "bdfs_internal.h"
 
