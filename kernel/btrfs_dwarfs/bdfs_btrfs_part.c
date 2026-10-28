@@ -234,7 +234,7 @@ int bdfs_btrfs_import(void __user *uarg,
 	if (!entry) {
 		ret = -ENOENT;
 		goto out;
-}
+	}
 
 	priv = entry->private;
 
