@@ -49,12 +49,17 @@ jobs:
         run: |
           make -C "$RUNNER_TEMP/linux-6.12.1" defconfig
           "$RUNNER_TEMP/linux-6.12.1/scripts/config" \
+            --file "$RUNNER_TEMP/linux-6.12.1/.config" \
             --module BTRFS_FS \
             --module FUSE_FS \
             --enable NET
           make -C "$RUNNER_TEMP/linux-6.12.1" olddefconfig
-          grep -E '^(CONFIG_BTRFS_FS|CONFIG_FUSE_FS|CONFIG_NET)=[ym]$' \
-            "$RUNNER_TEMP/linux-6.12.1/.config"
+          for symbol in CONFIG_BTRFS_FS CONFIG_FUSE_FS CONFIG_NET; do
+            if ! grep -Eq "^${symbol}=[ym]$" "$RUNNER_TEMP/linux-6.12.1/.config"; then
+              echo "ERROR: ${symbol} was not enabled by kernel configuration." >&2
+              exit 1
+            fi
+          done
 
       - name: Build vmlinux and modules to generate Module.symvers
         run: |
