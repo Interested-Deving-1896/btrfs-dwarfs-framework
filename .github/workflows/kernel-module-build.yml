@@ -56,9 +56,9 @@ jobs:
           grep -E '^(CONFIG_BTRFS_FS|CONFIG_FUSE_FS|CONFIG_NET)=[ym]$' \
             "$RUNNER_TEMP/linux-6.12.1/.config"
 
-      - name: Build kernel modules to generate Module.symvers
+      - name: Build vmlinux and modules to generate Module.symvers
         run: |
-          make -C "$RUNNER_TEMP/linux-6.12.1" -j"$(nproc)" modules
+          make -C "$RUNNER_TEMP/linux-6.12.1" -j"$(nproc)" vmlinux modules
         timeout-minutes: 35
 
       - name: Build BDFS external module
