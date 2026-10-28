@@ -144,20 +144,23 @@ int bdfs_btrfs_store_image(void __user *uarg,
 	}
 	mutex_unlock(lock);
 
-	if (!entry)
+	if (!entry) {
 		ret = -ENOENT;
 		goto out;
+	}
 
-	if (entry->desc.type != BDFS_PART_BTRFS_BACKED)
+	if (entry->desc.type != BDFS_PART_BTRFS_BACKED) {
 		ret = -EINVAL;
 		goto out;
+	}
 
 	priv = entry->private;
 
 	img = kzalloc(sizeof(*img), GFP_KERNEL);
-	if (!img)
+	if (!img) {
 		ret = -ENOMEM;
 		goto out;
+	}
 
 	img->desc.image_id = atomic64_fetch_add(1, &priv->next_image_id);
 	strscpy(img->desc.name, arg->dest_name, sizeof(img->desc.name));
@@ -175,14 +178,15 @@ int bdfs_btrfs_store_image(void __user *uarg,
 			img->desc.image_id, event_msg);
 
 	if (put_user(img->desc.image_id,
-		     &((struct bdfs_ioctl_store_dwarfs_image __user *)uarg)->image_id_out))
+		     &((struct bdfs_ioctl_store_dwarfs_image __user *)uarg)->image_id_out)) {
 		ret = -EFAULT;
 		goto out;
+	}
 
 	pr_info("bdfs: store queued: %s → %s (image_id=%llu)\n",
 		arg->source_path, img->desc.backing_path, img->desc.image_id);
 	ret = 0;
-		goto out;
+	goto out;
 out:
 	kfree(arg);
 	return ret;
@@ -243,15 +247,17 @@ int bdfs_btrfs_import(void __user *uarg,
 	}
 	mutex_unlock(&priv->subvols_lock);
 
-	if (!found)
+	if (!found) {
 		ret = -ENOENT;
 		goto out;
+	}
 
 	/* Pre-allocate the subvolume entry; daemon fills in the real subvol_id */
 	sv = kzalloc(sizeof(*sv), GFP_KERNEL);
-	if (!sv)
+	if (!sv) {
 		ret = -ENOMEM;
 		goto out;
+	}
 
 	sv->desc.subvol_id = atomic64_fetch_add(1, &priv->next_subvol_seq);
 	sv->desc.is_readonly = !!(arg->flags & BDFS_IMPORT_READONLY);
@@ -271,9 +277,10 @@ int bdfs_btrfs_import(void __user *uarg,
 			arg->image_id, event_msg);
 
 	if (put_user(sv->desc.subvol_id,
-		     &((struct bdfs_ioctl_import_from_dwarfs __user *)uarg)->subvol_id_out))
+		     &((struct bdfs_ioctl_import_from_dwarfs __user *)uarg)->subvol_id_out)) {
 		ret = -EFAULT;
 		goto out;
+	}
 
 	pr_info("bdfs: import queued: image %llu → subvol '%s'\n",
 		arg->image_id, arg->subvol_name);
