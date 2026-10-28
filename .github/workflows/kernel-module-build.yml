@@ -76,8 +76,8 @@ jobs:
             --enable NET
           make -C "$KDIR" olddefconfig
           for symbol in CONFIG_BTRFS_FS CONFIG_FUSE_FS CONFIG_NET; do
-            if ! grep -Eq "^$${symbol}=[ym]$" "$KDIR/.config"; then
-              echo "ERROR: $${symbol} was not enabled by kernel configuration." >&2
+            if ! grep -Eq "^${symbol}=[ym]$" "$KDIR/.config"; then
+              echo "ERROR: ${symbol} was not enabled by kernel configuration." >&2
               exit 1
             fi
           done
