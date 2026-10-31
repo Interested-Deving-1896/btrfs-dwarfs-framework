@@ -3,7 +3,7 @@
 	url = https://gitlab.com/openos-project/linux-kernel_filesystem_deving/frzr-meta-root.git
 [submodule "integrations/btr-fs-git"]
 	path = integrations/btr-fs-git
-	url = https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btr-fs-git.git
+	url = https://github.com/Interested-Deving-1896/BtrFsGit.git
 [submodule "integrations/btrfs-assistant"]
 	path = integrations/btrfs-assistant
 	url = https://gitlab.com/openos-project/linux-kernel_filesystem_deving/btrfs-assistant.git
