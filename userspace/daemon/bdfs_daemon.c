@@ -331,54 +331,6 @@ void bdfs_daemon_shutdown(struct bdfs_daemon *d)
 	pthread_mutex_destroy(&d->mounts_lock);
 }
 
-/* ── Mount table helpers ────────────────────────────────────────────────── */
-
-void bdfs_mount_track(struct bdfs_daemon *d, enum bdfs_mount_type type,
-		      const uint8_t uuid[16], uint64_t image_id,
-		      const char *mount_point)
-{
-	struct bdfs_mount_entry *me = calloc(1, sizeof(*me));
-	if (!me)
-		return;
-
-	me->type     = type;
-	me->image_id = image_id;
-	if (uuid)
-		memcpy(me->partition_uuid, uuid, 16);
-	strncpy(me->mount_point, mount_point, sizeof(me->mount_point) - 1);
-
-	pthread_mutex_lock(&d->mounts_lock);
-	TAILQ_INSERT_TAIL(&d->mounts, me, entry);
-	pthread_mutex_unlock(&d->mounts_lock);
-}
-
-void bdfs_mount_untrack(struct bdfs_daemon *d, const char *mount_point)
-{
-	struct bdfs_mount_entry *me, *tmp;
-
-	pthread_mutex_lock(&d->mounts_lock);
-	TAILQ_FOREACH_SAFE(me, &d->mounts, entry, tmp) {
-		if (strcmp(me->mount_point, mount_point) == 0) {
-			TAILQ_REMOVE(&d->mounts, me, entry);
-			free(me);
-			break;
-		}
-	}
-	pthread_mutex_unlock(&d->mounts_lock);
-}
-
-int bdfs_mount_count(struct bdfs_daemon *d)
-{
-	struct bdfs_mount_entry *me;
-	int n = 0;
-
-	pthread_mutex_lock(&d->mounts_lock);
-	TAILQ_FOREACH(me, &d->mounts, entry)
-		n++;
-	pthread_mutex_unlock(&d->mounts_lock);
-	return n;
-}
-
 /* ── Job allocation ─────────────────────────────────────────────────────── */
 
 struct bdfs_job *bdfs_job_alloc(enum bdfs_job_type type)
