@@ -21,6 +21,7 @@ struct bdfs_cli {
 	bool    no_color;
 	char    ctl_device[256];
 	char    socket_path[256];
+	char    dwarfsextract_bin[256];
 };
 
 /* ── Subcommand groups ─────────────────────────────────────────────────── */
@@ -67,6 +68,10 @@ int cmd_policy_scan(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 
+void bdfs_cli_init(struct bdfs_cli *cli);
+void bdfs_cli_cleanup(struct bdfs_cli *cli);
+int  bdfs_cli_send_recv(struct bdfs_cli *cli, const char *request,
+			char *response, size_t response_size);
 int  bdfs_cli_open_ctl(struct bdfs_cli *cli);
 void bdfs_cli_close(struct bdfs_cli *cli);
 
@@ -86,6 +91,16 @@ uint32_t    bdfs_compression_from_name(const char *name);
 /* Error printing */
 void bdfs_err(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void bdfs_info(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
+/* Prune request flags shared with the daemon socket protocol. */
+#ifndef BDFS_PRUNE_DEMOTE_FIRST
+#define BDFS_PRUNE_DEMOTE_FIRST (1U << 0)
+#endif
+#ifndef BDFS_PRUNE_DRY_RUN
+#define BDFS_PRUNE_DRY_RUN (1U << 1)
+#endif
+
+int cmd_snapshot_prune(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* autosnap subcommand group */
 int cmd_autosnap(struct bdfs_cli *cli, int argc, char *argv[]);
