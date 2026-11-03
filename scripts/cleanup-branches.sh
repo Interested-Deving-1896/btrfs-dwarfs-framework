@@ -337,7 +337,6 @@ for n in nodes:
       # Fallback: paginated REST (no branch prefetch)
       page=1
       while true; do
-        page_data page_repos
         page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}&type=all") || {
           warn "Repo list failed for ${org} — skipping"
           break
