@@ -47,7 +47,6 @@ is_excluded() {
 }
 MODELS_API="https://models.github.ai/inference"
 MODEL="openai/gpt-4o-mini"
-PER_PAGE=100
 
 total_scanned=0
 total_failures=0
