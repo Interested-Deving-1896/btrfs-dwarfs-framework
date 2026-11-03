@@ -112,6 +112,7 @@ cmd_export() {
 
     local tmpdir
     tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-export.XXXXXX)"
+    # shellcheck disable=SC2064 # Capture the local path before this function returns.
     trap "rm -rf '$tmpdir'" EXIT
 
     if [[ -n "$container" ]]; then
@@ -156,6 +157,7 @@ cmd_import() {
     tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-import.XXXXXX)"
     mp="$tmpdir/mount"
     mkdir -p "$mp"
+    # shellcheck disable=SC2064 # Capture local mount and temp paths before this function returns.
     trap "fusermount -u '$mp' 2>/dev/null; rm -rf '$tmpdir'" EXIT
 
     info "Mounting DwarFS image: $image"
