@@ -22,8 +22,9 @@ jobs:
             COUNT=$(echo "${BATCH}" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
             echo "Page ${PAGE}: ${COUNT} projects"
             if [ "${COUNT}" -eq 0 ]; then break; fi
-            ALL_PROJECTS=$(python3 scripts/gl-storage-report.py merge <<< "${ALL_PROJECTS}${BATCH}")\n            PAGE=$((PAGE + 1))
+            ALL_PROJECTS=$(python3 scripts/gl-storage-report.py merge <<< "${ALL_PROJECTS}${BATCH}")
+            PAGE=$((PAGE + 1))
             if [ "${PAGE}" -gt 20 ]; then break; fi  # safety cap
           done
 
-          echo "${ALL_PROJECTS}" | python3 scripts/gl-storage-report.py report\n
+          echo "${ALL_PROJECTS}" | python3 scripts/gl-storage-report.py report
