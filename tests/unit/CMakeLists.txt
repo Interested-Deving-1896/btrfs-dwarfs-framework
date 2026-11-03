@@ -7,10 +7,10 @@ cmake_minimum_required(VERSION 3.16)
 enable_testing()
 
 include_directories(
-    ${CMAKE_SOURCE_DIR}/../../include
-    ${CMAKE_SOURCE_DIR}/../../include/uapi
-    ${CMAKE_SOURCE_DIR}/../../userspace/cli
-    ${CMAKE_SOURCE_DIR}/../../userspace/daemon
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/uapi
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../userspace/cli
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../userspace/daemon
 )
 
 # ── test_uuid ────────────────────────────────────────────────────────────────
