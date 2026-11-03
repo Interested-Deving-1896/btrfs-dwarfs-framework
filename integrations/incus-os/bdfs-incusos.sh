@@ -57,7 +57,8 @@ workspace_mountpoint() {
 # ── workspace ─────────────────────────────────────────────────────────────────
 
 cmd_workspace() {
-    local source="" name="incusos-workspace-$(date +%Y%m%d-%H%M%S)"
+    local source="" name
+    name="incusos-workspace-$(date +%Y%m%d-%H%M%S)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source) source="$2"; shift 2 ;;
