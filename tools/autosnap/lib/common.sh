@@ -5,7 +5,9 @@
 # All other backends (snapper, timeshift, LVM, ZFS, rsync) are not included
 # in this build; autosnap here is scoped to the btrfs+DwarFS stack.
 
+# shellcheck disable=SC2034 # Shared configuration consumed by scripts that source this library.
 AUTOSNAP_VERSION="0.1.0"
+# shellcheck disable=SC2034 # Shared configuration consumed by scripts that source this library.
 AUTOSNAP_TAG="autosnap"
 CONF_FILE="${AUTOSNAP_CONF:-/etc/autosnap.conf}"
 STATE_DIR="${AUTOSNAP_STATE_DIR:-/var/lib/autosnap}"
@@ -26,14 +28,19 @@ log_debug() { [ "${AUTOSNAP_DEBUG:-0}" = "1" ] && echo "$LOG_TAG: DEBUG: $*" >&2
 
 # Defaults
 BACKEND=""
+# shellcheck disable=SC2034 # Shared configuration consumed by scripts that source this library.
 MAX_SNAPSHOTS=5
+# shellcheck disable=SC2034 # Shared configuration consumed by scripts that source this library.
 RECORD_PACKAGES=true
 SKIP_ENV_VAR=SKIP_AUTOSNAP
 DESCRIPTION_TEMPLATE="autosnap: pre {action} on {date}"
 BDFS_BIN=bdfs
 BDFS_SOCKET=/run/bdfs/bdfs.sock
+# shellcheck disable=SC2034 # Shared configuration consumed by scripts that source this library.
 BDFS_PARTITION_UUID=""
+# shellcheck disable=SC2034 # Shared configuration consumed by scripts that source this library.
 BDFS_DEMOTE_ON_PRUNE=false
+# shellcheck disable=SC2034 # Shared configuration consumed by scripts that source this library.
 BDFS_DEMOTE_COMPRESSION=zstd
 
 load_config() {
