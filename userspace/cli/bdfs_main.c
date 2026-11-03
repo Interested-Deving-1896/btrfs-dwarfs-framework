@@ -51,7 +51,7 @@ struct bdfs_top_level_command {
 	const char *summary;
 };
 
-static const struct bdfs_command COMMANDS[] = {
+static const struct bdfs_top_level_command COMMANDS[] = {
 	{ "partition", "part",   cmd_partition,
 	  "Register, unregister, and list BTRFS/DwarFS partitions" },
 	{ "export",    NULL,     cmd_export,
