@@ -275,7 +275,7 @@ clone_and_push() {
 
   local target_url="https://${GH_TOKEN}@github.com/${TARGET_ORG}/${name}.git"
 
-  cd "$work_dir"
+  cd "$work_dir" || { warn "Cannot enter temporary clone directory"; rm -rf "$work_dir"; return 1; }
 
   # Source branch-name-conv.sh for platform-safe push
   local script_dir
