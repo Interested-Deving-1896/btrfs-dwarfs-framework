@@ -453,7 +453,7 @@ int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
     if (!argv || !argv[0] || !buf || bufsz == 0)
         return -EINVAL;
     buf[0] = '\0';
-    if (pipe2(pipefd, O_CLOEXEC | O_NONBLOCK) < 0)
+    if (pipe2(pipefd, O_CLOEXEC) < 0)
         return -errno;
     pid = fork();
     if (pid < 0) {
@@ -473,6 +473,7 @@ int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
         _exit(127);
     }
     close(pipefd[1]);
+    (void)fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
     (void)clock_gettime(CLOCK_MONOTONIC, &start);
     while (!child_done || !eof) {
         struct pollfd pfd = { .fd = pipefd[0], .events = POLLIN | POLLHUP };
