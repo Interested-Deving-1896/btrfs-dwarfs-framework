@@ -72,7 +72,7 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  cd "$work_dir/mirror"
+  cd "$work_dir/mirror" || { warn "Cannot enter mirror clone directory"; return 1; }
 
   # Push all refs (branches + tags) to GitLab
   # --prune would delete our local-only branches, so we push selectively:
