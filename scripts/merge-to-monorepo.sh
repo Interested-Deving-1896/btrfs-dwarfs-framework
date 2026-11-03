@@ -223,7 +223,6 @@ nparent_merge() {
   local mono_dir="$1"
   shift
   local -a source_dirs=("$@")
-  local -a source_subdirs=("$@")  # parallel array — populated below from global subdirs[]
 
   info "Building N-parent merge commit (${#source_dirs[@]} parents) ..."
 
