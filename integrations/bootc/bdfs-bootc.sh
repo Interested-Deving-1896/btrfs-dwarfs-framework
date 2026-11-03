@@ -118,6 +118,7 @@ cmd_commit() {
     # Create a minimal Containerfile that uses the workspace root as the base
     local tmpdir
     tmpdir="$(mktemp -d /tmp/bdfs-bootc-commit.XXXXXX)"
+    # shellcheck disable=SC2064 # Capture the local path before this function returns.
     trap "rm -rf '$tmpdir'" EXIT
 
     cat > "$tmpdir/Containerfile" <<EOF
