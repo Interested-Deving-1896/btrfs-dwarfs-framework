@@ -241,7 +241,7 @@ clone_and_push() {
   local name="$1" clone_url="$2"
   local work_dir
   work_dir=$(mktemp -d)
-  trap "rm -rf '${work_dir}'" RETURN
+  trap 'rm -rf "$work_dir"' RETURN
 
   info "  Cloning ${clone_url} ..."
 
