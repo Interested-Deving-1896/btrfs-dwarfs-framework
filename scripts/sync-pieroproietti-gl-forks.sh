@@ -100,10 +100,10 @@ for entry in "${REPOS[@]}"; do
   existing_tags=$(echo "$gl_releases" | python3 -c \
     "import sys,json; [print(r['tag_name']) for r in json.load(sys.stdin)]" 2>/dev/null || true)
 
-  echo "$gh_releases" | python3 - << 'PYEOF'
+  GH_RELEASES_JSON="$gh_releases" EXISTING_TAGS="$existing_tags" python3 - << 'PYEOF'
 import sys, json, os, urllib.request, urllib.error
 
-releases = json.load(sys.stdin)
+releases = json.loads(os.environ.get("GH_RELEASES_JSON", "[]"))
 token = os.environ.get("GITLAB_TOKEN", "")
 api = os.environ.get("GL_API", "")
 pid = os.environ.get("GL_PID", "")
