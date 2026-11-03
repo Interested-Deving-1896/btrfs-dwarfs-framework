@@ -27,7 +27,6 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BDFS_CMD="${BDFS_CMD:-bdfs}"
 OSTREE_CMD="${OSTREE_CMD:-ostree}"
 
