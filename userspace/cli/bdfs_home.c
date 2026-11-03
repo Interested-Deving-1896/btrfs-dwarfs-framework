@@ -81,7 +81,7 @@ static bool valid_path_component(const char *value)
 		return false;
 
 	for (const unsigned char *p = (const unsigned char *)value; *p; p++) {
-		if (*p == '/' || *p == '\\\\' || *p < 0x20 || *p == 0x7f)
+		if (*p == '/' || *p == '\\' || *p < 0x20 || *p == 0x7f)
 			return false;
 	}
 	return true;
