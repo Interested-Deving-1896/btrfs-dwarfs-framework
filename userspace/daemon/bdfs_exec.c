@@ -9,6 +9,9 @@
  */
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
+#include <time.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -437,3 +440,80 @@ int bdfs_exec_wait_timeout(const char *const argv[], int timeout_s)
 	return -ETIMEDOUT;
 }
 
+
+/* Execute argv[] and capture bounded stdout, enforcing a wall-clock timeout. */
+int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
+                             char *buf, size_t bufsz)
+{
+    int pipefd[2], status = 0, child_done = 0, eof = 0, timed_out = 0;
+    pid_t pid;
+    size_t used = 0;
+    struct timespec start, now;
+
+    if (!argv || !argv[0] || !buf || bufsz == 0)
+        return -EINVAL;
+    buf[0] = '\0';
+    if (pipe2(pipefd, O_CLOEXEC | O_NONBLOCK) < 0)
+        return -errno;
+    pid = fork();
+    if (pid < 0) {
+        int err = errno;
+        close(pipefd[0]); close(pipefd[1]);
+        return -err;
+    }
+    if (pid == 0) {
+        int devnull;
+        close(pipefd[0]);
+        if (dup2(pipefd[1], STDOUT_FILENO) < 0)
+            _exit(126);
+        close(pipefd[1]);
+        devnull = open("/dev/null", O_WRONLY | O_CLOEXEC);
+        if (devnull >= 0) { (void)dup2(devnull, STDERR_FILENO); close(devnull); }
+        execvp(argv[0], (char *const *)argv);
+        _exit(127);
+    }
+    close(pipefd[1]);
+    (void)clock_gettime(CLOCK_MONOTONIC, &start);
+    while (!child_done || !eof) {
+        struct pollfd pfd = { .fd = pipefd[0], .events = POLLIN | POLLHUP };
+        (void)poll(&pfd, 1, 100);
+        for (;;) {
+            char discard[512];
+            char *dst = used + 1 < bufsz ? buf + used : discard;
+            size_t cap = used + 1 < bufsz ? bufsz - used - 1 : sizeof(discard);
+            ssize_t n = read(pipefd[0], dst, cap);
+            if (n > 0) {
+                if (dst != discard) used += (size_t)n;
+                buf[used] = '\0';
+                continue;
+            }
+            if (n == 0) eof = 1;
+            if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+                eof = 1;
+            break;
+        }
+        if (!child_done) {
+            pid_t waited = waitpid(pid, &status, WNOHANG);
+            if (waited == pid) child_done = 1;
+            else if (waited < 0 && errno != EINTR) { close(pipefd[0]); return -errno; }
+        }
+        if (!child_done && timeout_s > 0) {
+            (void)clock_gettime(CLOCK_MONOTONIC, &now);
+            if (now.tv_sec - start.tv_sec >= timeout_s) {
+                timed_out = 1;
+                (void)kill(pid, SIGTERM);
+                for (int i = 0; i < 50 && !child_done; i++) {
+                    struct timespec pause = { .tv_sec = 0, .tv_nsec = 100000000L };
+                    nanosleep(&pause, NULL);
+                    pid_t waited = waitpid(pid, &status, WNOHANG);
+                    if (waited == pid) child_done = 1;
+                }
+                if (!child_done) { (void)kill(pid, SIGKILL); (void)waitpid(pid, &status, 0); child_done = 1; }
+            }
+        }
+    }
+    close(pipefd[0]);
+    if (timed_out) return -ETIMEDOUT;
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return -EIO;
+    return 0;
+}
