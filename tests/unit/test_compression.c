@@ -29,6 +29,8 @@ static void test_name_to_enum(void)
     /* Unknown names fall back to zstd */
     CHECK("unknown defaults to zstd",
           bdfs_compression_from_name("bogus") == BDFS_COMPRESS_ZSTD);
+    CHECK("null name defaults to zstd",
+          bdfs_compression_from_name(NULL) == BDFS_COMPRESS_ZSTD);
 }
 
 static void test_enum_to_name(void)
