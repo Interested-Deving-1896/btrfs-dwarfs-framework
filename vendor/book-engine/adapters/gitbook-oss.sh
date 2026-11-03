@@ -88,7 +88,7 @@ if [[ -n "${GITBOOK_SPACE_URL}" ]]; then
     wget --recursive --no-parent --convert-links --adjust-extension \
          --page-requisites --no-verbose \
          --directory-prefix="${OUT_DIR}" \
-         "http://localhost:3000/url/${GITBOOK_SPACE_URL}" 2>/dev/null || true
+         "http://localhost:3000/url/${ENCODED_URL}" 2>/dev/null || true
 
     kill "${SERVER_PID}" 2>/dev/null || true
     info "Static export complete: ${OUT_DIR}/"
