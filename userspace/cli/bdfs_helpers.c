@@ -13,6 +13,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #include "bdfs.h"
 
@@ -105,6 +107,7 @@ void bdfs_cli_init(struct bdfs_cli *cli)
 	cli->sock_fd = -1;
 	(void)snprintf(cli->ctl_device, sizeof(cli->ctl_device), "%s", "/dev/bdfs_ctl");
 	(void)snprintf(cli->socket_path, sizeof(cli->socket_path), "%s", "/run/bdfs/daemon.sock");
+	(void)snprintf(cli->dwarfsextract_bin, sizeof(cli->dwarfsextract_bin), "%s", "dwarfsextract");
 }
 
 void bdfs_cli_close(struct bdfs_cli *cli)
@@ -161,4 +164,56 @@ void bdfs_info(const char *fmt, ...)
 	va_start(ap, fmt);
 	bdfs_vmessage(stdout, NULL, fmt, ap);
 	va_end(ap);
+}
+
+/* Send one newline-framed request to the daemon and read one response. */
+int bdfs_cli_send_recv(struct bdfs_cli *cli, const char *request,
+                       char *response, size_t response_size)
+{
+	struct sockaddr_un addr;
+	size_t sent = 0, used = 0;
+	ssize_t n;
+
+	if (!cli || !request || !response || response_size < 2)
+		return -EINVAL;
+	response[0] = '\0';
+	if (cli->sock_fd < 0) {
+		cli->sock_fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+		if (cli->sock_fd < 0)
+			return -errno;
+		memset(&addr, 0, sizeof(addr));
+		addr.sun_family = AF_UNIX;
+		if (strlen(cli->socket_path) >= sizeof(addr.sun_path)) {
+			bdfs_cli_close(cli);
+			return -ENAMETOOLONG;
+		}
+		memcpy(addr.sun_path, cli->socket_path, strlen(cli->socket_path) + 1);
+		if (connect(cli->sock_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+			int err = errno;
+			bdfs_cli_close(cli);
+			return -err;
+		}
+	}
+	while (sent < strlen(request)) {
+		n = send(cli->sock_fd, request + sent, strlen(request) - sent, MSG_NOSIGNAL);
+		if (n < 0) {
+			if (errno == EINTR) continue;
+			return -errno;
+		}
+		if (n == 0) return -EPIPE;
+		sent += (size_t)n;
+	}
+	while (used + 1 < response_size) {
+		n = recv(cli->sock_fd, response + used, response_size - used - 1, 0);
+		if (n < 0) {
+			if (errno == EINTR) continue;
+			return -errno;
+		}
+		if (n == 0) break;
+		used += (size_t)n;
+		response[used] = '\0';
+		if (memchr(response, '\n', used)) break;
+	}
+	response[used] = '\0';
+	return used ? 0 : -EPIPE;
 }
