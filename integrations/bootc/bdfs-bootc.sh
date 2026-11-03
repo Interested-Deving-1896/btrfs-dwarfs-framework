@@ -2,20 +2,23 @@
 # bdfs-bootc — bootc integration for btrfs-dwarfs-framework
 #
 # Bridges bootc's OCI-container-as-OS model with bdfs's snapshot and
-# workspace capabilities. Provides helpers for:
+# workspace capabilities. Uses Incus as the container/image runtime backend
+# instead of Docker or Podman.
 #
+# Subcommands:
 #   workspace   Create a bdfs workspace from the active bootc image root
-#   commit      Pack a bdfs workspace into an OCI image layer and push
+#   commit      Pack a bdfs workspace into an Incus image and optionally push
 #   switch      Switch the booted image (wraps bootc switch)
 #   upgrade     Upgrade in place (wraps bootc upgrade)
 #   export      Export the active bootc root as a DwarFS image
-#   status      Show bootc status + any active bdfs workspaces on it
+#   status      Show bootc status and any active bdfs workspaces
 #
 # Environment:
-#   BDFS_BOOTC_IMAGE    Default OCI image reference (overridden by --image)
-#   BDFS_BOOTC_REGISTRY Default registry prefix for push operations
+#   BDFS_BOOTC_IMAGE     Default OCI image reference
+#   BDFS_BOOTC_REGISTRY  Default registry prefix for push operations
+#   INCUS_CMD            Incus CLI binary (default: incus)
 #
-# Dependencies: bootc, bdfs, skopeo or podman (for commit/push)
+# Dependencies: bootc, bdfs, incus
 #
 # Usage:
 #   bdfs-bootc.sh workspace [--source PATH] [--name NAME]
@@ -27,223 +30,130 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/bdfs-incus.sh"
+
 BDFS_CMD="${BDFS_CMD:-bdfs}"
 BOOTC_CMD="${BOOTC_CMD:-bootc}"
-PODMAN_CMD="${PODMAN_CMD:-podman}"
-
 BDFS_BOOTC_IMAGE="${BDFS_BOOTC_IMAGE:-}"
 BDFS_BOOTC_REGISTRY="${BDFS_BOOTC_REGISTRY:-}"
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 info() { echo "[bdfs-bootc] $*"; }
-die()  { echo "[bdfs-bootc] ERROR: $*" >&2; exit "${2:-1}"; }
+warn() { echo "[bdfs-bootc] WARN: $*" >&2; }
+die()  { echo "[bdfs-bootc] ERROR: $*" >&2; exit 1; }
 
-require_cmd() {
-    command -v "$1" &>/dev/null || die "'$1' not found — install $2"
-}
-
-require_bootc() { require_cmd bootc "bootc (https://github.com/bootc-dev/bootc)"; }
-require_bdfs()  { require_cmd bdfs  "btrfs-dwarfs-framework"; }
-
-active_bootc_root() {
-    # Returns the path to the active bootc deployment root.
-    # bootc uses OSTree under the hood; the active root is /
-    # but for snapshot purposes we want the ostree deployment path.
-    local deploy
-    deploy="$(bootc status --json 2>/dev/null | \
-        python3 -c "import json,sys; s=json.load(sys.stdin); \
-        print(s.get('status',{}).get('booted',{}).get('image',{}).get('image',{}).get('image',''))" \
-        2>/dev/null || true)"
-    # Fall back to / if we can't determine the deployment path
-    echo "${deploy:-/}"
-}
-
-workspace_mountpoint() {
-    local name="$1"
-    local mp
-    mp="$($BDFS_CMD dev status "$name" 2>/dev/null | awk '/mountpoint:/{print $2}')"
-    [[ -n "$mp" ]] || die "workspace '$name' is not mounted (run: bdfs dev shell $name)"
-    echo "$mp"
-}
-
-# ── workspace ─────────────────────────────────────────────────────────────────
+require_bdfs()  { command -v bdfs  &>/dev/null || die "bdfs not found"; }
+require_bootc() { command -v bootc &>/dev/null || die "bootc not found"; }
 
 cmd_workspace() {
-    local source="" name="bootc-workspace-$(date +%Y%m%d-%H%M%S)"
+    require_bdfs
+    local source="/" name="bootc-$(date +%Y%m%d%H%M%S)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source) source="$2"; shift 2 ;;
             --name)   name="$2";   shift 2 ;;
-            -*)       die "Unknown option: $1" ;;
-            *)        die "Unexpected argument: $1" ;;
+            *) die "Unknown option: $1" ;;
         esac
     done
-
-    require_bootc
-    require_bdfs
-
-    source="${source:-$(active_bootc_root)}"
-    [[ -n "$source" ]] || die "Could not determine bootc root — use --source PATH"
-
-    info "Creating bdfs workspace '$name' from bootc root: $source"
-    $BDFS_CMD dev create "$name" --source "$source"
-    info "Workspace ready. Enter with: bdfs dev shell $name"
-    info "Commit back with: bdfs-bootc commit $name --image <registry/image:tag> --push"
+    info "Creating workspace '${name}' from bootc root: ${source}"
+    "$BDFS_CMD" workspace create --name "$name" --source "$source"
+    info "Workspace created: ${name}"
 }
-
-# ── commit ────────────────────────────────────────────────────────────────────
 
 cmd_commit() {
-    local name="" image="" push=false
+    require_bdfs; _bdfs_incus_require
+    local workspace="" image="" push=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --image) image="$2"; shift 2 ;;
-            --push)  push=true;  shift ;;
+            --push)  push=true;  shift   ;;
             -*)      die "Unknown option: $1" ;;
-            *)       name="$1";  shift ;;
+            *)       workspace="$1"; shift ;;
         esac
     done
-    [[ -n "$name"  ]] || die "Usage: bdfs-bootc commit <workspace-name> --image IMAGE [--push]"
-    [[ -n "$image" ]] || die "--image IMAGE required (e.g. quay.io/myorg/myos:dev)"
+    [[ -n "$workspace" ]] || die "Usage: bdfs-bootc.sh commit <workspace> --image IMAGE"
+    [[ -n "$image"     ]] || die "--image required"
 
-    require_bdfs
-    require_cmd podman "podman or skopeo"
+    local ws_root
+    ws_root="$("$BDFS_CMD" workspace path "$workspace")" \
+        || die "Workspace not found: ${workspace}"
 
-    local mp
-    mp="$(workspace_mountpoint "$name")"
+    local tmp_tar
+    tmp_tar="$(mktemp /tmp/bdfs-bootc-XXXXXX.tar.gz)"
+    info "Packing workspace rootfs..."
+    tar --numeric-owner -czf "$tmp_tar" -C "$ws_root" . \
+        || die "Failed to tar workspace rootfs"
 
-    info "Building OCI image from workspace '$name' ($mp)"
-    # Create a minimal Containerfile that uses the workspace root as the base
-    local tmpdir
-    tmpdir="$(mktemp -d /tmp/bdfs-bootc-commit.XXXXXX)"
-    trap "rm -rf '$tmpdir'" EXIT
-
-    cat > "$tmpdir/Containerfile" <<EOF
-FROM scratch
-COPY . /
-LABEL org.opencontainers.image.description="bdfs-bootc commit from workspace $name"
-EOF
-
-    $PODMAN_CMD build \
-        --file "$tmpdir/Containerfile" \
-        --tag "$image" \
-        "$mp"
+    local alias
+    alias="$(_bdfs_incus_image_import "$tmp_tar" "bdfs-bootc-${workspace}")"
+    rm -f "$tmp_tar"
 
     if $push; then
-        info "Pushing $image"
-        $PODMAN_CMD push "$image"
-        info "Pushed. Switch with: bdfs-bootc switch --image $image"
+        local remote_ref="${BDFS_BOOTC_REGISTRY:+${BDFS_BOOTC_REGISTRY}/}${image}"
+        _bdfs_incus_image_copy_out "$alias" "$remote_ref"
+        info "Pushed: ${remote_ref}"
     else
-        info "Built $image (local). Use --push to push, or: podman push $image"
+        info "Committed to local Incus image store: alias='${alias}'"
+        info "To push: incus image copy local:${alias} oci:<registry>/<image>:<tag>"
     fi
 }
-
-# ── switch ────────────────────────────────────────────────────────────────────
 
 cmd_switch() {
+    require_bootc
     local image=""
     while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --image) image="$2"; shift 2 ;;
-            -*)      die "Unknown option: $1" ;;
-            *)       die "Unexpected argument: $1" ;;
-        esac
+        case "$1" in --image) image="$2"; shift 2 ;; *) die "Unknown option: $1" ;; esac
     done
-    image="${image:-$BDFS_BOOTC_IMAGE}"
-    [[ -n "$image" ]] || die "--image IMAGE required (or set BDFS_BOOTC_IMAGE)"
-
-    require_bootc
-    info "Switching to bootc image: $image"
-    $BOOTC_CMD switch "$image"
-    info "Staged. Reboot to activate."
+    [[ -n "$image" ]] || die "--image required"
+    info "Switching bootc image → ${image}"
+    "$BOOTC_CMD" switch "$image"
 }
-
-# ── upgrade ───────────────────────────────────────────────────────────────────
 
 cmd_upgrade() {
-    local check=false
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --check) check=true; shift ;;
-            -*)      die "Unknown option: $1" ;;
-            *)       die "Unexpected argument: $1" ;;
-        esac
-    done
-
     require_bootc
-    if $check; then
-        info "Checking for bootc upgrade"
-        $BOOTC_CMD upgrade --check
-    else
-        info "Upgrading bootc image"
-        $BOOTC_CMD upgrade
-        info "Staged. Reboot to activate."
-    fi
+    local check=false
+    [[ "${1:-}" == "--check" ]] && check=true
+    if $check; then "$BOOTC_CMD" upgrade --check
+    else info "Running bootc upgrade..."; "$BOOTC_CMD" upgrade; fi
 }
 
-# ── export ────────────────────────────────────────────────────────────────────
-
 cmd_export() {
-    local source="" out="" compression="zstd"
+    require_bdfs
+    local source="/" out="" compression="zstd"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source)      source="$2";      shift 2 ;;
             --out)         out="$2";         shift 2 ;;
             --compression) compression="$2"; shift 2 ;;
-            -*)            die "Unknown option: $1" ;;
-            *)             die "Unexpected argument: $1" ;;
+            *) die "Unknown option: $1" ;;
         esac
     done
-    [[ -n "$out" ]] || die "--out PATH required"
-
-    require_cmd mkdwarfs "dwarfs (mkdwarfs)"
-    source="${source:-/}"
-
-    info "Exporting bootc root ($source) to DwarFS image: $out"
-    mkdwarfs -i "$source" -o "$out" --compression "$compression" \
-        --exclude-caches \
-        --filter "- /proc/**" \
-        --filter "- /sys/**" \
-        --filter "- /dev/**" \
-        --filter "- /run/**" \
-        --filter "- /tmp/**"
-    info "Exported: $out ($(du -sh "$out" | cut -f1))"
+    [[ -n "$out" ]] || die "--out required"
+    info "Exporting bootc root → ${out}"
+    "$BDFS_CMD" export --source "$source" --out "$out" --compression "$compression"
+    info "Exported: ${out}"
 }
-
-# ── status ────────────────────────────────────────────────────────────────────
 
 cmd_status() {
-    require_bootc
-    echo "=== bootc status ==="
-    $BOOTC_CMD status 2>/dev/null || echo "(bootc status unavailable)"
-    echo ""
-    echo "=== bdfs workspaces ==="
-    $BDFS_CMD dev list 2>/dev/null || echo "(no bdfs workspaces)"
+    echo "[bdfs-bootc] Status"; echo ""
+    command -v bootc &>/dev/null \
+        && { echo "  bootc:"; bootc status 2>/dev/null | sed 's/^/    /' || echo "    (not a bootc system)"; echo ""; }
+    command -v bdfs &>/dev/null \
+        && { echo "  bdfs workspaces (bootc):"; bdfs workspace list 2>/dev/null | grep -i bootc | sed 's/^/    /' || echo "    none"; echo ""; }
+    command -v incus &>/dev/null \
+        && { echo "  Incus images (bdfs-bootc):"; incus image list --format csv 2>/dev/null | grep 'bdfs-bootc' | sed 's/^/    /' || echo "    none"; }
 }
 
-# ── Dispatch ──────────────────────────────────────────────────────────────────
-
-SUBCOMMAND="${1:-}"
-shift || true
-
-case "$SUBCOMMAND" in
+SUBCMD="${1:-}"
+[[ -z "$SUBCMD" ]] && { sed -n '2,/^$/p' "$0" | grep '^#' | sed 's/^# \?//'; exit 1; }
+shift
+case "$SUBCMD" in
     workspace) cmd_workspace "$@" ;;
     commit)    cmd_commit    "$@" ;;
     switch)    cmd_switch    "$@" ;;
     upgrade)   cmd_upgrade   "$@" ;;
     export)    cmd_export    "$@" ;;
     status)    cmd_status    "$@" ;;
-    ""|help)
-        echo "Usage: bdfs-bootc <subcommand> [options]"
-        echo ""
-        echo "Subcommands:"
-        echo "  workspace  Create a bdfs workspace from the active bootc root"
-        echo "  commit     Pack workspace into an OCI image [--push]"
-        echo "  switch     Switch to a new bootc image (staged, needs reboot)"
-        echo "  upgrade    Upgrade the booted image [--check]"
-        echo "  export     Export bootc root as a DwarFS image"
-        echo "  status     Show bootc status and bdfs workspaces"
-        ;;
-    *) die "Unknown subcommand: $SUBCOMMAND (run bdfs-bootc help)" ;;
+    --help|-h) sed -n '2,/^$/p' "$0" | grep '^#' | sed 's/^# \?//'; exit 0 ;;
+    *) die "Unknown subcommand: ${SUBCMD}. Try: workspace|commit|switch|upgrade|export|status" ;;
 esac

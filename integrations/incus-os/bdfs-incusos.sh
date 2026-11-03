@@ -28,8 +28,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/bdfs-incus.sh"
+
 BDFS_CMD="${BDFS_CMD:-bdfs}"
-INCUS_CMD="${INCUS_CMD:-incus}"
 
 BDFS_INCUSOS_ROOT="${BDFS_INCUSOS_ROOT:-/}"
 BDFS_INCUSOS_IMAGES="${BDFS_INCUSOS_IMAGES:-/var/lib/bdfs/incusos-images}"
