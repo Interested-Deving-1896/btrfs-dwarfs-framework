@@ -283,7 +283,7 @@ do_import() {
 
     local target_url="https://${GH_TOKEN}@github.com/${TARGET_ORG}/${name}.git"
 
-    cd "$work_dir"
+    cd "$work_dir" || { warn "Cannot enter temporary clone directory"; rm -rf "$work_dir"; return 1; }
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     source "${script_dir}/branch-name-conv.sh"

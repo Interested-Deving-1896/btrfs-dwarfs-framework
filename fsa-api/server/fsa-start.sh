@@ -58,6 +58,8 @@ export FSA_PORT FSA_HOST FSA_LOG FSA_ORG FSA_REPO FSA_API_ROOT UAA_ROOT
 export UAA_TOGGLES_FILE="$FSA_API_ROOT/config/fsa-toggles.yml"
 
 # Consumer brand/prefix — read from fsa-consumer.yml if enabled
+CONSUMER_BRAND=""
+CONSUMER_PREFIX=""
 if [[ -f "$FSA_CONSUMER_CFG" ]] 2>/dev/null; then
   _consumer_enabled=$(python3 -c "
 import yaml
@@ -66,13 +68,13 @@ with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
 print(str(c.get('consumer',{}).get('enabled', False)).lower())
 " 2>/dev/null || echo "false")
   if [[ "$_consumer_enabled" == "true" ]]; then
-    export CONSUMER_BRAND=$(python3 -c "
+    CONSUMER_BRAND=$(python3 -c "
 import yaml
 with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
     c = yaml.safe_load(f) or {}
 print(c.get('consumer',{}).get('brand',''))
 " 2>/dev/null)
-    export CONSUMER_PREFIX=$(python3 -c "
+    CONSUMER_PREFIX=$(python3 -c "
 import yaml
 with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
     c = yaml.safe_load(f) or {}
@@ -80,6 +82,7 @@ print(c.get('consumer',{}).get('api_prefix',''))
 " 2>/dev/null)
   fi
 fi
+export CONSUMER_BRAND CONSUMER_PREFIX
 FSA_CONSUMER_CFG="${FSA_CONSUMER_CFG:-$FSA_API_ROOT/config/fsa-consumer.yml}"
 # UAA libs use REPO_ROOT; point it at the FSA API root so relative script
 # paths in fsa-routes.yml resolve correctly.

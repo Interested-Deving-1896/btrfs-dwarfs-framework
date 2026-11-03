@@ -26,6 +26,7 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <grp.h>
+#include <limits.h>
 #include <pwd.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -34,6 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/vfs.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -65,6 +67,24 @@ static int resolve_home(const char *user, char *home_out, size_t home_sz,
 	strncpy(home_out, pw->pw_dir, home_sz - 1);
 	strncpy(user_out, pw->pw_name, user_sz - 1);
 	return 0;
+}
+
+/*
+ * Accept one path component only. Snapshot names and --subdir values must
+ * never be able to introduce absolute paths, separators, dot segments, or
+ * control characters into a path assembled beneath the snapshot root.
+ */
+static bool valid_path_component(const char *value)
+{
+	if (!value || !value[0] || strcmp(value, ".") == 0 ||
+	    strcmp(value, "..") == 0)
+		return false;
+
+	for (const unsigned char *p = (const unsigned char *)value; *p; p++) {
+		if (*p == '/' || *p == '\\' || *p < 0x20 || *p == 0x7f)
+			return false;
+	}
+	return true;
 }
 
 /*
@@ -132,7 +152,7 @@ static int run_cmd(const char *const argv[])
 	return WIFEXITED(status) ? WEXITSTATUS(status) : -EIO;
 }
 
-/* Check whether any process is logged in as uid (via /proc/*/loginuid). */
+/* Check whether any process is logged in as uid via /proc/<pid>/loginuid. */
 static bool user_is_logged_in(uid_t uid)
 {
 	DIR *proc = opendir("/proc");
@@ -197,6 +217,13 @@ static int cmd_home_init(struct bdfs_cli *cli, int argc, char *argv[])
 			return 0;
 		default: return 1;
 		}
+	}
+
+	if ((subdir[0] && !valid_path_component(subdir)) ||
+	    (snap_name[0] && !valid_path_component(snap_name)) ||
+	    (delete_name[0] && !valid_path_component(delete_name))) {
+		bdfs_err("snapshot name and --subdir must be single safe path components");
+		return 1;
 	}
 
 	char home[PATH_MAX], username[256];

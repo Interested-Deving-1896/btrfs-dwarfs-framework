@@ -35,7 +35,6 @@ if [ -z "${GITLAB_TOKEN:-}" ]; then
 fi
 
 GL_API="https://gitlab.com/api/v4"
-GH_API="https://api.github.com"
 
 # ── Subgroup map — loaded from config/gitlab-subgroups.yml ───────────────────
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -337,7 +336,7 @@ mirror_repo() {
   # uses force-push (+refs/heads/...) which is blocked unless explicitly enabled.
   gl_ensure_force_push "$gl_ns_path"
 
-  cd "$work_dir"
+  cd "$work_dir" || return 1
 
   local push_ok=true
   local attempt=0 max_retries=3

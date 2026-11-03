@@ -18,7 +18,7 @@
 
 #
 # Usage:
-#   bash scripts/eco/eco-audit.sh [--repo OWNER/REPO] [--output-md PATH] [--json]
+#   bash scripts/eco/eco-audit.sh [--repo OWNER/REPO] [--output-md PATH]
 #
 # Environment:
 #   GH_TOKEN        — GitHub token (for API calls)
@@ -44,13 +44,11 @@ ECO_OUTPUT_MD="${ECO_OUTPUT_MD:-${REPO_ROOT}/DOCS/generated/eco-audit.md}"
 ECO_JSON_OUT="${ECO_JSON_OUT:-/tmp/eco-audit.json}"
 DRY_RUN="${DRY_RUN:-false}"
 GH_TOKEN="${GH_TOKEN:-}"
-OUTPUT_JSON=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --repo)       REPO="$2"; shift 2 ;;
         --output-md)  ECO_OUTPUT_MD="$2"; shift 2 ;;
-        --json)       OUTPUT_JSON=true; shift ;;
         --dry-run)    DRY_RUN=true; shift ;;
         *) shift ;;
     esac
@@ -310,11 +308,11 @@ RJEOF
 python3 - "${ECO_JSON_OUT}" "${NOW}" "${REPO}" "${SCORE}" "${MAX_SCORE}" \
     "${PERCENT}" "${GRADE}" "${CARBON_ESTIMATE}" "${PAGES_URL}" \
     "${GREEN_DETAIL}" "${WF_COUNT}" "${GRAPHQL_COUNT}" "${CONCURRENCY_COUNT}" \
-    "${APT_INSTALLS}" "${PIP_INSTALLS}" "${NPM_INSTALLS}" "${RESULTS_JSON}" << 'PYEOF'
+    "${APT_INSTALLS}" "${PIP_INSTALLS}" "${NPM_INSTALLS}" "${REST_LOOP_COUNT}" "${RESULTS_JSON}" << 'PYEOF'
 import json, sys
 (out_path, now, repo, score, max_score, percent, grade,
  carbon, pages_url, green_detail, wf_count, graphql,
- concurrency, apt, pip_, npm, results_json) = sys.argv[1:]
+ concurrency, apt, pip_, npm, rest_loops, results_json) = sys.argv[1:]
 
 output = {
     "generated_at": now,
@@ -334,6 +332,7 @@ output = {
     "ci_stats": {
         "workflow_count": int(wf_count),
         "graphql_scripts": int(graphql),
+        "rest_api_loop_scripts": int(rest_loops),
         "concurrency_groups": int(concurrency),
         "apt_installs": int(apt),
         "pip_installs": int(pip_),

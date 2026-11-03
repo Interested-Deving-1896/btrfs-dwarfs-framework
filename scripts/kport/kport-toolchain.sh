@@ -24,7 +24,6 @@
 
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOOLCHAIN_DIR="${KPORT_TOOLCHAIN_DIR:-${HOME}/.config/kport/toolchains}"
 
 # ── Arch metadata ─────────────────────────────────────────────────────────────

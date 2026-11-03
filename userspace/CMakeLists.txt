@@ -60,6 +60,9 @@ if(BUILD_DAEMON)
         daemon/bdfs_config.c
         daemon/bdfs_exec.c
         daemon/bdfs_jobs.c
+        daemon/bdfs_jobs_workspace.c
+        daemon/bdfs_mount_table.c
+        daemon/bdfs_shutdown_log.c
         daemon/bdfs_netlink.c
         daemon/bdfs_socket.c
         daemon/bdfs_policy.c
@@ -102,6 +105,10 @@ endif()
 if(BUILD_CLI)
     add_executable(bdfs
         cli/bdfs_main.c
+        cli/bdfs_helpers.c
+        cli/bdfs_setup.c
+        cli/bdfs_home.c
+        cli/bdfs_workspace_shutdown.c
         cli/bdfs_partition.c
         cli/bdfs_export_import.c
         cli/bdfs_mount.c

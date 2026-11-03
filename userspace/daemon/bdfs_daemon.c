@@ -146,6 +146,12 @@ int bdfs_daemon_init(struct bdfs_daemon *d, struct bdfs_daemon_config *cfg)
 	if (!d->cfg.state_dir[0])
 		strncpy(d->cfg.state_dir, BDFS_DEFAULT_STATE_DIR,
 			sizeof(d->cfg.state_dir) - 1);
+	if (!d->cfg.archive_dir[0]) {
+		int n = snprintf(d->cfg.archive_dir, sizeof(d->cfg.archive_dir),
+				 "%s/archives", d->cfg.state_dir);
+		if (n < 0 || (size_t)n >= sizeof(d->cfg.archive_dir))
+			return -ENAMETOOLONG;
+	}
 	if (!d->cfg.worker_threads)
 		d->cfg.worker_threads = BDFS_DEFAULT_WORKERS;
 	if (!d->cfg.netlink_proto)
@@ -172,6 +178,11 @@ int bdfs_daemon_init(struct bdfs_daemon *d, struct bdfs_daemon_config *cfg)
 	if (mkdir(d->cfg.state_dir, 0700) < 0 && errno != EEXIST) {
 		syslog(LOG_ERR, "bdfs: cannot create state dir %s: %s",
 		       d->cfg.state_dir, strerror(errno));
+		return -errno;
+	}
+	if (mkdir(d->cfg.archive_dir, 0700) < 0 && errno != EEXIST) {
+		syslog(LOG_ERR, "bdfs: cannot create archive dir %s: %s",
+		       d->cfg.archive_dir, strerror(errno));
 		return -errno;
 	}
 
@@ -320,54 +331,6 @@ void bdfs_daemon_shutdown(struct bdfs_daemon *d)
 	pthread_mutex_destroy(&d->mounts_lock);
 }
 
-/* ── Mount table helpers ────────────────────────────────────────────────── */
-
-void bdfs_mount_track(struct bdfs_daemon *d, enum bdfs_mount_type type,
-		      const uint8_t uuid[16], uint64_t image_id,
-		      const char *mount_point)
-{
-	struct bdfs_mount_entry *me = calloc(1, sizeof(*me));
-	if (!me)
-		return;
-
-	me->type     = type;
-	me->image_id = image_id;
-	if (uuid)
-		memcpy(me->partition_uuid, uuid, 16);
-	strncpy(me->mount_point, mount_point, sizeof(me->mount_point) - 1);
-
-	pthread_mutex_lock(&d->mounts_lock);
-	TAILQ_INSERT_TAIL(&d->mounts, me, entry);
-	pthread_mutex_unlock(&d->mounts_lock);
-}
-
-void bdfs_mount_untrack(struct bdfs_daemon *d, const char *mount_point)
-{
-	struct bdfs_mount_entry *me, *tmp;
-
-	pthread_mutex_lock(&d->mounts_lock);
-	TAILQ_FOREACH_SAFE(me, &d->mounts, entry, tmp) {
-		if (strcmp(me->mount_point, mount_point) == 0) {
-			TAILQ_REMOVE(&d->mounts, me, entry);
-			free(me);
-			break;
-		}
-	}
-	pthread_mutex_unlock(&d->mounts_lock);
-}
-
-int bdfs_mount_count(struct bdfs_daemon *d)
-{
-	struct bdfs_mount_entry *me;
-	int n = 0;
-
-	pthread_mutex_lock(&d->mounts_lock);
-	TAILQ_FOREACH(me, &d->mounts, entry)
-		n++;
-	pthread_mutex_unlock(&d->mounts_lock);
-	return n;
-}
-
 /* ── Job allocation ─────────────────────────────────────────────────────── */
 
 struct bdfs_job *bdfs_job_alloc(enum bdfs_job_type type)
@@ -468,6 +431,9 @@ int main(int argc, char *argv[])
 		if (!cfg.state_dir[0] && file_cfg.state_dir[0])
 			strncpy(cfg.state_dir, file_cfg.state_dir,
 				sizeof(cfg.state_dir) - 1);
+		if (!cfg.archive_dir[0] && file_cfg.archive_dir[0])
+			strncpy(cfg.archive_dir, file_cfg.archive_dir,
+				sizeof(cfg.archive_dir) - 1);
 		if (!cfg.worker_threads && file_cfg.worker_threads)
 			cfg.worker_threads = file_cfg.worker_threads;
 		if (!cfg.mkdwarfs_timeout_s && file_cfg.mkdwarfs_timeout_s)

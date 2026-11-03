@@ -95,7 +95,6 @@ if [[ -z "$upstream_exists" ]]; then
 fi
 
 upstream_private=$(echo "$upstream_info" | jq -r '.private')
-upstream_desc=$(echo "$upstream_info" | jq -r '.description // ""')
 echo "  Found: ${UPSTREAM_OWNER}/${repo_name} (private: ${upstream_private})"
 echo ""
 
@@ -168,7 +167,7 @@ if ! git clone --bare "$upstream_url" "$clonedir" 2>&1 | sanitize; then
   exit 1
 fi
 
-cd "$clonedir"
+cd "$clonedir" || exit 1
 
 attempt=0
 push_ok=false

@@ -353,7 +353,7 @@ run_watch_mode() {
       return 1
     }
 
-    local run_id status conclusion created_epoch updated_epoch fetch_rc
+    local run_id status conclusion created_epoch fetch_rc
     fetch_latest_run "$WATCH_WORKFLOW" > /tmp/_qm_run_line 2>/dev/null
     fetch_rc=$?
     if [[ "$fetch_rc" -eq 2 ]]; then
@@ -383,7 +383,7 @@ except Exception:
     elif [[ "$fetch_rc" -ne 0 ]]; then
       sleep "$MIN_POLL_SEC"; continue
     fi
-    read -r run_id status conclusion created_epoch updated_epoch < /tmp/_qm_run_line
+    read -r run_id status conclusion created_epoch _ < /tmp/_qm_run_line
 
     local run_age=0
     [[ "$created_epoch" -gt 0 ]] && run_age=$(( NOW - created_epoch ))

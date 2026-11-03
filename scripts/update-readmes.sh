@@ -246,9 +246,8 @@ generate_license() {
     -H "Accept: application/vnd.github+json" \
     "${GH_API}/repos/${owner}/${repo}/license" 2>/dev/null) || license_data=""
 
-  local spdx name html_url
+  local spdx html_url
   spdx=$(echo "$license_data" | jq -r '.license.spdx_id // empty' 2>/dev/null)
-  name=$(echo "$license_data" | jq -r '.license.name // empty' 2>/dev/null)
   html_url=$(echo "$license_data" | jq -r '.html_url // empty' 2>/dev/null)
 
   if [[ -n "$spdx" && "$spdx" != "NOASSERTION" ]]; then
@@ -282,7 +281,6 @@ generate_resources() {
   local owner="$1" repo="$2"
   # Build a links table from known files — no LLM needed
   local base="https://github.com/${owner}/${repo}/blob/main"
-  local raw="https://raw.githubusercontent.com/${owner}/${repo}/main"
 
   # Probe which files exist
   local rows=""

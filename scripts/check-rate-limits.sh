@@ -39,7 +39,7 @@ warn() { echo "[rate-limits] ⚠️  $*" >&2; }
 # Emit a markdown row: platform | resource | remaining | limit | % | reset
 md_row() {
   local platform="$1" resource="$2" remaining="$3" limit="$4" reset_ts="$5"
-  local pct=0 bar="" reset_str="—"
+  local pct=0 reset_str="—"
   if [[ "$limit" -gt 0 ]]; then
     pct=$(( remaining * 100 / limit ))
   fi
@@ -211,7 +211,6 @@ check_github_models() {
   http_code=$(echo "$response" | tail -1)
 
   # Parse x-ratelimit headers (GitHub Models uses same header names as REST API)
-  local resources=()
   while IFS= read -r line; do
     key=$(echo "$line" | cut -d: -f1 | tr '[:upper:]' '[:lower:]' | tr -d '\r')
     val=$(echo "$line" | cut -d: -f2- | tr -d '\r ' )

@@ -347,9 +347,12 @@ fi
 
 # ── Test 10: Concurrent pin of A and B completes without error ───────────────
 
-CID_A3=$(kubo_pin "$IMG_A" &) || true
-CID_B2=$(kubo_pin "$IMG_B" &) || true
-wait
+kubo_pin "$IMG_A" >/dev/null &
+pin_a_pid=$!
+kubo_pin "$IMG_B" >/dev/null &
+pin_b_pid=$!
+wait "$pin_a_pid" || true
+wait "$pin_b_pid" || true
 
 # Both should still be pinned
 PIN_A=$(kubo_pin_ls "${CID_A:-INVALID}" 2>/dev/null || true)
