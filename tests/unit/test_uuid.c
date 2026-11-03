@@ -82,6 +82,13 @@ static void test_uuid_invalid_input(void)
           bdfs_str_to_uuid("12345678-1234-1234-1234-12345678", out) < 0);
     CHECK("empty string rejected",
           bdfs_str_to_uuid("", out) < 0);
+    CHECK("null string rejected", bdfs_str_to_uuid(NULL, out) < 0);
+    CHECK("null output rejected",
+          bdfs_str_to_uuid("12345678-1234-1234-1234-123456789abc", NULL) < 0);
+    CHECK("incorrect separator rejected",
+          bdfs_str_to_uuid("12345678_1234-1234-1234-123456789abc", out) < 0);
+    CHECK("uppercase hexadecimal accepted",
+          bdfs_str_to_uuid("12345678-1234-1234-1234-123456789ABC", out) == 0);
 }
 
 int main(void)
