@@ -5,12 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include <assert.h>
-
-/* Pull in the helpers without the full CLI main() */
-#define main bdfs_cli_main_unused
-#  include "../../userspace/cli/bdfs_main.c"
-#undef main
+#include "bdfs.h"
 
 static int tests_run = 0, tests_failed = 0;
 
