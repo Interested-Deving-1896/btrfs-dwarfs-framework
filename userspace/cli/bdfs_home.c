@@ -26,6 +26,7 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <grp.h>
+#include <limits.h>
 #include <pwd.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -34,6 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/vfs.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -132,7 +134,7 @@ static int run_cmd(const char *const argv[])
 	return WIFEXITED(status) ? WEXITSTATUS(status) : -EIO;
 }
 
-/* Check whether any process is logged in as uid (via /proc/*/loginuid). */
+/* Check whether any process is logged in as uid via /proc/<pid>/loginuid. */
 static bool user_is_logged_in(uid_t uid)
 {
 	DIR *proc = opendir("/proc");
