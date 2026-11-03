@@ -59,7 +59,8 @@ workspace_mountpoint() {
 # ── commit ────────────────────────────────────────────────────────────────────
 
 cmd_commit() {
-    local name="" repo="" branch="" message="bdfs-ostree commit $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    local name="" repo="" branch="" message
+    message="bdfs-ostree commit $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --repo)    repo="$2";    shift 2 ;;
