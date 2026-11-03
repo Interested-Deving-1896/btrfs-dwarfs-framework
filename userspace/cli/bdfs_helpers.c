@@ -225,7 +225,7 @@ static void bdfs_print_json_string(const char *value)
     putchar('"');
     for (const unsigned char *p = (const unsigned char *)value; *p; p++) {
         switch (*p) {
-        case '"': fputs("\\\" ", stdout); break;
+        case '"': fputs("\\\"", stdout); break;
         case '\\': fputs("\\\\", stdout); break;
         case '\n': fputs("\\n", stdout); break;
         case '\r': fputs("\\r", stdout); break;
