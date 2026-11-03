@@ -45,7 +45,7 @@ jobs:
               if b >= 1048576:    return f'{b/1048576:.1f}M'
               return f'{b}B'
           print(f\"{d['path_with_namespace']} — ID:{d['id']} repo:{fmt(s.get('repository_size',0))} total:{fmt(s.get('storage_size',0))}\")
-"
+          "
           done
 
       - name: Shallow-reclone chromium
