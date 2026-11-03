@@ -289,7 +289,7 @@ main() {
   info "DRY_RUN=${DRY_RUN}"
   info ""
 
-  local total=0 provisioned=0 skipped=0
+  local total=0
 
   for group in "${ACTIVE_GROUPS[@]}"; do
     info "--- Group: ${group} ---"
