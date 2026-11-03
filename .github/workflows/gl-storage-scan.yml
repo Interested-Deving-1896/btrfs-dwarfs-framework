@@ -53,7 +53,7 @@ def repo_size(p):
 
 projects.sort(key=repo_size, reverse=True)
 
-print(f'{'Project':<70} {'Repo':>10} {'LFS':>10} {'Artifacts':>10} {'Total':>10}')
+print(f"{'Project':<70} {'Repo':>10} {'LFS':>10} {'Artifacts':>10} {'Total':>10}")
 print('-' * 115)
 
 total_repo = 0
@@ -87,5 +87,5 @@ def fmt(b):
     if b >= 1073741824: return f'{b/1073741824:.1f}G'
     if b >= 1048576:    return f'{b/1048576:.1f}M'
     return f'{b}B'
-print(f'{'TOTAL':<70} {fmt(total_repo):>10} {fmt(total_lfs):>10} {fmt(total_art):>10} {fmt(total_all):>10}')
+print(f"{'TOTAL':<70} {fmt(total_repo):>10} {fmt(total_lfs):>10} {fmt(total_art):>10} {fmt(total_all):>10}")
 "
