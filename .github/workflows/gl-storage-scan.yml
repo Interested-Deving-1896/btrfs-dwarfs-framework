@@ -40,7 +40,7 @@ print(json.dumps(combined))
             if [ "${PAGE}" -gt 20 ]; then break; fi  # safety cap
           done
 
-                    echo "${ALL_PROJECTS}" | python3 -c "
+          echo "${ALL_PROJECTS}" | python3 -c "
           import sys, json
           
           projects = json.load(sys.stdin)
