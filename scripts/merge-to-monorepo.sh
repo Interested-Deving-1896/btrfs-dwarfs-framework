@@ -261,7 +261,7 @@ nparent_merge() {
   #      reported below rather than silently overwritten.
   local tmp_index
   tmp_index=$(mktemp)
-  trap "rm -f '${tmp_index}'" RETURN
+  trap 'rm -f "$tmp_index"' RETURN
 
   # Seed the temp index from the monorepo's current tree
   GIT_INDEX_FILE="$tmp_index" git -C "$mono_dir" read-tree HEAD 2>/dev/null || true
@@ -402,6 +402,7 @@ sequential_merge() {
 check_deps
 
 workspace=$(mktemp -d)
+# shellcheck disable=SC2064 # Capture the top-level workspace path for process-exit cleanup.
 trap "rm -rf '${workspace}'" EXIT
 
 mono_dir="${workspace}/monorepo"
