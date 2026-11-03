@@ -48,12 +48,12 @@ jobs:
       - name: Derive OSP-bound repo list from config
         run: |
           repos=$(python3 -c "
-import yaml
-data = yaml.safe_load(open('config/gitlab-subgroups.yml'))
-repos = []
-for sg in data.get('subgroups', {}).values():
-    repos.extend(sg.get('repos', []))
-print(' '.join(sorted(set(repos))))
+          import yaml
+          data = yaml.safe_load(open('config/gitlab-subgroups.yml'))
+          repos = []
+          for sg in data.get('subgroups', {}).values():
+              repos.extend(sg.get('repos', []))
+          print(' '.join(sorted(set(repos))))
 " 2>/dev/null || echo "")
           echo "OSP_REPOS=${repos}" >> "$GITHUB_ENV"
 
