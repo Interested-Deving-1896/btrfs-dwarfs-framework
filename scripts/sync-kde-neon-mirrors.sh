@@ -29,7 +29,38 @@ SYNCED=0
 FAILED=0
 SKIPPED=0
 
-while IFS=$'\t' read -r pid name gl_url; do
+while IFS=
+  kde_url="${KDE_BASE}/${name}.git"
+  gl_auth_url="${gl_url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}"
+
+  info "Syncing ${name} ← ${kde_url} ..."
+  work_dir=$(mktemp -d)
+
+  if git clone --mirror "${kde_url}" "${work_dir}" 2>&1 | tail -1; then
+    if git -C "${work_dir}" push --mirror "${gl_auth_url}" 2>&1 | tail -3; then
+      info "  ✅ ${name} synced"
+      SYNCED=$((SYNCED + 1))
+    else
+      warn "  ❌ ${name} push to GitLab failed"
+      FAILED=$((FAILED + 1))
+    fi
+  else
+    warn "  ❌ ${name} clone from invent.kde.org failed"
+    FAILED=$((FAILED + 1))
+  fi
+
+  rm -rf "${work_dir}"
+
+done < <(echo "$projects" | python3 -c "
+import sys, json
+for p in json.load(sys.stdin):
+    print(p['id'], p['name'], p['http_url_to_repo'], sep='\t')
+")
+
+echo ""
+info "Done — synced=${SYNCED} | failed=${FAILED} | skipped=${SKIPPED}"
+[ "${FAILED}" -eq 0 ] || exit 1
+\t' read -r _ name gl_url; do
   kde_url="${KDE_BASE}/${name}.git"
   gl_auth_url="${gl_url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}"
 
