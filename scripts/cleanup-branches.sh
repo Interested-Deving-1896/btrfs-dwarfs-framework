@@ -335,9 +335,9 @@ for n in nodes:
       local_repos="${_gql_repos[*]}"
     else
       # Fallback: paginated REST (no branch prefetch)
-      local page=1
+      page=1
       while true; do
-        local page_data page_repos
+        page_data page_repos
         page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}&type=all") || {
           warn "Repo list failed for ${org} — skipping"
           break
@@ -345,7 +345,6 @@ for n in nodes:
         page_repos=$(echo "$page_data" | jq -r '.[].name' 2>/dev/null) || break
         [[ -z "$page_repos" ]] && break
         local_repos="${local_repos} ${page_repos}"
-        local count
         count=$(echo "$page_repos" | wc -l)
         [[ "$count" -lt 100 ]] && break
         (( page++ ))
