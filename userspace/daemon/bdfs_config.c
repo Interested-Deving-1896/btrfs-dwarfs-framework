@@ -155,7 +155,7 @@ int bdfs_config_load(const char *path, struct bdfs_daemon_config *cfg)
 			else if (strcmp(key, "archive_dir") == 0)
 				set_str(cfg->archive_dir,
 					sizeof(cfg->archive_dir), val);
-			else if (strcmp(key, "worker_threads") == 0
+			else if (strcmp(key, "worker_threads") == 0)
 				cfg->worker_threads = atoi(val);
 			else if (strcmp(key, "mkdwarfs_timeout") == 0)
 				cfg->mkdwarfs_timeout_s = atoi(val);
