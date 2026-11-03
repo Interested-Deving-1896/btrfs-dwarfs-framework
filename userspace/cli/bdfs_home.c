@@ -70,6 +70,24 @@ static int resolve_home(const char *user, char *home_out, size_t home_sz,
 }
 
 /*
+ * Accept one path component only. Snapshot names and --subdir values must
+ * never be able to introduce absolute paths, separators, dot segments, or
+ * control characters into a path assembled beneath the snapshot root.
+ */
+static bool valid_path_component(const char *value)
+{
+	if (!value || !value[0] || strcmp(value, ".") == 0 ||
+	    strcmp(value, "..") == 0)
+		return false;
+
+	for (const unsigned char *p = (const unsigned char *)value; *p; p++) {
+		if (*p == '/' || *p == '\\\\' || *p < 0x20 || *p == 0x7f)
+			return false;
+	}
+	return true;
+}
+
+/*
  * is_btrfs_subvol - Return true if path is a BTRFS subvolume.
  * A subvolume has inode number 256 on BTRFS.
  */
@@ -199,6 +217,13 @@ static int cmd_home_init(struct bdfs_cli *cli, int argc, char *argv[])
 			return 0;
 		default: return 1;
 		}
+	}
+
+	if ((subdir[0] && !valid_path_component(subdir)) ||
+	    (snap_name[0] && !valid_path_component(snap_name)) ||
+	    (delete_name[0] && !valid_path_component(delete_name))) {
+		bdfs_err("snapshot name and --subdir must be single safe path components");
+		return 1;
 	}
 
 	char home[PATH_MAX], username[256];
