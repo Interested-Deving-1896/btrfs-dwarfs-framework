@@ -142,6 +142,7 @@ cmd_export() {
 
     local tmpdir
     tmpdir="$(mktemp -d /tmp/bdfs-ostree-export.XXXXXX)"
+    # shellcheck disable=SC2064 # Capture the local path before this function returns.
     trap "rm -rf '$tmpdir'" EXIT
 
     info "Checking out OSTree ref '$ref' to $tmpdir"
@@ -178,6 +179,7 @@ cmd_import() {
     tmpdir="$(mktemp -d /tmp/bdfs-ostree-import.XXXXXX)"
     mp="$tmpdir/mount"
     mkdir -p "$mp"
+    # shellcheck disable=SC2064 # Capture local mount and temp paths before this function returns.
     trap "fusermount -u '$mp' 2>/dev/null; rm -rf '$tmpdir'" EXIT
 
     info "Mounting DwarFS image: $image"
