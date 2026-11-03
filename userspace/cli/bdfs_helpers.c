@@ -217,3 +217,98 @@ int bdfs_cli_send_recv(struct bdfs_cli *cli, const char *request,
 	response[used] = '\0';
 	return used ? 0 : -EPIPE;
 }
+
+#include <inttypes.h>
+
+static void bdfs_print_json_string(const char *value)
+{
+    putchar('"');
+    for (const unsigned char *p = (const unsigned char *)value; *p; p++) {
+        switch (*p) {
+        case '"': fputs("\\\" ", stdout); break;
+        case '\\': fputs("\\\\", stdout); break;
+        case '\n': fputs("\\n", stdout); break;
+        case '\r': fputs("\\r", stdout); break;
+        case '\t': fputs("\\t", stdout); break;
+        default:
+            if (*p < 0x20) printf("\\u%04x", (unsigned int)*p);
+            else putchar(*p);
+        }
+    }
+    putchar('"');
+}
+
+static const char *bdfs_partition_type_name(uint32_t type)
+{
+    switch (type) {
+    case BDFS_PART_DWARFS_BACKED: return "dwarfs-backed";
+    case BDFS_PART_BTRFS_BACKED: return "btrfs-backed";
+    case BDFS_PART_HYBRID_BLEND: return "hybrid-blend";
+    default: return "unknown";
+    }
+}
+
+void bdfs_print_partition(const struct bdfs_partition *p, bool json)
+{
+    char uuid[37];
+    if (!p) return;
+    bdfs_uuid_to_str(p->uuid, uuid);
+    if (json) {
+        fputs("{\\"uuid\\":", stdout); bdfs_print_json_string(uuid);
+        fputs(",\\"type\\":", stdout); bdfs_print_json_string(bdfs_partition_type_name(p->type));
+        fputs(",\\"label\\":", stdout); bdfs_print_json_string(p->label);
+        fputs(",\\"device\\":", stdout); bdfs_print_json_string(p->device_path);
+        fputs(",\\"mount_point\\":", stdout); bdfs_print_json_string(p->mount_point);
+        printf(",\\"dwarfs_image_count\\":%" PRIu64 ",\\"btrfs_subvol_count\\":%" PRIu64
+               ",\\"btrfs_snapshot_count\\":%" PRIu64 "}",
+               (uint64_t)p->dwarfs_image_count, (uint64_t)p->btrfs_subvol_count,
+               (uint64_t)p->btrfs_snapshot_count);
+    } else {
+        printf("  Type:        %s\\n  Label:       %s\\n  Device:      %s\\n"
+               "  Mount point: %s\\n  DwarFS images: %" PRIu64
+               "\\n  BTRFS subvolumes: %" PRIu64 " (snapshots: %" PRIu64 ")\\n",
+               bdfs_partition_type_name(p->type), p->label, p->device_path,
+               p->mount_point, (uint64_t)p->dwarfs_image_count,
+               (uint64_t)p->btrfs_subvol_count, (uint64_t)p->btrfs_snapshot_count);
+    }
+}
+
+void bdfs_print_image(const struct bdfs_dwarfs_image *img, bool json)
+{
+    if (!img) return;
+    if (json) {
+        fputs("{\\"id\\":", stdout); printf("%" PRIu64, (uint64_t)img->image_id);
+        fputs(",\\"name\\":", stdout); bdfs_print_json_string(img->name);
+        printf(",\\"size_bytes\\":%" PRIu64 ",\\"uncompressed_bytes\\":%" PRIu64
+               ",\\"compression\\":", (uint64_t)img->size_bytes,
+               (uint64_t)img->uncompressed_bytes);
+        bdfs_print_json_string(bdfs_compression_name(img->compression));
+        printf(",\\"mounted\\":%s,\\"mount_point\\":", img->mounted ? "true" : "false");
+        bdfs_print_json_string(img->mount_point);
+        putchar('}');
+    } else {
+        printf("    Size: %" PRIu64 " bytes (uncompressed %" PRIu64 ")\\n"
+               "    Compression: %s\\n    Mounted: %s%s%s\\n",
+               (uint64_t)img->size_bytes, (uint64_t)img->uncompressed_bytes,
+               bdfs_compression_name(img->compression), img->mounted ? "yes" : "no",
+               img->mounted ? " at " : "", img->mounted ? img->mount_point : "");
+    }
+}
+
+void bdfs_print_subvol(const struct bdfs_btrfs_subvol *sv, bool json)
+{
+    if (!sv) return;
+    if (json) {
+        printf("{\\"id\\":%" PRIu64 ",\\"parent_id\\":%" PRIu64 ",\\"name\\":",
+               (uint64_t)sv->subvol_id, (uint64_t)sv->parent_id);
+        bdfs_print_json_string(sv->name);
+        fputs(",\\"path\\":", stdout); bdfs_print_json_string(sv->path);
+        printf(",\\"snapshot\\":%s,\\"readonly\\":%s}",
+               sv->is_snapshot ? "true" : "false",
+               sv->is_readonly ? "true" : "false");
+    } else {
+        printf("    Parent ID: %" PRIu64 "\\n    Path: %s\\n    Snapshot: %s\\n"
+               "    Read-only: %s\\n", (uint64_t)sv->parent_id, sv->path,
+               sv->is_snapshot ? "yes" : "no", sv->is_readonly ? "yes" : "no");
+    }
+}
