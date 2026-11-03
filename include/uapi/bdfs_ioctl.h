@@ -86,7 +86,7 @@ struct bdfs_ioctl_mount_blend_userspace {
 	__u32 cache_size_mb;              /* dwarfs FUSE cache size */
 	__u32 flags;
 #define BDFS_MOUNT_USERSPACE_OVERLAY (1 << 0) /* use fuse-overlayfs backend */
-#define BDFS_MOUNT_WRITEBACK         (1 << 1) /* allow writes to upper layer */
+#define BDFS_USERSPACE_MOUNT_WRITEBACK (1 << 1) /* allow writes to upper layer */
 };
 #define BDFS_IOC_MOUNT_BLEND_USERSPACE \
 	_IOW(BDFS_IOCTL_MAGIC, 0x06, struct bdfs_ioctl_mount_blend_userspace)
