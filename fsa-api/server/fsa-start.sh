@@ -66,13 +66,13 @@ with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
 print(str(c.get('consumer',{}).get('enabled', False)).lower())
 " 2>/dev/null || echo "false")
   if [[ "$_consumer_enabled" == "true" ]]; then
-    export CONSUMER_BRAND=$(python3 -c "
+    CONSUMER_BRAND=$(python3 -c "
 import yaml
 with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
     c = yaml.safe_load(f) or {}
 print(c.get('consumer',{}).get('brand',''))
 " 2>/dev/null)
-    export CONSUMER_PREFIX=$(python3 -c "
+    CONSUMER_PREFIX=$(python3 -c "
 import yaml
 with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
     c = yaml.safe_load(f) or {}
