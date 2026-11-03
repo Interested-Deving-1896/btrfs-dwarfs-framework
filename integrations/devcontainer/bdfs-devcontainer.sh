@@ -199,6 +199,7 @@ cmd_build() {
         require_cmd mkdwarfs "dwarfs (mkdwarfs)"
         local tmpdir
         tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-build.XXXXXX)"
+        # shellcheck disable=SC2064 # Capture the local path before this function returns.
         trap "rm -rf '$tmpdir'" EXIT
         info "Exporting built image to DwarFS: $out"
         # Save image as tar, extract, pack with mkdwarfs
