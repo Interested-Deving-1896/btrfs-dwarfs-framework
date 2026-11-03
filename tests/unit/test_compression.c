@@ -5,11 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include <assert.h>
-
-#define main bdfs_cli_main_unused
-#  include "../../userspace/cli/bdfs_main.c"
-#undef main
+#include "bdfs.h"
 
 static int tests_run = 0, tests_failed = 0;
 
@@ -33,6 +29,8 @@ static void test_name_to_enum(void)
     /* Unknown names fall back to zstd */
     CHECK("unknown defaults to zstd",
           bdfs_compression_from_name("bogus") == BDFS_COMPRESS_ZSTD);
+    CHECK("null name defaults to zstd",
+          bdfs_compression_from_name(NULL) == BDFS_COMPRESS_ZSTD);
 }
 
 static void test_enum_to_name(void)

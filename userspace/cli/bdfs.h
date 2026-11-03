@@ -23,16 +23,6 @@ struct bdfs_cli {
 	char    socket_path[256];
 };
 
-/* Subcommand handler signature */
-typedef int (*bdfs_cmd_fn)(struct bdfs_cli *cli, int argc, char *argv[]);
-
-struct bdfs_command {
-	const char     *name;
-	const char     *summary;
-	const char     *usage;
-	bdfs_cmd_fn     fn;
-};
-
 /* ── Subcommand groups ─────────────────────────────────────────────────── */
 
 /* partition subcommands */
