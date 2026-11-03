@@ -34,17 +34,17 @@ jobs:
             RESULT=$(curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
               "${GL_API}/projects/${ENCODED}?statistics=true" || echo '{}')
             echo "${RESULT}" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-if 'id' not in d:
-    print('  NOT FOUND')
-    exit(0)
-s = d.get('statistics', {})
-def fmt(b):
-    if b >= 1073741824: return f'{b/1073741824:.1f}G'
-    if b >= 1048576:    return f'{b/1048576:.1f}M'
-    return f'{b}B'
-print(f\"{d['path_with_namespace']} — ID:{d['id']} repo:{fmt(s.get('repository_size',0))} total:{fmt(s.get('storage_size',0))}\")
+          import sys, json
+          d = json.load(sys.stdin)
+          if 'id' not in d:
+              print('  NOT FOUND')
+              exit(0)
+          s = d.get('statistics', {})
+          def fmt(b):
+              if b >= 1073741824: return f'{b/1073741824:.1f}G'
+              if b >= 1048576:    return f'{b/1048576:.1f}M'
+              return f'{b}B'
+          print(f\"{d['path_with_namespace']} — ID:{d['id']} repo:{fmt(s.get('repository_size',0))} total:{fmt(s.get('storage_size',0))}\")
 "
           done
 
