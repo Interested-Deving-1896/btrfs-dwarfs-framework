@@ -517,7 +517,24 @@ static int cmd_autosnap_prune(struct bdfs_cli *cli, int argc, char *argv[])
 		switch (opt) {
 		case 'p': strncpy(uuid_arg,    optarg, sizeof(uuid_arg) - 1);    break;
 		case 'm': strncpy(btrfs_mount, optarg, sizeof(btrfs_mount) - 1); break;
-		case 'k': keep = (uint32_t)atoi(optarg);                         break;
+		case 'k': {
+			char *end = NULL;
+			unsigned long value;
+
+			if (!optarg[0] || optarg[0] < '0' || optarg[0] > '9') {
+				bdfs_err("--keep must be a positive decimal integer");
+				return 1;
+			}
+			errno = 0;
+			value = strtoul(optarg, &end, 10);
+			if (errno == ERANGE || end == optarg || *end != '\0' ||
+			    value == 0 || value > UINT32_MAX) {
+				bdfs_err("--keep must be between 1 and %u", UINT32_MAX);
+				return 1;
+			}
+			keep = (uint32_t)value;
+			break;
+		}
 		case 'D': flags |= BDFS_PRUNE_DEMOTE_FIRST;                      break;
 		case 'c': compression = bdfs_compression_from_name(optarg);      break;
 		case 'n': flags |= BDFS_PRUNE_DRY_RUN;                           break;
