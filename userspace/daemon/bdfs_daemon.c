@@ -146,6 +146,12 @@ int bdfs_daemon_init(struct bdfs_daemon *d, struct bdfs_daemon_config *cfg)
 	if (!d->cfg.state_dir[0])
 		strncpy(d->cfg.state_dir, BDFS_DEFAULT_STATE_DIR,
 			sizeof(d->cfg.state_dir) - 1);
+	if (!d->cfg.archive_dir[0]) {
+		int n = snprintf(d->cfg.archive_dir, sizeof(d->cfg.archive_dir),
+				 "%s/archives", d->cfg.state_dir);
+		if (n < 0 || (size_t)n >= sizeof(d->cfg.archive_dir))
+			return -ENAMETOOLONG;
+	}
 	if (!d->cfg.worker_threads)
 		d->cfg.worker_threads = BDFS_DEFAULT_WORKERS;
 	if (!d->cfg.netlink_proto)
@@ -172,6 +178,11 @@ int bdfs_daemon_init(struct bdfs_daemon *d, struct bdfs_daemon_config *cfg)
 	if (mkdir(d->cfg.state_dir, 0700) < 0 && errno != EEXIST) {
 		syslog(LOG_ERR, "bdfs: cannot create state dir %s: %s",
 		       d->cfg.state_dir, strerror(errno));
+		return -errno;
+	}
+	if (mkdir(d->cfg.archive_dir, 0700) < 0 && errno != EEXIST) {
+		syslog(LOG_ERR, "bdfs: cannot create archive dir %s: %s",
+		       d->cfg.archive_dir, strerror(errno));
 		return -errno;
 	}
 
@@ -468,6 +479,9 @@ int main(int argc, char *argv[])
 		if (!cfg.state_dir[0] && file_cfg.state_dir[0])
 			strncpy(cfg.state_dir, file_cfg.state_dir,
 				sizeof(cfg.state_dir) - 1);
+		if (!cfg.archive_dir[0] && file_cfg.archive_dir[0])
+			strncpy(cfg.archive_dir, file_cfg.archive_dir,
+				sizeof(cfg.archive_dir) - 1);
 		if (!cfg.worker_threads && file_cfg.worker_threads)
 			cfg.worker_threads = file_cfg.worker_threads;
 		if (!cfg.mkdwarfs_timeout_s && file_cfg.mkdwarfs_timeout_s)
