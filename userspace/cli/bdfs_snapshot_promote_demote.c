@@ -221,8 +221,11 @@ int cmd_promote(struct bdfs_cli *cli, int argc, char *argv[])
 	struct bdfs_ioctl_promote_to_btrfs arg;
 	int opt;
 
+	/*
+	 * The promote ioctl is scoped by blend_path and has no partition UUID
+	 * member. Do not advertise or accept --partition here.
+	 */
 	static const struct option opts[] = {
-		{ "partition",  required_argument, NULL, 'p' },
 		{ "blend-path", required_argument, NULL, 'b' },
 		{ "subvol-name",required_argument, NULL, 'n' },
 		{ "help",       no_argument,       NULL, 'h' },
@@ -231,15 +234,8 @@ int cmd_promote(struct bdfs_cli *cli, int argc, char *argv[])
 
 	memset(&arg, 0, sizeof(arg));
 
-	while ((opt = getopt_long(argc, argv, "p:b:n:h", opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "b:n:h", opts, NULL)) != -1) {
 		switch (opt) {
-		case 'p':
-			if (bdfs_str_to_uuid(optarg, arg.flags /* unused here */
-					     ? NULL : NULL) < 0) {
-				bdfs_err("invalid UUID: %s", optarg);
-				return 1;
-			}
-			break;
 		case 'b':
 			strncpy(arg.blend_path, optarg,
 				sizeof(arg.blend_path) - 1);
@@ -281,8 +277,8 @@ int cmd_demote(struct bdfs_cli *cli, int argc, char *argv[])
 	struct bdfs_ioctl_demote_to_dwarfs arg;
 	int opt;
 
+	/* Demote is likewise scoped by blend_path, not a partition UUID. */
 	static const struct option opts[] = {
-		{ "partition",    required_argument, NULL, 'p' },
 		{ "blend-path",   required_argument, NULL, 'b' },
 		{ "image-name",   required_argument, NULL, 'n' },
 		{ "compression",  required_argument, NULL, 'c' },
@@ -294,7 +290,7 @@ int cmd_demote(struct bdfs_cli *cli, int argc, char *argv[])
 	memset(&arg, 0, sizeof(arg));
 	arg.compression = BDFS_COMPRESS_ZSTD;
 
-	while ((opt = getopt_long(argc, argv, "p:b:n:c:dh", opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "b:n:c:dh", opts, NULL)) != -1) {
 		switch (opt) {
 		case 'b':
 			strncpy(arg.blend_path, optarg,
