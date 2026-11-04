@@ -29,6 +29,9 @@ add_test(NAME compression COMMAND test_compression)
 add_executable(test_job_alloc test_job_alloc.c
     ../../userspace/daemon/bdfs_daemon.c
     ../../userspace/daemon/bdfs_jobs.c
+    ../../userspace/daemon/bdfs_jobs_workspace.c
+    ../../userspace/daemon/bdfs_mount_table.c
+    ../../userspace/daemon/bdfs_shutdown_log.c
     ../../userspace/daemon/bdfs_exec.c
     ../../userspace/daemon/bdfs_netlink.c
     ../../userspace/daemon/bdfs_socket.c
