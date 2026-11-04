@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -214,7 +215,7 @@ int cmd_fetch(struct bdfs_cli *cli, int argc, char *argv[])
 
 	/* Step 2: extract to dest */
 	ret = extract_dwarfs_archive(archive_tmp, dest,
-				     cli->cfg.dwarfsextract_bin);
+				     NULL);
 	if (ret) {
 		unlink(archive_tmp);
 		return 1;
