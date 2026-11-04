@@ -335,20 +335,20 @@ for n in nodes:
       local_repos="${_gql_repos[*]}"
     else
       # Fallback: paginated REST (no branch prefetch)
-      local page=1
+      _org_page=1
       while true; do
-        local page_data page_repos
-        page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${page}&type=all") || {
+        _org_page_data=""
+        _org_page_repos=""
+        _org_page_data=$(gh_get "${GH_API}/orgs/${org}/repos?per_page=100&page=${_org_page}&type=all") || {
           warn "Repo list failed for ${org} — skipping"
           break
         }
-        page_repos=$(echo "$page_data" | jq -r '.[].name' 2>/dev/null) || break
-        [[ -z "$page_repos" ]] && break
-        local_repos="${local_repos} ${page_repos}"
-        local count
-        count=$(echo "$page_repos" | wc -l)
-        [[ "$count" -lt 100 ]] && break
-        (( page++ ))
+        _org_page_repos=$(echo "$_org_page_data" | jq -r '.[].name' 2>/dev/null) || break
+        [[ -z "$_org_page_repos" ]] && break
+        local_repos="${local_repos} ${_org_page_repos}"
+        _org_page_count=$(echo "$_org_page_repos" | wc -l)
+        [[ "$_org_page_count" -lt 100 ]] && break
+        (( _org_page++ ))
       done
     fi
   fi
