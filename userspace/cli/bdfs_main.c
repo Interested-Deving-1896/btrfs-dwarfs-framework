@@ -44,14 +44,14 @@ int cmd_workspace_shutdown(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* ── Command table ───────────────────────────────────────────────────────── */
 
-struct bdfs_command {
+struct bdfs_top_level_command {
 	const char *name;
 	const char *alias;   /* optional short alias, NULL if none */
 	int (*fn)(struct bdfs_cli *cli, int argc, char *argv[]);
 	const char *summary;
 };
 
-static const struct bdfs_command COMMANDS[] = {
+static const struct bdfs_top_level_command COMMANDS[] = {
 	{ "partition", "part",   cmd_partition,
 	  "Register, unregister, and list BTRFS/DwarFS partitions" },
 	{ "export",    NULL,     cmd_export,
@@ -126,7 +126,7 @@ static void print_usage(void)
 	);
 
 	for (size_t i = 0; i < sizeof(COMMANDS) / sizeof(COMMANDS[0]); i++) {
-		const struct bdfs_command *c = &COMMANDS[i];
+		const struct bdfs_top_level_command *c = &COMMANDS[i];
 		if (c->alias)
 			printf("  %-14s (%-6s)  %s\n",
 			       c->name, c->alias, c->summary);
@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 			print_usage();
 			return 0;
 		case 'V':
-			printf("bdfs %s\n", BDFS_VERSION);
+			printf("bdfs %s\n", BDFS_CLI_VERSION);
 			return 0;
 		default:
 			print_usage();
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
 
 	/* Look up in the command table */
 	for (size_t i = 0; i < sizeof(COMMANDS) / sizeof(COMMANDS[0]); i++) {
-		const struct bdfs_command *c = &COMMANDS[i];
+		const struct bdfs_top_level_command *c = &COMMANDS[i];
 		if (strcmp(cmd_name, c->name) == 0 ||
 		    (c->alias && strcmp(cmd_name, c->alias) == 0)) {
 			int ret = c->fn(&cli, cmd_argc, cmd_argv);

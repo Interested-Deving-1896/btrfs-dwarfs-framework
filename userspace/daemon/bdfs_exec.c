@@ -9,6 +9,9 @@
  */
 #include <errno.h>
 #include <fcntl.h>
+#include <time.h>
+#include <signal.h>
+#include <poll.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,6 +65,135 @@ int bdfs_exec_wait(const char *const argv[])
 	if (WIFEXITED(status))
 		return WEXITSTATUS(status) == 0 ? 0 : -EIO;
 	return -EIO;
+}
+
+/*
+ * bdfs_exec_capture_output - run argv[] and capture bounded stdout.
+ *
+ * The parent drains the pipe while polling the child, so a full pipe cannot
+ * deadlock the child. Timeout handling mirrors bdfs_exec_wait_timeout().
+ */
+int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
+			     char *buf, size_t bufsz)
+{
+	int pipefd[2];
+	pid_t pid;
+	int status = 0;
+	bool child_done = false, eof = false, overflow = false;
+	int elapsed_ms = 0;
+	const int poll_ms = 100;
+	size_t used = 0;
+
+	if (!argv || !argv[0] || !buf || bufsz == 0 || timeout_s <= 0)
+		return -EINVAL;
+	buf[0] = '\0';
+
+	if (pipe2(pipefd, O_CLOEXEC) < 0)
+		return -errno;
+
+	pid = fork();
+	if (pid < 0) {
+		int saved_errno = errno;
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return -saved_errno;
+	}
+	if (pid == 0) {
+		int devnull;
+		close(pipefd[0]);
+		if (dup2(pipefd[1], STDOUT_FILENO) < 0)
+			_exit(126);
+		close(pipefd[1]);
+		devnull = open("/dev/null", O_WRONLY);
+		if (devnull >= 0) {
+			dup2(devnull, STDERR_FILENO);
+			close(devnull);
+		}
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+
+	close(pipefd[1]);
+	if (fcntl(pipefd[0], F_SETFL, O_NONBLOCK) < 0) {
+		int saved_errno = errno;
+		kill(pid, SIGKILL);
+		waitpid(pid, NULL, 0);
+		close(pipefd[0]);
+		return -saved_errno;
+	}
+
+	while (!eof || !child_done) {
+		struct pollfd pfd = { .fd = pipefd[0], .events = POLLIN | POLLHUP };
+		int pr = poll(&pfd, 1, poll_ms);
+		if (pr < 0 && errno != EINTR) {
+			int saved_errno = errno;
+			kill(pid, SIGKILL);
+			waitpid(pid, NULL, 0);
+			close(pipefd[0]);
+			return -saved_errno;
+		}
+		if (pr > 0 && (pfd.revents & (POLLIN | POLLHUP))) {
+			char chunk[1024];
+			ssize_t n;
+			while ((n = read(pipefd[0], chunk, sizeof(chunk))) > 0) {
+				size_t available = bufsz - 1 - used;
+				size_t copy = (size_t)n < available
+					? (size_t)n : available;
+				if (copy)
+					memcpy(buf + used, chunk, copy);
+				used += copy;
+				if (copy != (size_t)n)
+					overflow = true;
+			}
+			if (n == 0)
+				eof = true;
+			else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK
+				 && errno != EINTR) {
+				int saved_errno = errno;
+				kill(pid, SIGKILL);
+				waitpid(pid, NULL, 0);
+				close(pipefd[0]);
+				buf[used] = '\0';
+				return -saved_errno;
+			}
+		}
+
+		if (!child_done) {
+			pid_t wr = waitpid(pid, &status, WNOHANG);
+			if (wr == pid)
+				child_done = true;
+			else if (wr < 0 && errno != EINTR) {
+				int saved_errno = errno;
+				close(pipefd[0]);
+				return -saved_errno;
+			}
+		}
+		elapsed_ms += poll_ms;
+		if (elapsed_ms >= timeout_s * 1000 && !child_done) {
+			kill(pid, SIGTERM);
+			for (int grace = 0; grace < 5000; grace += poll_ms) {
+				struct timespec ts = { 0, poll_ms * 1000000L };
+				nanosleep(&ts, NULL);
+				if (waitpid(pid, &status, WNOHANG) == pid) {
+					child_done = true;
+					break;
+				}
+			}
+			if (!child_done) {
+				kill(pid, SIGKILL);
+				waitpid(pid, &status, 0);
+			}
+			close(pipefd[0]);
+			buf[used] = '\0';
+			return -ETIMEDOUT;
+		}
+	}
+
+	close(pipefd[0]);
+	buf[used] = '\0';
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+		return -EIO;
+	return overflow ? -ENOSPC : 0;
 }
 
 /* ── mkdwarfs ───────────────────────────────────────────────────────────── */
