@@ -10,6 +10,10 @@
 #include <stdbool.h>
 #include "../../include/uapi/bdfs_ioctl.h"
 
+/* Flags shared with the daemon prune-job JSON protocol. */
+#define BDFS_PRUNE_DEMOTE_FIRST (1U << 0)
+#define BDFS_PRUNE_DRY_RUN      (1U << 1)
+
 #define BDFS_CLI_VERSION  "1.0.0"
 
 /* Global CLI context */
