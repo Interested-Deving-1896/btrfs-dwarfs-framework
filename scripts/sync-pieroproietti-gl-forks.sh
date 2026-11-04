@@ -102,7 +102,9 @@ for entry in "${REPOS[@]}"; do
 
   gh_releases_tmp=$(mktemp) || { warn "Could not create temporary GitHub release file"; exit 1; }
   printf '%s' "$gh_releases" > "$gh_releases_tmp"
-  python3 "$gh_releases_tmp" << 'PYEOF'
+  GITLAB_TOKEN="$GITLAB_TOKEN" GL_API="$GL_API" GL_PID="$gl_pid" \
+    GH_PATH="$gh_path" EXISTING_TAGS="$existing_tags" \
+    python3 "$gh_releases_tmp" << 'PYEOF'
 import sys, json, os, urllib.request, urllib.error
 
 with open(sys.argv[1], encoding="utf-8") as stream:
