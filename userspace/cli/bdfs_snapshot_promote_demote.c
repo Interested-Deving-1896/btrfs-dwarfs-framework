@@ -31,6 +31,14 @@
 
 #include "bdfs.h"
 
+/* Flags shared with the daemon prune-job JSON protocol. */
+#ifndef BDFS_PRUNE_DEMOTE_FIRST
+#define BDFS_PRUNE_DEMOTE_FIRST (1U << 0)
+#endif
+#ifndef BDFS_PRUNE_DRY_RUN
+#define BDFS_PRUNE_DRY_RUN      (1U << 1)
+#endif
+
 /* ── bdfs snapshot ───────────────────────────────────────────────────────── */
 
 int cmd_snapshot(struct bdfs_cli *cli, int argc, char *argv[])
