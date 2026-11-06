@@ -139,6 +139,13 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(result["decision"], "blocked")
         self.assertTrue(any("integrity is 'unverified'" in x for x in result["blockers"]))
 
+    def test_malformed_schema_version_blocks_without_crashing(self):
+        data = manifest()
+        data["schema_version"] = ["1.1.0"]
+        result = module.plan(data)
+        self.assertEqual(result["decision"], "blocked")
+        self.assertTrue(any("Unsupported manifest schema_version" in x for x in result["blockers"]))
+
     def test_v11_requires_unique_ids_and_kernel_source(self):
         data = manifest()
         data["schema_version"] = "1.1.0"
