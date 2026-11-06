@@ -28,16 +28,25 @@ def plan(manifest: dict) -> dict:
                 "blockers": ["Manifest root must be an object."],
                 "approval_gates": [], "ordered_changes": [], "read_only": True}
 
-    source = manifest.get("source") or {}
-    commit = source.get("commit") if isinstance(source, dict) else None
+    source = manifest.get("source")
+    if not isinstance(source, dict):
+        source = {}
+        blockers.append("Source must be an object.")
+    commit = source.get("commit")
     if not isinstance(commit, str) or not FULL_COMMIT.fullmatch(commit):
         blockers.append("Source identity is not pinned to a full 40-64 character commit.")
 
-    target = manifest.get("target") or {}
-    if not isinstance(target, dict) or not target.get("architectures"):
-        blockers.append("Target architectures are missing.")
+    target = manifest.get("target")
+    if not isinstance(target, dict):
+        target = {}
+        blockers.append("Target must be an object.")
+    if not isinstance(target.get("architectures"), list) or not target.get("architectures"):
+        blockers.append("Target architectures are missing or invalid.")
 
-    policy = manifest.get("policy") or {}
+    policy = manifest.get("policy")
+    if not isinstance(policy, dict):
+        policy = {}
+        blockers.append("Policy must be an object.")
     if policy.get("human_approval_required") is not True:
         blockers.append("Policy must require human approval.")
     if policy.get("protected_branch_write") is not False:
@@ -67,6 +76,9 @@ def plan(manifest: dict) -> dict:
 
     for change_id, item in by_id.items():
         classification = item.get("classification")
+        if not isinstance(classification, str):
+            blockers.append(f"{change_id} classification must be a string.")
+            classification = None
         if classification == "blocked":
             blockers.append(f"{change_id} is explicitly classified blocked.")
         elif classification == "rejected":
@@ -80,6 +92,9 @@ def plan(manifest: dict) -> dict:
             blockers.append(f"{change_id} has no actionable, recognized classification.")
 
         risk = item.get("risk", "unknown")
+        if not isinstance(risk, str):
+            warnings.append(f"{change_id} risk is malformed; treating it as unknown.")
+            risk = "unknown"
         if risk in HIGH_RISK:
             approvals.append(f"Human review required for {change_id}: {risk} risk.")
         if classification in MANUAL_CLASSES:
@@ -92,7 +107,9 @@ def plan(manifest: dict) -> dict:
             blockers.append(f"{change_id} dependencies must be an array.")
             continue
         for dep in deps:
-            if dep not in by_id:
+            if not isinstance(dep, str) or not dep:
+                blockers.append(f"{change_id} dependencies must contain non-empty string IDs.")
+            elif dep not in by_id:
                 blockers.append(f"{change_id} depends on missing change {dep}.")
 
     # Stable topological ordering; input order breaks ties deterministically.
@@ -100,7 +117,7 @@ def plan(manifest: dict) -> dict:
     children = {key: [] for key in by_id}
     for key, item in by_id.items():
         for dep in item.get("dependencies", []) if isinstance(item.get("dependencies", []), list) else []:
-            if dep in by_id:
+            if isinstance(dep, str) and dep in by_id:
                 indegree[key] += 1
                 children[dep].append(key)
     ready = [key for key in by_id if indegree[key] == 0]
