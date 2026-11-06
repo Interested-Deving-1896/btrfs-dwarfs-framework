@@ -378,7 +378,33 @@
         "details": {
           "type": "string"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "passed"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "evidence_uri"
+            ],
+            "properties": {
+              "evidence_uri": {
+                "type": "string",
+                "format": "uri",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }
