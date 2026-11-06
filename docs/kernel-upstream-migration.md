@@ -19,6 +19,19 @@ The versioned JSON Schema at `schemas/kernel-upstream-migration/v1/manifest.sche
 
 Schema changes must be versioned. Consumers must reject unknown required semantics rather than guessing.
 
+### Multi-source manifest v1.1
+
+The additive schema at `schemas/kernel-upstream-migration/v1.1/manifest.schema.json` introduces `source_inputs` without changing the v1.0 contract. It models every independently selected input using a stable `input_id`, a semantic `role`, and a `kind`:
+
+- **Git inputs** carry repository, URL, requested ref, and a full immutable commit ID.
+- **Archive inputs** carry URL, archive version, and a full SHA-256 digest.
+- Each input carries an explicit integrity state. The planner blocks inputs not declared `verified`; that declaration is evidence supplied by the producer and is not itself cryptographically verified by the read-only planner.
+- At least one input must have role `kernel-source`. Additional inputs can represent provider patch bundles, Liquorix/Zen patches, package archives, config bundles, or other independently versioned material.
+
+For example, a Liquorix migration must not collapse the vanilla kernel tarball and Liquorix package archive into one synthetic source identity. A LiqXanMod migration must keep the XanMod Git source separate from its Liquorix/Zen and hybrid patch inputs. Provider adapters remain responsible for collecting trustworthy checksum/signature evidence; missing or unverified provenance blocks planning.
+
+The planner supports both v1.0 single-source manifests and v1.1 multi-source manifests. It remains read-only and does not download inputs, validate signatures, recompute archive digests, apply patches, or build kernels.
+
 ## Required classifications
 
 - `clean-forward-port`, `clean-backport`
