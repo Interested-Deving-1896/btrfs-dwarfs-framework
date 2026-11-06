@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://btrfs-dwarfs-framework.example/schemas/bdfs-artifact-manifest.schema.json",
+  "$id": "https://raw.githubusercontent.com/Interested-Deving-1896/btrfs-dwarfs-framework/main/doc/schemas/bdfs-artifact-manifest.schema.json",
   "title": "BDFS Artifact Manifest",
   "description": "Portable, provider-neutral metadata envelope for BDFS environment and integration artifacts. The schema describes metadata only; it does not authorize execution or deployment.",
   "type": "object",
