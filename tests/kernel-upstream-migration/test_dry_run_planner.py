@@ -106,6 +106,56 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(result["decision"], "approval-required")
         self.assertTrue(any("unknown risk" in x for x in result["approval_gates"]))
 
+    def test_v11_accepts_independently_pinned_git_and_archive_inputs(self):
+        data = manifest()
+        data["schema_version"] = "1.1.0"
+        data.pop("source")
+        data["source_inputs"] = [
+            {"input_id": "linux-upstream", "role": "kernel-source", "kind": "git",
+             "repository": "upstream/linux", "url": "https://example.invalid/linux.git",
+             "ref": "refs/tags/v6.12.1", "commit": "a" * 40,
+             "kernel_version": "6.12.1", "integrity": "verified"},
+            {"input_id": "vendor-patches", "role": "provider-patches", "kind": "archive",
+             "url": "https://example.invalid/patches.tar.xz", "archive_version": "2026.11",
+             "sha256": "d" * 64, "integrity": "verified"}
+        ]
+        result = module.plan(data)
+        self.assertEqual(result["decision"], "dry-run-ready")
+        self.assertTrue(any("does not fetch sources" in x for x in result["warnings"]))
+
+    def test_v11_unverified_archive_blocks(self):
+        data = manifest()
+        data["schema_version"] = "1.1.0"
+        data.pop("source")
+        data["source_inputs"] = [
+            {"input_id": "linux", "role": "kernel-source", "kind": "git",
+             "repository": "upstream/linux", "url": "https://example.invalid/linux.git",
+             "ref": "v6.12.1", "commit": "a" * 40, "integrity": "verified"},
+            {"input_id": "patches", "role": "provider-patches", "kind": "archive",
+             "url": "https://example.invalid/patches.tar.xz", "archive_version": "1",
+             "sha256": "d" * 64, "integrity": "unverified"}
+        ]
+        result = module.plan(data)
+        self.assertEqual(result["decision"], "blocked")
+        self.assertTrue(any("integrity is 'unverified'" in x for x in result["blockers"]))
+
+    def test_v11_requires_unique_ids_and_kernel_source(self):
+        data = manifest()
+        data["schema_version"] = "1.1.0"
+        data.pop("source")
+        data["source_inputs"] = [
+            {"input_id": "same", "role": "provider-patches", "kind": "archive",
+             "url": "https://example.invalid/a.tar", "archive_version": "1",
+             "sha256": "d" * 64, "integrity": "verified"},
+            {"input_id": "same", "role": "provider-patches", "kind": "archive",
+             "url": "https://example.invalid/b.tar", "archive_version": "1",
+             "sha256": "e" * 64, "integrity": "verified"}
+        ]
+        result = module.plan(data)
+        self.assertEqual(result["decision"], "blocked")
+        self.assertTrue(any("Duplicate source input_id" in x for x in result["blockers"]))
+        self.assertTrue(any("kernel-source" in x for x in result["blockers"]))
+
     def test_cli_emits_json_without_mutating_manifest(self):
         data = manifest()
         with tempfile.TemporaryDirectory() as directory:
