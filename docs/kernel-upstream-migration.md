@@ -52,3 +52,18 @@ A conflict-free apply is not correctness evidence. Dependency/order, Kconfig, AP
 ## Current implementation boundary
 
 This commit establishes only the shared schema and design contract. It does not apply patches, alter kernel source/configuration, claim compatibility, or certify any build. Provider adapters and representative LTS validation remain separate follow-on work.
+
+
+## Initial provider inventory implementations
+
+The first provider-side read-only inventory commands are being introduced alongside this contract:
+
+| Provider | Inventory command | Draft PR |
+|---|---|---|
+| LiqXanMod | `python3 scripts/kumbe-inventory.py` | [#35](https://github.com/Interested-Deving-1896/liqxanmod/pull/35) |
+| Liquorix Unified Kernel | `python3 scripts/kumbe-inventory.py` | [#21](https://github.com/Interested-Deving-1896/liquorix-unified-kernel/pull/21) |
+| XanMod Unified Kernel | `python3 scripts/kumbe-inventory.py` | [#18](https://github.com/Interested-Deving-1896/xanmod-unified-kernel/pull/18) |
+
+Each command emits a JSON inventory of locally available source candidates, commit/ref information where present, patch-series entries and SHA-256 digests, config inputs, and explicit warnings. It accepts `--root` for isolated tests. It performs no network access and does not modify source trees. Its output is an evidence input, not a KUMBE migration manifest or compatibility verdict.
+
+The focused inventory tests currently pass in all three provider PRs. The next implementation stage is to make each provider resolve and pin its own immutable source inputs, then add a dry-run dependency/applicability planner against this shared manifest. Isolated patch application remains disabled until those gates are implemented and reviewed.
