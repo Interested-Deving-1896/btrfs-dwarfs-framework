@@ -35,8 +35,7 @@ unsafe_cases.append(("immutable source commit", case))
 case = deepcopy(fixture)
 case["validation"][0]["state"] = "passed"
 case["validation"][0]["evidence_uri"] = None
-# The schema permits a passed state without an evidence URI; this is a known
-# semantic-policy gap, so this case is intentionally not asserted invalid.
+unsafe_cases.append(("passed validation without evidence URI", case))
 
 for label, candidate in unsafe_cases:
     if validator.is_valid(candidate):
