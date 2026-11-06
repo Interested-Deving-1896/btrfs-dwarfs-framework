@@ -24,17 +24,71 @@ def plan(manifest: dict) -> dict:
     warnings: list[str] = []
 
     if not isinstance(manifest, dict):
-        return {"planner_schema_version": "1.0.0", "decision": "blocked",
+        return {"planner_schema_version": "1.1.0", "decision": "blocked",
                 "blockers": ["Manifest root must be an object."],
                 "approval_gates": [], "ordered_changes": [], "read_only": True}
 
-    source = manifest.get("source")
-    if not isinstance(source, dict):
-        source = {}
-        blockers.append("Source must be an object.")
-    commit = source.get("commit")
-    if not isinstance(commit, str) or not FULL_COMMIT.fullmatch(commit):
-        blockers.append("Source identity is not pinned to a full 40-64 character commit.")
+    schema_version = manifest.get("schema_version", "1.0.0")
+    if schema_version not in {"1.0.0", "1.1.0"}:
+        blockers.append(f"Unsupported manifest schema_version: {schema_version!r}.")
+
+    if schema_version == "1.0.0":
+        source = manifest.get("source")
+        if not isinstance(source, dict):
+            source = {}
+            blockers.append("Source must be an object.")
+        commit = source.get("commit")
+        if not isinstance(commit, str) or not FULL_COMMIT.fullmatch(commit):
+            blockers.append("Source identity is not pinned to a full 40-64 character commit.")
+    else:
+        inputs = manifest.get("source_inputs")
+        if not isinstance(inputs, list) or not inputs:
+            blockers.append("Manifest v1.1 requires at least one source_inputs entry.")
+            inputs = []
+        seen_inputs = set()
+        has_kernel_source = False
+        for index, item in enumerate(inputs):
+            prefix = f"source_inputs[{index}]"
+            if not isinstance(item, dict):
+                blockers.append(f"{prefix} must be an object.")
+                continue
+            input_id = item.get("input_id")
+            if not isinstance(input_id, str) or not input_id:
+                blockers.append(f"{prefix} requires a non-empty input_id.")
+            elif input_id in seen_inputs:
+                blockers.append(f"Duplicate source input_id: {input_id}")
+            else:
+                seen_inputs.add(input_id)
+            role = item.get("role")
+            if not isinstance(role, str) or not role:
+                blockers.append(f"{prefix} requires a non-empty role.")
+            elif role == "kernel-source":
+                has_kernel_source = True
+            kind = item.get("kind")
+            if not isinstance(item.get("url"), str) or not item["url"].startswith(("https://", "ssh://", "git://")):
+                blockers.append(f"{prefix} requires an absolute supported source URL.")
+            if kind == "git":
+                if not isinstance(item.get("repository"), str) or not item["repository"]:
+                    blockers.append(f"{prefix} Git input requires repository.")
+                if not isinstance(item.get("ref"), str) or not item["ref"]:
+                    blockers.append(f"{prefix} Git input requires ref.")
+                commit = item.get("commit")
+                if not isinstance(commit, str) or not FULL_COMMIT.fullmatch(commit):
+                    blockers.append(f"{prefix} Git input requires a full immutable commit.")
+            elif kind == "archive":
+                digest = item.get("sha256")
+                if not isinstance(digest, str) or not re.fullmatch(r"^[0-9a-fA-F]{64}$", digest):
+                    blockers.append(f"{prefix} archive input requires a full SHA-256 digest.")
+                if not isinstance(item.get("archive_version"), str) or not item["archive_version"]:
+                    blockers.append(f"{prefix} archive input requires archive_version.")
+            else:
+                blockers.append(f"{prefix} kind must be 'git' or 'archive'.")
+            integrity = item.get("integrity")
+            if integrity != "verified":
+                blockers.append(f"{prefix} integrity is {integrity!r}; independently verified inputs are required.")
+        if not has_kernel_source:
+            blockers.append("Manifest v1.1 must include a source input with role 'kernel-source'.")
+        warnings.append("Source integrity labels are declared evidence; this read-only planner does not fetch sources or verify signatures/checksums.")
 
     target = manifest.get("target")
     if not isinstance(target, dict):
