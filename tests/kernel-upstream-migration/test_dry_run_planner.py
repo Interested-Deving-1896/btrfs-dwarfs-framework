@@ -84,6 +84,28 @@ class PlannerTests(unittest.TestCase):
         data["policy"]["protected_branch_write"] = True
         self.assertEqual(module.plan(data)["decision"], "blocked")
 
+    def test_malformed_nested_objects_block_without_crashing(self):
+        for field in ("source", "target", "policy"):
+            data = manifest()
+            data[field] = ["malformed"]
+            result = module.plan(data)
+            self.assertEqual(result["decision"], "blocked")
+            self.assertTrue(result["blockers"])
+
+    def test_non_string_dependency_blocks_without_crashing(self):
+        data = manifest()
+        data["changes"][1]["dependencies"] = [["not", "an", "id"]]
+        result = module.plan(data)
+        self.assertEqual(result["decision"], "blocked")
+        self.assertTrue(any("non-empty string IDs" in x for x in result["blockers"]))
+
+    def test_malformed_risk_is_conservatively_approval_gated(self):
+        data = manifest()
+        data["changes"][0]["risk"] = ["unknown"]
+        result = module.plan(data)
+        self.assertEqual(result["decision"], "approval-required")
+        self.assertTrue(any("unknown risk" in x for x in result["approval_gates"]))
+
     def test_cli_emits_json_without_mutating_manifest(self):
         data = manifest()
         with tempfile.TemporaryDirectory() as directory:
