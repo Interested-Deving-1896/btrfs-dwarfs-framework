@@ -29,7 +29,7 @@ def plan(manifest: dict) -> dict:
                 "approval_gates": [], "ordered_changes": [], "read_only": True}
 
     schema_version = manifest.get("schema_version", "1.0.0")
-    if schema_version not in {"1.0.0", "1.1.0"}:
+    if not isinstance(schema_version, str) or schema_version not in {"1.0.0", "1.1.0"}:
         blockers.append(f"Unsupported manifest schema_version: {schema_version!r}.")
 
     if schema_version == "1.0.0":
