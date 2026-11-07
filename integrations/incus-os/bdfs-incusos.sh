@@ -61,7 +61,8 @@ cmd_workspace() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source) source="$2"; shift 2 ;;
-            --name)   name="$2";   shift 2 ;;\n            --backend) backend="$2"; shift 2 ;;
+            --name)   name="$2";   shift 2 ;;
+            --backend) backend="$2"; shift 2 ;;
             -*)       die "Unknown option: $1" ;;
             *)        die "Unexpected argument: $1" ;;
         esac
