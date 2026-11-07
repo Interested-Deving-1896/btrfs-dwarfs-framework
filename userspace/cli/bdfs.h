@@ -6,6 +6,7 @@
 #ifndef _BDFS_CLI_H
 #define _BDFS_CLI_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "../../include/uapi/bdfs_ioctl.h"
