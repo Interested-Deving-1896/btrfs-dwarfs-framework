@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "id": "calamares-bdfs",
+  "name": "Calamares ↔ BDFS integration",
+  "role": "installer-frontend-and-filesystem-adapter-contract",
+  "status": "contract-only",
+  "upstream": {
+    "name": "Calamares",
+    "historicalRepository": "https://github.com/calamares/calamares",
+    "historicalRepositoryArchived": true,
+    "maintainedRepository": "https://codeberg.org/Calamares/calamares",
+    "sourceRevision": null,
+    "revisionStatus": "unpinned"
+  },
+  "directions": {
+    "calamaresConsumesBdfs": {
+      "status": "planned",
+      "mechanism": "optional-external-calamares-module-and-bdfs-adapter",
+      "readOnlyDiscovery": false,
+      "diskMutation": false
+    },
+    "bdfsInvokesCalamares": {
+      "status": "planned",
+      "mechanism": "validated-distribution-profile-and-explicit-installer-launch",
+      "automaticLaunch": false
+    }
+  },
+  "artifactContract": {
+    "schema": "../../doc/schemas/bdfs-artifact-manifest.schema.json",
+    "manifestExchange": "planned",
+    "metadataPreservation": "required",
+    "checksumAndProvenance": "required",
+    "conversionLossReporting": "required"
+  },
+  "capabilities": {
+    "inventory": true,
+    "manifestValidation": true,
+    "readOnlyPreflight": false,
+    "mount": false,
+    "partition": false,
+    "format": false,
+    "filesystemConversion": false,
+    "bootloaderMutation": false,
+    "install": false,
+    "hostMutation": false,
+    "privilegedExecution": false,
+    "importedHookExecution": false
+  },
+  "safety": {
+    "defaultMode": "contract-only",
+    "destructiveOperationsRequireExplicitPlan": true,
+    "destructiveOperationsRequireUserConfirmation": true,
+    "testsRequireDisposableVirtualDisks": true
+  }
+}
