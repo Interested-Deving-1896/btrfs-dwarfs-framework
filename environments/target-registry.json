@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "description": "Configurable OS target registry for BDFS. KDE Neon Editions is the default for both directions; other OS targets may be added independently.",
+  "defaultImportTarget": "kde-neon-editions",
+  "defaultExportTarget": "kde-neon-editions",
+  "targets": [
+    {
+      "id": "kde-neon-editions",
+      "name": "KDE Neon Editions",
+      "enabled": true,
+      "profile": "kde-neon-editions/profile.json",
+      "adapter": "../integrations/kde-neon-editions",
+      "selectionOperations": ["import", "export"],
+      "implementationStatus": "selection-contract"
+    }
+  ]
+}
