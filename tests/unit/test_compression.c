@@ -7,9 +7,7 @@
 #include <stdint.h>
 #include <assert.h>
 
-#define main bdfs_cli_main_unused
-#  include "../../userspace/cli/bdfs_main.c"
-#undef main
+#include "../../userspace/cli/bdfs.h"
 
 static int tests_run = 0, tests_failed = 0;
 
