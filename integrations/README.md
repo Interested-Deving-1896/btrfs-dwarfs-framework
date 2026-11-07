@@ -2,6 +2,10 @@
 
 Each adapter in this directory translates between BDFS workspaces/artifacts and an external ecosystem. Adapters retain their ecosystem-specific semantics while sharing a provider-neutral artifact envelope.
 
+## KDE Neon Editions target adapter
+
+[`kde-neon-editions/`](kde-neon-editions/) is the default OS-target integration for BDFS import/export selection. It connects the KDE Neon Editions environment profile to the shared artifact contract. The current adapter documentation defines the boundary and safety requirements; it does not claim that all KDE Neon image formats can already be converted or that a deployment action is available.
+
 ## Existing adapters
 
 | Adapter | External system | Existing documented operations |
