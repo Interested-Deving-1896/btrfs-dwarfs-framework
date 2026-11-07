@@ -106,6 +106,11 @@ if(BUILD_CLI)
     add_executable(bdfs
         cli/bdfs_main.c
         cli/bdfs_helpers.c
+        cli/bdfs_cli_common.c
+        cli/bdfs_setup.c
+        cli/bdfs_home.c
+        cli/bdfs_workspace_shutdown.c
+        cli/bdfs_userconf.c
         cli/bdfs_partition.c
         cli/bdfs_export_import.c
         cli/bdfs_mount.c
