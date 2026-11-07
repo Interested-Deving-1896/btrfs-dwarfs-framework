@@ -55,8 +55,8 @@ jobs:
 
           # Synthetic filesystem fixture only; never run the privileged Ageless converter.
           mkdir -p "$tmp/root/etc"
-          printf 'ID=ageless\\nVERSION_ID=1\\n' > "$tmp/root/etc/os-release"
-          printf 'ID=debian\\nVERSION_ID="13"\\nNAME="Debian GNU/Linux"\\n' > "$tmp/root/etc/os-release.pre-ageless"
+          printf 'ID=ageless\nVERSION_ID=1\n' > "$tmp/root/etc/os-release"
+          printf 'ID=debian\nVERSION_ID="13"\nNAME="Debian GNU/Linux"\n' > "$tmp/root/etc/os-release.pre-ageless"
           cat > "$tmp/manifest.json" <<'JSON'
           {
             "architecture": "x86_64",
@@ -67,21 +67,21 @@ jobs:
           }
           JSON
 
-          python3 integrations/ageless-linux/inventory.py \\
+          python3 integrations/ageless-linux/inventory.py \
             --root "$tmp/root" --manifest "$tmp/manifest.json" > "$tmp/inventory.json"
 
-          python3 integrations/ageless-linux/compatibility_report.py \\
-            --inventory "$tmp/inventory.json" \\
-            --provider "liqxanmod=_providers/liqxanmod/integrations/ageless-linux-compatibility.json" \\
-            --provider "liquorix=_providers/liquorix/integrations/ageless-linux-compatibility.json" \\
-            --provider "xanmod=_providers/xanmod/integrations/ageless-linux-compatibility.json" \\
+          python3 integrations/ageless-linux/compatibility_report.py \
+            --inventory "$tmp/inventory.json" \
+            --provider "liqxanmod=_providers/liqxanmod/integrations/ageless-linux-compatibility.json" \
+            --provider "liquorix=_providers/liquorix/integrations/ageless-linux-compatibility.json" \
+            --provider "xanmod=_providers/xanmod/integrations/ageless-linux-compatibility.json" \
             --output "$tmp/provider-report.json"
 
-          python3 _providers/liqxanmod/integrations/ageless-linux-report.py \\
+          python3 _providers/liqxanmod/integrations/ageless-linux-report.py \
             --report "$tmp/provider-report.json" --output "$tmp/liqxanmod-decision.json"
-          python3 _providers/liquorix/integrations/ageless-linux-report.py \\
+          python3 _providers/liquorix/integrations/ageless-linux-report.py \
             --report "$tmp/provider-report.json" --output "$tmp/liquorix-decision.json"
-          python3 _providers/xanmod/integrations/ageless-linux-report.py \\
+          python3 _providers/xanmod/integrations/ageless-linux-report.py \
             --report "$tmp/provider-report.json" --output "$tmp/xanmod-decision.json"
 
           python3 - "$tmp" <<'PY'
