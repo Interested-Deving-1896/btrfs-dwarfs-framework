@@ -51,5 +51,23 @@
     "destructiveOperationsRequireExplicitPlan": true,
     "destructiveOperationsRequireUserConfirmation": true,
     "testsRequireDisposableVirtualDisks": true
+  },
+  "sourceImport": {
+    "mechanism": "Fork-Sync-All scripts/import-repo.sh via .github/workflows/import-repo.yml",
+    "sourceUrl": "https://codeberg.org/Calamares/calamares",
+    "targetRepository": "Interested-Deving-1896/calamares-upstream",
+    "targetRepositoryStatus": "not-yet-created",
+    "existingNameCollision": {
+      "repository": "Interested-Deving-1896/calamares",
+      "purpose": "existing Rhino Linux Calamares configuration fork",
+      "overwriteAllowed": false
+    },
+    "initialWorkflowInputs": {
+      "repoName": "calamares-upstream",
+      "mirrorToOspOoc": false,
+      "ongoingSync": false
+    },
+    "mirrorAndScheduledSync": "deferred-pending-source-audit",
+    "importExecutionStatus": "not-dispatched"
   }
 }
