@@ -1,0 +1,26 @@
+name: KDE Discover integration contract
+
+on:
+  pull_request:
+    paths:
+      - "integrations/discover/**"
+      - ".github/workflows/discover-integration-validation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "integrations/discover/**"
+      - ".github/workflows/discover-integration-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Validate integration contract
+        run: python3 integrations/discover/validate.py
