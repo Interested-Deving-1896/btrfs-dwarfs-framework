@@ -35,9 +35,9 @@ inventory_tool = ROOT / "integrations/ageless-linux/inventory.py"
 with tempfile.TemporaryDirectory() as tmp:
     fixture = Path(tmp) / "root"
     (fixture / "etc").mkdir(parents=True)
-    (fixture / "etc/os-release").write_text('ID=ageless\\nVERSION_ID=1\\n', encoding="utf-8")
+    (fixture / "etc/os-release").write_text('ID=ageless\nVERSION_ID=1\n', encoding="utf-8")
     (fixture / "etc/os-release.pre-ageless").write_text(
-        'ID=debian\\nVERSION_ID="13"\\nNAME="Debian GNU/Linux"\\n',
+        'ID=debian\nVERSION_ID="13"\nNAME="Debian GNU/Linux"\n',
         encoding="utf-8",
     )
     manifest = Path(tmp) / "manifest.json"
