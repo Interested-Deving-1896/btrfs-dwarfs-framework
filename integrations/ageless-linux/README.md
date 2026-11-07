@@ -65,3 +65,18 @@ Before enabling conversion or image export, audit all `lib/*.sh` modules and tes
 - Store `ROADMAP.md`, upstream master blob `a54fe532b5214a06f50b049553b67fec34e0449b`
 
 This is an initial source-grounded integration contract, not a declaration of supported compatibility.
+
+## Provider compatibility report planner
+
+After producing an inventory JSON file, generate conservative reports for the provider contracts. Run this from a workspace containing the BDFS and provider repositories:
+
+```sh
+python3 integrations/ageless-linux/compatibility_report.py \
+  --inventory ageless-inventory.json \
+  --provider liqxanmod=../liqxanmod/integrations/ageless-linux-compatibility.json \
+  --provider liquorix=../liquorix-unified-kernel/integrations/ageless-linux-compatibility.json \
+  --provider xanmod=../xanmod-unified-kernel/integrations/ageless-linux-compatibility.json \
+  --output ageless-provider-compatibility.json
+```
+
+The planner validates the inventory/provider schema handshake and emits one report per provider. Missing required inventory values are called out explicitly. Even a complete inventory remains **unknown** until provider-specific isolated evidence is supplied; the report never authorizes conversion, patch application, builds, installation, or publication. The output is a planning artifact, not a support certification.
