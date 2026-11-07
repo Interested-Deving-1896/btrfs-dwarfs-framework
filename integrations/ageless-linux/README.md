@@ -23,6 +23,26 @@ Existing forks are present under `Interested-Deving-1896`. Preserve upstream and
 - The Ageless Store roadmap describes a content-addressed catalog with minisign signatures and SHA-256 package hashes. This is a separate package-distribution trust domain, not Debian repository metadata.
 - Website and store sources are ecosystem references, not kernel source inputs.
 
+## Read-only inventory adapter
+
+Run `python3 integrations/ageless-linux/inventory.py --root <filesystem-root> [--manifest <trusted-image.json>]` to emit schema-versioned base-OS metadata as JSON. The adapter parses `os-release` as data (never sources it), prefers `os-release.pre-ageless` when the visible identity is already `ageless`, and accepts explicit image-manifest values for architecture, package manager, init system, and kernel provenance. Missing values remain null; compatibility always remains `unknown`. It does not invoke the Ageless converter, package managers, kernel tools, or write into the inspected root.
+
+Example manifest shape:
+
+```json
+{
+  "base_os": {"ID": "debian", "VERSION_ID": "13", "NAME": "Debian"},
+  "architecture": "x86_64",
+  "package_manager": "apt",
+  "init_system": "systemd",
+  "kernel_release": "6.12.0",
+  "kernel_source": "debian",
+  "kernel_abi": null
+}
+```
+
+Treat manifest values as trusted only when their producer and provenance are independently verified. The inventory is descriptive input to a later compatibility planner, not an approval to build or install a kernel.
+
 ## Safety model
 
 The conversion script is privileged and mutates host configuration. CI must never execute it against the runner host. Any future behavioral tests must use disposable isolated filesystem/VM/container fixtures with no host mounts, secrets, or network, and explicit teardown. Dry-run output is not proof that execution is safe.
