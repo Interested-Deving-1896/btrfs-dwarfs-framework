@@ -2,6 +2,9 @@
 """Focused, read-only invariants for the BDFS Ageless Linux profile."""
 import json
 import re
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,4 +30,40 @@ assert lock["compatibility"]["status"] == "unknown"
 assert lock["compatibility"]["supported_base_matrix"] == []
 assert lock["safety"]["execute_conversion"] is False
 assert lock["safety"]["execute_upstream_tests_on_runner"] is False
-print("BDFS Ageless profile invariants: PASS")
+# Exercise the read-only inventory contract against disposable filesystem fixtures.
+inventory_tool = ROOT / "integrations/ageless-linux/inventory.py"
+with tempfile.TemporaryDirectory() as tmp:
+    fixture = Path(tmp) / "root"
+    (fixture / "etc").mkdir(parents=True)
+    (fixture / "etc/os-release").write_text('ID=ageless\\nVERSION_ID=1\\n', encoding="utf-8")
+    (fixture / "etc/os-release.pre-ageless").write_text(
+        'ID=debian\\nVERSION_ID="13"\\nNAME="Debian GNU/Linux"\\n',
+        encoding="utf-8",
+    )
+    manifest = Path(tmp) / "manifest.json"
+    manifest.write_text(json.dumps({
+        "architecture": "x86_64",
+        "package_manager": "apt",
+        "init_system": "systemd",
+        "kernel_release": "6.12.0",
+        "kernel_source": "debian",
+    }), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(inventory_tool), "--root", str(fixture), "--manifest", str(manifest)],
+        check=True, capture_output=True, text=True,
+    )
+    report = json.loads(result.stdout)
+    assert report["identity_source"] == "os-release.pre-ageless"
+    assert report["distribution"]["id"] == "debian"
+    assert report["distribution"]["release"] == "13"
+    assert report["architecture"] == "x86_64"
+    assert report["package_manager"] == "apt"
+    assert report["init_system"] == "systemd"
+    assert report["kernel"]["source"] == "debian"
+    assert report["compatibility"]["status"] == "unknown"
+    assert report["safety"]["read_only"] is True
+    assert report["safety"]["conversion_executed"] is False
+    assert report["safety"]["patches_applied"] is False
+    assert report["safety"]["builds_started"] is False
+
+print("BDFS Ageless profile and read-only inventory invariants: PASS")
