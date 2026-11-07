@@ -20,7 +20,7 @@
 # Dependencies: incus (for import), bdfs, mkdwarfs/dwarfs
 #
 # Usage:
-#   bdfs-incusos.sh workspace [--source PATH] [--name NAME]
+#   bdfs-incusos.sh workspace [--source PATH] [--name NAME] [--backend btrfs|overlay|dwarfs]
 #   bdfs-incusos.sh export    [--source PATH] --out PATH [--compression zstd]
 #   bdfs-incusos.sh import    <image-path>   --alias NAME [--type container|vm]
 #   bdfs-incusos.sh update    [--check]
@@ -43,7 +43,7 @@ require_cmd() {
     command -v "$1" &>/dev/null || die "'$1' not found — install $2"
 }
 
-require_bdfs()  { require_cmd bdfs  "btrfs-dwarfs-framework"; }
+require_bdfs()  { require_cmd "$BDFS_CMD" "btrfs-dwarfs-framework"; }
 require_incus() { require_cmd incus "incus (https://linuxcontainers.org/incus)"; }
 
 workspace_mountpoint() {
@@ -57,11 +57,11 @@ workspace_mountpoint() {
 # ── workspace ─────────────────────────────────────────────────────────────────
 
 cmd_workspace() {
-    local source="" name="incusos-workspace-$(date +%Y%m%d-%H%M%S)"
+    local source="" backend="overlay" name="incusos-workspace-$(date +%Y%m%d-%H%M%S)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source) source="$2"; shift 2 ;;
-            --name)   name="$2";   shift 2 ;;
+            --name)   name="$2";   shift 2 ;;\n            --backend) backend="$2"; shift 2 ;;
             -*)       die "Unknown option: $1" ;;
             *)        die "Unexpected argument: $1" ;;
         esac
@@ -71,7 +71,7 @@ cmd_workspace() {
     source="${source:-$BDFS_INCUSOS_ROOT}"
 
     info "Creating bdfs workspace '$name' from IncusOS root: $source"
-    $BDFS_CMD dev create "$name" --source "$source"
+    $BDFS_CMD dev create "$name" --source "$source" --backend "$backend"
     info "Workspace ready. Enter with: bdfs dev shell $name"
     info "Inspect or modify the IncusOS root without affecting the live system."
 }
