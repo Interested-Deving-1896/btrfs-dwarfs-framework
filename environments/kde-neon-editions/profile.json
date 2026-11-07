@@ -11,7 +11,7 @@
     "revision": null,
     "revisionStatus": "unpinned"
   },
-  "artifactContract": "../doc/schemas/bdfs-artifact-manifest.schema.json",
+  "artifactContract": "doc/schemas/bdfs-artifact-manifest.schema.json",
   "import": {
     "selectionSupported": true,
     "materializationImplemented": false
