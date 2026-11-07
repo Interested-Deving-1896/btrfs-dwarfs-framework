@@ -1,0 +1,28 @@
+name: Calamares BDFS integration contract
+
+on:
+  pull_request:
+    paths:
+      - "integrations/calamares/**"
+      - "doc/schemas/bdfs-artifact-manifest.schema.json"
+      - ".github/workflows/calamares-integration-contract.yml"
+  push:
+    branches: [main]
+    paths:
+      - "integrations/calamares/**"
+      - "doc/schemas/bdfs-artifact-manifest.schema.json"
+      - ".github/workflows/calamares-integration-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Calamares integration declaration
+        run: python3 integrations/calamares/validate.py
+      - name: Validate JSON syntax
+        run: python3 -m json.tool integrations/calamares/integration.json > /dev/null
