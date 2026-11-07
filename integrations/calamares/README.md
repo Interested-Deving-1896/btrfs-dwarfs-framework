@@ -6,7 +6,7 @@ This directory defines the BDFS-side integration contract for Calamares. Calamar
 
 The historical GitHub repository [calamares/calamares](https://github.com/calamares/calamares) is archived and its README directs contributors to the maintained Codeberg project: [Calamares on Codeberg](https://codeberg.org/Calamares/calamares). Do not base new development on the archived GitHub default branch. Pin a reviewed Codeberg commit before building or packaging any module. This repository does not vendor or modify Calamares upstream.
 
-Calamares supports distribution-specific configuration, branding, and external modules. The intended BDFS integration is an optional external Calamares module plus a BDFS-side adapter/CLI contract. Keep the two projects independently buildable and versioned.
+Calamares supports distribution-specific configuration, branding, and external modules. Its documented extension points include Python job modules (with a `module.desc` and `main.py` entry point) and Qt plugin modules for user-facing view steps. The preferred first BDFS module should be a Python job module for non-interactive, read-only manifest/preflight work; add a C++/Qt view step only if a user-facing BDFS storage-selection screen is genuinely needed. Avoid Calamares process modules and shell command strings for privileged operations. The intended BDFS integration is an optional external Calamares module plus a BDFS-side adapter/CLI contract. Keep the two projects independently buildable and versioned.
 
 ## Two directions
 
@@ -50,4 +50,4 @@ Calamares is distribution-independent, but its modules and package hooks are dis
 
 ## Implementation status
 
-This change establishes a machine-readable integration declaration and validation boundary. It does **not** yet provide a compiled or installable Calamares module, a BDFS storage backend, an installer launcher, or a working disk-image round trip. Those require a pinned maintained Calamares source revision, module API/build validation, a defined BDFS CLI/library interface, and isolated end-to-end installer tests.
+This change establishes a machine-readable integration declaration and validation boundary. It does **not** yet provide a compiled or installable Calamares module, a BDFS storage backend, an installer launcher, or a working disk-image round trip. Those require a pinned maintained Calamares source revision, a module built and exercised with Calamares' `loadmodule` test executable, a defined typed BDFS CLI/library interface, and isolated end-to-end installer tests.
