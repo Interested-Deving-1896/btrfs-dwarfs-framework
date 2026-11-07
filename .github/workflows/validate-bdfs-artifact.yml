@@ -6,6 +6,8 @@ on:
       - doc/schemas/bdfs-artifact-manifest.schema.json
       - scripts/validate-bdfs-artifact-manifest.py
       - tests/test_bdfs_artifact_manifest.py
+      - tests/test_bdfs_archive_safety.py
+      - scripts/inspect-bdfs-tar.py
       - .github/workflows/validate-bdfs-artifact.yml
   push:
     branches: [main]
@@ -33,4 +35,4 @@ jobs:
       - name: Validate schema and run tests
         run: |
           python -m json.tool doc/schemas/bdfs-artifact-manifest.schema.json > /dev/null
-          python -m unittest discover -s tests -p 'test_bdfs_artifact_manifest.py' -v
+          python -m unittest discover -s tests -p 'test_bdfs*.py' -v
