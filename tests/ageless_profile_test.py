@@ -67,3 +67,38 @@ with tempfile.TemporaryDirectory() as tmp:
     assert report["safety"]["builds_started"] is False
 
 print("BDFS Ageless profile and read-only inventory invariants: PASS")
+
+# Exercise inventory-to-provider planning; complete inventory still cannot imply support.
+import importlib.util
+planner_path = ROOT / "integrations/ageless-linux/compatibility_report.py"
+spec = importlib.util.spec_from_file_location("ageless_compatibility_report", planner_path)
+planner = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(planner)
+provider_contracts = {
+    name: {
+        "schema_version": 1,
+        "profile": "ageless-linux",
+        "provider": name,
+        "inventory_contract": {
+            "producer": "bdfs.integrations.ageless-linux.inventory",
+            "schema_version": 1,
+        },
+        "provider_constraints": {"lane": lane},
+        "evidence_required": ["base-image-digest", "isolated-test-report"],
+    }
+    for name, lane in (("liqxanmod", "provider-manifest"), ("liquorix", "signature-verified"), ("xanmod", "MAIN/EDGE/LTS/RT"))
+}
+complete_report = planner.build_report(report, provider_contracts)
+assert complete_report["compatibility_status"] == "unknown"
+assert set(complete_report["reports"]) == {"liqxanmod", "liquorix", "xanmod"}
+for provider_report in complete_report["reports"].values():
+    assert provider_report["compatibility_status"] == "unknown"
+    assert provider_report["inventory_complete"] is True
+    assert provider_report["actions"] == {
+        "conversion": False, "patch_apply": False, "build": False, "install": False, "publish": False
+    }
+incomplete = dict(report)
+incomplete["architecture"] = None
+incomplete_report = planner.build_report(incomplete, provider_contracts)
+assert incomplete_report["reports"]["liqxanmod"]["inventory_complete"] is False
+assert "architecture" in incomplete_report["reports"]["liqxanmod"]["missing_required_inventory_fields"]
