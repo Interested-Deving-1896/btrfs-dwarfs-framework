@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "profile": "ageless-linux",
+  "integration_kind": "os-identity-policy-conversion",
+  "support_status": "inventory-only",
+  "compatibility_status": "unknown",
+  "kernel_source_role": "none",
+  "base_distribution": {
+    "identity_source": "pre-conversion-os-release-or-image-manifest",
+    "distribution_id": null,
+    "release": null,
+    "package_manager": null,
+    "architecture": null,
+    "kernel_source": null,
+    "status": "must-be-detected-and-verified"
+  },
+  "conversion": {
+    "upstream_repository": "https://github.com/agelesslinux/agelesslinux",
+    "default_branch": "main",
+    "entrypoint": "become-ageless.sh",
+    "version_observed": "0.1.1",
+    "build_script": "build.sh",
+    "privileged": true,
+    "host_execution_allowed": false,
+    "isolated_test_required": true,
+    "dry_run_is_not_execution_proof": true
+  },
+  "upstream_resources": {
+    "website": "https://github.com/agelesslinux/agelesslinux.org",
+    "documentation_site": "https://github.com/agelesslinux/agelesslinux.github.io",
+    "store": "https://github.com/agelesslinux/store.agelesslinux.org"
+  },
+  "provenance": {
+    "immutable_revision_required": true,
+    "source_integrity": "unverified",
+    "fork_sync_status": "not-assumed",
+    "preserve_upstream_and_fork_identity": true
+  },
+  "safety": {
+    "read_only_inventory_only": true,
+    "conversion_execution": false,
+    "kernel_build": false,
+    "package_publication": false,
+    "installation": false
+  }
+}
