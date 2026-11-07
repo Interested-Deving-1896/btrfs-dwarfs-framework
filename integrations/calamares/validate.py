@@ -23,6 +23,25 @@ def validate() -> list[str]:
     if data.get("status") != "contract-only":
         errors.append("initial integration status must remain contract-only")
 
+    source_import = data.get("sourceImport", {})
+    if source_import.get("mechanism") != "Fork-Sync-All scripts/import-repo.sh via .github/workflows/import-repo.yml":
+        errors.append("Codeberg source must use the existing Fork-Sync-All importer")
+    if source_import.get("sourceUrl") != "https://codeberg.org/Calamares/calamares":
+        errors.append("unexpected Codeberg source URL")
+    if source_import.get("targetRepository") != "Interested-Deving-1896/calamares-upstream":
+        errors.append("upstream import must use a separate repository name")
+    if source_import.get("targetRepositoryStatus") != "not-yet-created":
+        errors.append("import destination must be verified before dispatch")
+    if source_import.get("existingNameCollision", {}).get("overwriteAllowed") is not False:
+        errors.append("existing Calamares settings fork must never be overwritten")
+    workflow_inputs = source_import.get("initialWorkflowInputs", {})
+    if workflow_inputs.get("repoName") != "calamares-upstream":
+        errors.append("import workflow must use the isolated upstream destination")
+    if workflow_inputs.get("mirrorToOspOoc") is not False or workflow_inputs.get("ongoingSync") is not False:
+        errors.append("initial import must not enable mirrors or scheduled synchronization")
+    if source_import.get("importExecutionStatus") != "not-dispatched":
+        errors.append("do not claim an import was dispatched without confirmation")
+
     upstream = data.get("upstream", {})
     if upstream.get("historicalRepositoryArchived") is not True:
         errors.append("historical GitHub upstream must be marked archived")
