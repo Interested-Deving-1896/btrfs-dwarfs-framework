@@ -67,22 +67,13 @@ jobs:
           }
           JSON
 
-          python3 integrations/ageless-linux/inventory.py \
-            --root "$tmp/root" --manifest "$tmp/manifest.json" > "$tmp/inventory.json"
+          python3 integrations/ageless-linux/inventory.py  --root "$tmp/root" --manifest "$tmp/manifest.json" > "$tmp/inventory.json"
 
-          python3 integrations/ageless-linux/compatibility_report.py \
-            --inventory "$tmp/inventory.json" \
-            --provider "liqxanmod=_providers/liqxanmod/integrations/ageless-linux-compatibility.json" \
-            --provider "liquorix=_providers/liquorix/integrations/ageless-linux-compatibility.json" \
-            --provider "xanmod=_providers/xanmod/integrations/ageless-linux-compatibility.json" \
-            --output "$tmp/provider-report.json"
+          python3 integrations/ageless-linux/compatibility_report.py  --inventory "$tmp/inventory.json"  --provider "liqxanmod=_providers/liqxanmod/integrations/ageless-linux-compatibility.json"  --provider "liquorix=_providers/liquorix/integrations/ageless-linux-compatibility.json"  --provider "xanmod=_providers/xanmod/integrations/ageless-linux-compatibility.json"  --output "$tmp/provider-report.json"
 
-          python3 _providers/liqxanmod/integrations/ageless-linux-report.py \
-            --report "$tmp/provider-report.json" --output "$tmp/liqxanmod-decision.json"
-          python3 _providers/liquorix/integrations/ageless-linux-report.py \
-            --report "$tmp/provider-report.json" --output "$tmp/liquorix-decision.json"
-          python3 _providers/xanmod/integrations/ageless-linux-report.py \
-            --report "$tmp/provider-report.json" --output "$tmp/xanmod-decision.json"
+          python3 _providers/liqxanmod/integrations/ageless-linux-report.py  --report "$tmp/provider-report.json" --output "$tmp/liqxanmod-decision.json"
+          python3 _providers/liquorix/integrations/ageless-linux-report.py  --report "$tmp/provider-report.json" --output "$tmp/liquorix-decision.json"
+          python3 _providers/xanmod/integrations/ageless-linux-report.py  --report "$tmp/provider-report.json" --output "$tmp/xanmod-decision.json"
 
           python3 - "$tmp" <<'PY'
           import json
