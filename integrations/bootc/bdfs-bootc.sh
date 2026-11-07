@@ -18,7 +18,7 @@
 # Dependencies: bootc, bdfs, skopeo or podman (for commit/push)
 #
 # Usage:
-#   bdfs-bootc.sh workspace [--source PATH] [--name NAME]
+#   bdfs-bootc.sh workspace [--source PATH] [--name NAME] [--backend btrfs|overlay|dwarfs]
 #   bdfs-bootc.sh commit    <workspace-name> --image IMAGE [--push]
 #   bdfs-bootc.sh switch    --image IMAGE
 #   bdfs-bootc.sh upgrade   [--check]
@@ -44,19 +44,12 @@ require_cmd() {
 }
 
 require_bootc() { require_cmd bootc "bootc (https://github.com/bootc-dev/bootc)"; }
-require_bdfs()  { require_cmd bdfs  "btrfs-dwarfs-framework"; }
+require_bdfs()  { require_cmd "$BDFS_CMD" "btrfs-dwarfs-framework"; }
 
 active_bootc_root() {
-    # Returns the path to the active bootc deployment root.
-    # bootc uses OSTree under the hood; the active root is /
-    # but for snapshot purposes we want the ostree deployment path.
-    local deploy
-    deploy="$(bootc status --json 2>/dev/null | \
-        python3 -c "import json,sys; s=json.load(sys.stdin); \
-        print(s.get('status',{}).get('booted',{}).get('image',{}).get('image',{}).get('image',''))" \
-        2>/dev/null || true)"
-    # Fall back to / if we can't determine the deployment path
-    echo "${deploy:-/}"
+    # bootc's booted image field is an OCI reference, not a host filesystem
+    # path. The active root filesystem is /. Keep this helper path-valued.
+    echo "/"
 }
 
 workspace_mountpoint() {
@@ -70,11 +63,11 @@ workspace_mountpoint() {
 # ── workspace ─────────────────────────────────────────────────────────────────
 
 cmd_workspace() {
-    local source="" name="bootc-workspace-$(date +%Y%m%d-%H%M%S)"
+    local source="" backend="overlay" name="bootc-workspace-$(date +%Y%m%d-%H%M%S)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source) source="$2"; shift 2 ;;
-            --name)   name="$2";   shift 2 ;;
+            --name)   name="$2";   shift 2 ;;\n            --backend) backend="$2"; shift 2 ;;
             -*)       die "Unknown option: $1" ;;
             *)        die "Unexpected argument: $1" ;;
         esac
@@ -87,7 +80,7 @@ cmd_workspace() {
     [[ -n "$source" ]] || die "Could not determine bootc root — use --source PATH"
 
     info "Creating bdfs workspace '$name' from bootc root: $source"
-    $BDFS_CMD dev create "$name" --source "$source"
+    $BDFS_CMD dev create "$name" --source "$source" --backend "$backend"
     info "Workspace ready. Enter with: bdfs dev shell $name"
     info "Commit back with: bdfs-bootc commit $name --image <registry/image:tag> --push"
 }
