@@ -1,0 +1,110 @@
+name: Ageless cross-provider contract validation
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/ageless-linux/**'
+      - 'integrations/ageless-linux-*.json'
+      - 'integrations/ageless-linux-*.md'
+      - 'tests/ageless_profile_test.py'
+      - '.github/workflows/ageless-cross-provider-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cross-provider:
+    name: BDFS inventory → provider contracts → provider adapters
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout BDFS
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Checkout LiqXanMod contract and adapter
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          repository: Interested-Deving-1896/liqxanmod
+          ref: feat/ageless-linux-compat-profile
+          path: _providers/liqxanmod
+          persist-credentials: false
+
+      - name: Checkout Liquorix contract and adapter
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          repository: Interested-Deving-1896/liquorix-unified-kernel
+          ref: feat/ageless-linux-compat-profile
+          path: _providers/liquorix
+          persist-credentials: false
+
+      - name: Checkout XanMod contract and adapter
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          repository: Interested-Deving-1896/xanmod-unified-kernel
+          ref: feat/ageless-linux-compat-profile
+          path: _providers/xanmod
+          persist-credentials: false
+
+      - name: Run the complete read-only contract handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+
+          # Synthetic filesystem fixture only; never run the privileged Ageless converter.
+          mkdir -p "$tmp/root/etc"
+          printf 'ID=ageless\\nVERSION_ID=1\\n' > "$tmp/root/etc/os-release"
+          printf 'ID=debian\\nVERSION_ID="13"\\nNAME="Debian GNU/Linux"\\n' > "$tmp/root/etc/os-release.pre-ageless"
+          cat > "$tmp/manifest.json" <<'JSON'
+          {
+            "architecture": "x86_64",
+            "package_manager": "apt",
+            "init_system": "systemd",
+            "kernel_release": "6.12.0",
+            "kernel_source": "debian"
+          }
+          JSON
+
+          python3 integrations/ageless-linux/inventory.py \\
+            --root "$tmp/root" --manifest "$tmp/manifest.json" > "$tmp/inventory.json"
+
+          python3 integrations/ageless-linux/compatibility_report.py \\
+            --inventory "$tmp/inventory.json" \\
+            --provider "liqxanmod=_providers/liqxanmod/integrations/ageless-linux-compatibility.json" \\
+            --provider "liquorix=_providers/liquorix/integrations/ageless-linux-compatibility.json" \\
+            --provider "xanmod=_providers/xanmod/integrations/ageless-linux-compatibility.json" \\
+            --output "$tmp/provider-report.json"
+
+          python3 _providers/liqxanmod/integrations/ageless-linux-report.py \\
+            --report "$tmp/provider-report.json" --output "$tmp/liqxanmod-decision.json"
+          python3 _providers/liquorix/integrations/ageless-linux-report.py \\
+            --report "$tmp/provider-report.json" --output "$tmp/liquorix-decision.json"
+          python3 _providers/xanmod/integrations/ageless-linux-report.py \\
+            --report "$tmp/provider-report.json" --output "$tmp/xanmod-decision.json"
+
+          python3 - "$tmp" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          inventory = json.loads((root / "inventory.json").read_text())
+          report = json.loads((root / "provider-report.json").read_text())
+          assert inventory["distribution"]["id"] == "debian"
+          assert inventory["compatibility"]["status"] == "unknown"
+          assert report["profile"] == "bdfs.ageless-provider-compatibility-report"
+          assert report["safety"]["read_only"] is True
+          assert set(report["reports"]) == {"liqxanmod", "liquorix", "xanmod"}
+          for provider in ("liqxanmod", "liquorix", "xanmod"):
+              decision = json.loads((root / f"{provider}-decision.json").read_text())
+              assert decision["provider"] == provider
+              assert decision["compatibility_status"] == "unknown"
+              assert decision["support_status"] == "inventory-only"
+              assert decision["actions"]["patch_apply"] is False
+              assert decision["actions"]["build"] is False
+              assert decision["actions"]["install"] is False
+              assert decision["actions"]["publish"] is False
+          print("BDFS inventory → all three provider contracts/adapters: PASS")
+          PY
