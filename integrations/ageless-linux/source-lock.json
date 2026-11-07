@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "profile": "ageless-linux",
+  "source": {
+    "repository": "https://github.com/agelesslinux/agelesslinux",
+    "ref": "refs/heads/main",
+    "commit": "1e1b00f45d494a41412403e9e909b0cc737bc2ae",
+    "tree": "71591363ccff54a7a0cfbeffbdc7fd36b087f523",
+    "commit_signature": "unsigned",
+    "integrity": "content-addressed-but-not-authenticated",
+    "version_observed": "0.1.1",
+    "entrypoint_blob": "1ad34672ed072d5c6986317d3389e1df5888a2e7",
+    "build_script_blob": "abae877174e76a5f7e7d32fab9a932b4e2412892"
+  },
+  "base_os": {
+    "identity_source": "trusted-pre-conversion-image-manifest-or-preserved-os-release",
+    "required_fields": ["distribution_id", "release", "architecture", "package_manager", "init_system"],
+    "converted_id_is_authoritative": false
+  },
+  "safety": {
+    "inventory_only": true,
+    "execute_conversion": false,
+    "execute_upstream_tests_on_runner": false,
+    "isolated_test_environment_required": true,
+    "kernel_build_or_install": false,
+    "package_publish": false
+  },
+  "compatibility": {
+    "status": "unknown",
+    "supported_base_matrix": [],
+    "evidence_required": ["base-image-digest", "architecture", "kernel-provider-source-identity", "isolated-test-report"]
+  }
+}
