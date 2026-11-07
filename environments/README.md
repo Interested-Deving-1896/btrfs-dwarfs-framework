@@ -8,7 +8,7 @@ This directory contains buildable and reusable environment definitions. It is th
 |---|---|---|
 | `workspace/Dockerfile` | Ubuntu-based GitLab Enhanced workspace image with BDFS, DwarFS, BFG and runner tooling | Build context / environment image |
 
-The directory is intentionally documented as it exists today. New environment profiles should be added as independently named subdirectories with their own build instructions and declared platform requirements.
+The directory contains independently named environment profiles and reusable build contexts. `target-registry.json` selects `kde-neon-editions` as the default for both import and export; additional OS profiles can be enabled alongside it without changing the default. The registry resolver validates selection only—it does not perform conversion or deployment.
 
 ## Contract
 
@@ -23,6 +23,12 @@ An environment profile should declare, in documentation or machine-readable meta
 - any conversion loss or unsupported metadata.
 
 Environment definitions must not embed credentials, private keys, access tokens, or machine-specific identity in portable outputs.
+
+## Default operating-system target
+
+The default import and export target is [`kde-neon-editions`](kde-neon-editions/). The default is a configurable selection policy, not an exclusive OS lock-in. Add another OS as a separate profile and register it in `target-registry.json`; select it explicitly per operation or make it available as an additional configured target. Do not infer compatibility or conversion support merely from registration.
+
+The target registry is consumed by [`resolve_target.py`](resolve_target.py), which resolves the default or an explicit enabled target for `import` and `export`. It is intentionally a resolver, not an importer/exporter.
 
 ## Relationship to BDFS artifacts
 
