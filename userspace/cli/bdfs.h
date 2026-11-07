@@ -81,8 +81,11 @@ int cmd_policy_scan(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 
+void bdfs_cli_init(struct bdfs_cli *cli);
+void bdfs_cli_cleanup(struct bdfs_cli *cli);
 int  bdfs_cli_open_ctl(struct bdfs_cli *cli);
 void bdfs_cli_close(struct bdfs_cli *cli);
+int  bdfs_cli_send_recv(struct bdfs_cli *cli, const char *request, char *response, size_t response_size);
 
 /* Output helpers */
 void bdfs_print_partition(const struct bdfs_partition *p, bool json);
