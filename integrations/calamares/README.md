@@ -55,3 +55,9 @@ Calamares is distribution-independent, but its modules and package hooks are dis
 ## Implementation status
 
 This change establishes a machine-readable integration declaration and validation boundary. It does **not** yet provide a compiled or installable Calamares module, a BDFS storage backend, an installer launcher, or a working disk-image round trip. Those require a pinned maintained Calamares source revision, a module built and exercised with Calamares' `loadmodule` test executable, a defined typed BDFS CLI/library interface, and isolated end-to-end installer tests.
+
+## Upstream import status (2026-11-08)
+
+Fork-Sync-All workflow [run #42430496420](https://github.com/Interested-Deving-1896/fork-sync-all/actions/runs/42430496420) created [Interested-Deving-1896/calamares-upstream](https://github.com/Interested-Deving-1896/calamares-upstream) from the Codeberg source with OSP/OOC mirroring and ongoing synchronization disabled. The target currently exposes 15 branches and 168 tag refs. The push log also records rejected GitHub-managed `refs/pull/*` refs; these are not portable source branches/tags, but the workflow incorrectly reported success despite those rejections. Treat this as an initial branch/tag import requiring an audit, not a byte-for-byte mirror of every server-side ref.
+
+The Codeberg README identifies `calamares` as the source default branch. The imported GitHub repository currently defaults to `1.1.x-stable`, so its default branch must be corrected to `calamares` before using unqualified clones/build jobs. The Fork-Sync-All importer PR is being updated to preserve source default branches and to publish only branch/tag refs with reliable exit-status handling. The source commit remains unpinned until the imported branch is verified against Codeberg.
