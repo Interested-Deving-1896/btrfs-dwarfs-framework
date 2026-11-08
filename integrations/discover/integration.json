@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "kde-discover",
+  "name": "KDE Discover",
+  "role": "desktop-application-management-frontend",
+  "repository": "https://github.com/Interested-Deving-1896/discover",
+  "upstream_repository": "https://github.com/KDE/discover",
+  "homepage": "https://invent.kde.org/plasma/discover",
+  "language": "C++",
+  "observed_version": "6.6.80",
+  "source_revision": null,
+  "source_revision_status": "unpinned",
+  "integration_status": "candidate",
+  "support_status": "unknown",
+  "capabilities": {
+    "app_catalog_ui": true,
+    "appstream_presentation": true,
+    "package_transactions": false,
+    "kport_backend": false,
+    "bdfs_artifact_metadata": "contract-only",
+    "filesystem_mutation": false
+  },
+  "backend_model": [
+    "PackageKit",
+    "Flatpak",
+    "Snap",
+    "fwupd",
+    "rpm-ostree",
+    "Alpine APK"
+  ],
+  "safety": {
+    "execute_untrusted_pacscript": false,
+    "install_packages": false,
+    "remove_packages": false,
+    "modify_host_filesystem": false,
+    "publish_artifacts": false
+  }
+}
