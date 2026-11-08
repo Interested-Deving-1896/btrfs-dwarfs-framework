@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Interested-Deving-1896/btrfs-dwarfs-framework/main/doc/schemas/bdfs-artifact-manifest.schema.json",
+  "title": "BDFS Artifact Manifest",
+  "description": "Portable, provider-neutral metadata envelope for BDFS environment and integration artifacts. The schema describes metadata only; it does not authorize execution or deployment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "artifactId", "kind", "createdAt", "source", "payload"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "artifactId": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+    "kind": { "type": "string", "enum": ["environment", "workspace", "rootfs", "container-image", "vm-image", "filesystem-image", "source-bundle", "unknown"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter"],
+      "properties": {
+        "adapter": { "type": "string", "minLength": 1 },
+        "profile": { "type": "string" },
+        "reference": { "type": "string" },
+        "revision": { "type": "string" },
+        "uri": { "type": "string" }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "os": { "type": "string" },
+        "distribution": { "type": "string" },
+        "version": { "type": "string" },
+        "architecture": { "type": "string" },
+        "kernel": { "type": "string" },
+        "initSystem": { "type": "string" }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format"],
+      "properties": {
+        "format": { "type": "string", "enum": ["dwarfs", "oci", "ostree-commit", "incus-image", "directory", "tar", "unknown"] },
+        "mediaType": { "type": "string" },
+        "uri": { "type": "string" },
+        "sizeBytes": { "type": "integer", "minimum": 0 },
+        "digest": { "type": "string", "pattern": "^(sha256|sha512):[A-Fa-f0-9]+$" }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "architectures": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "requires": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "conflicts": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["inspect", "import", "export", "workspace", "build", "commit", "publish", "deploy", "update", "run-hooks"] }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string" },
+        "commit": { "type": "string" },
+        "license": { "type": "string" },
+        "builder": { "type": "string" },
+        "signature": { "type": "string" }
+      }
+    },
+    "conversion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lossy": { "type": "boolean", "default": false },
+        "warnings": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "omittedMetadata": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "containsSecrets": { "type": "boolean", "const": false },
+        "containsMachineIdentity": { "type": "boolean", "const": false },
+        "hooksPresent": { "type": "boolean" },
+        "hooksDefaultState": { "type": "string", "enum": ["inert", "absent"] }
+      }
+    },
+    "annotations": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean", "null"] } }
+  }
+}
