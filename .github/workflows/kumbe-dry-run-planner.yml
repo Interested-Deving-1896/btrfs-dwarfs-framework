@@ -1,0 +1,25 @@
+name: Validate KUMBE dry-run planner
+
+on:
+  push:
+    branches:
+      - feat/kumbe-dry-run-planner
+  pull_request:
+    paths:
+      - "scripts/kumbe-plan.py"
+      - "tests/kernel-upstream-migration/test_dry_run_planner.py"
+      - ".github/workflows/kumbe-dry-run-planner.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  planner-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Run read-only planner tests
+        run: python -m unittest discover -s tests/kernel-upstream-migration -p 'test_dry_run_planner.py' -v
