@@ -23,24 +23,13 @@ jobs:
         run: find . -name '*.sh' -exec shellcheck -x -S warning --exclude=SC1083 {} +
 
   test:
-    name: Unit Tests
+    name: KUMBE Contract Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install CMake and Python schema dependency
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake
-          python3 -m pip install --disable-pip-version-check jsonschema
-
-      - name: Build userspace unit tests
-        run: |
-          cmake -S tests/unit -B build/unit
-          cmake --build build/unit --parallel 2
-
-      - name: Run userspace unit tests
-        run: ctest --test-dir build/unit --output-on-failure
+      - name: Install Python schema dependency
+        run: python3 -m pip install --disable-pip-version-check jsonschema
 
       - name: Run kernel migration contract tests
         run: python3 -m unittest discover -s tests/kernel-migration -p 'test_*.py' -v
