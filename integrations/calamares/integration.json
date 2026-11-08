@@ -56,7 +56,7 @@
     "mechanism": "Fork-Sync-All scripts/import-repo.sh via .github/workflows/import-repo.yml",
     "sourceUrl": "https://codeberg.org/Calamares/calamares",
     "targetRepository": "Interested-Deving-1896/calamares-upstream",
-    "targetRepositoryStatus": "not-yet-created",
+    "targetRepositoryStatus": "created",
     "existingNameCollision": {
       "repository": "Interested-Deving-1896/calamares",
       "purpose": "existing Rhino Linux Calamares configuration fork",
@@ -67,7 +67,14 @@
       "mirrorToOspOoc": false,
       "ongoingSync": false
     },
-    "mirrorAndScheduledSync": "deferred-pending-source-audit",
-    "importExecutionStatus": "not-dispatched"
+    "mirrorAndScheduledSync": "disabled",
+    "importExecutionStatus": "partial-needs-ref-and-default-branch-audit",
+    "workflowRun": 42430496420,
+    "observedTargetBranchCount": 15,
+    "observedTargetTagCount": 168,
+    "sourceDefaultBranch": "calamares",
+    "observedTargetDefaultBranch": "1.1.x-stable",
+    "defaultBranchCorrectionRequired": true,
+    "hiddenPullRequestRefsRejected": true
   }
 }
