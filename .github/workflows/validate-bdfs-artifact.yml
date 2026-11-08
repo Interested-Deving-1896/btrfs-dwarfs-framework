@@ -1,0 +1,38 @@
+name: Validate BDFS artifact manifest
+
+on:
+  pull_request:
+    paths:
+      - doc/schemas/bdfs-artifact-manifest.schema.json
+      - scripts/validate-bdfs-artifact-manifest.py
+      - tests/test_bdfs_artifact_manifest.py
+      - tests/test_bdfs_archive_safety.py
+      - scripts/inspect-bdfs-tar.py
+      - .github/workflows/validate-bdfs-artifact.yml
+  push:
+    branches: [main]
+    paths:
+      - doc/schemas/bdfs-artifact-manifest.schema.json
+      - scripts/validate-bdfs-artifact-manifest.py
+      - tests/test_bdfs_artifact_manifest.py
+      - .github/workflows/validate-bdfs-artifact.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Schema and manifest policy tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install validator dependency
+        run: python -m pip install --disable-pip-version-check jsonschema
+      - name: Validate schema and run tests
+        run: |
+          python -m json.tool doc/schemas/bdfs-artifact-manifest.schema.json > /dev/null
+          python -m unittest discover -s tests -p 'test_bdfs*.py' -v
