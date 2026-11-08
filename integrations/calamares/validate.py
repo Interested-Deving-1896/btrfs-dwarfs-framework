@@ -30,8 +30,21 @@ def validate() -> list[str]:
         errors.append("unexpected Codeberg source URL")
     if source_import.get("targetRepository") != "Interested-Deving-1896/calamares-upstream":
         errors.append("upstream import must use a separate repository name")
-    if source_import.get("targetRepositoryStatus") != "not-yet-created":
-        errors.append("import destination must be verified before dispatch")
+    if source_import.get("targetRepositoryStatus") not in {"created", "not-yet-created"}:
+        errors.append("import destination status must be explicit")
+    if source_import.get("targetRepositoryStatus") == "created":
+        if source_import.get("workflowRun") != 42430496420:
+            errors.append("created destination must reference the observed import workflow run")
+        if source_import.get("importExecutionStatus") != "partial-needs-ref-and-default-branch-audit":
+            errors.append("created import must remain marked partial pending audit")
+        if source_import.get("sourceDefaultBranch") != "calamares":
+            errors.append("Calamares source default branch must be recorded")
+        if source_import.get("observedTargetDefaultBranch") == source_import.get("sourceDefaultBranch"):
+            errors.append("default branch mismatch must not be hidden")
+        if source_import.get("defaultBranchCorrectionRequired") is not True:
+            errors.append("default branch correction must remain explicit")
+        if source_import.get("hiddenPullRequestRefsRejected") is not True:
+            errors.append("rejected GitHub-managed refs must be recorded")
     if source_import.get("existingNameCollision", {}).get("overwriteAllowed") is not False:
         errors.append("existing Calamares settings fork must never be overwritten")
     workflow_inputs = source_import.get("initialWorkflowInputs", {})
@@ -39,8 +52,10 @@ def validate() -> list[str]:
         errors.append("import workflow must use the isolated upstream destination")
     if workflow_inputs.get("mirrorToOspOoc") is not False or workflow_inputs.get("ongoingSync") is not False:
         errors.append("initial import must not enable mirrors or scheduled synchronization")
-    if source_import.get("importExecutionStatus") != "not-dispatched":
-        errors.append("do not claim an import was dispatched without confirmation")
+    if source_import.get("targetRepositoryStatus") == "not-yet-created" and source_import.get("importExecutionStatus") != "not-dispatched":
+        errors.append("an uncreated destination must not claim a dispatched import")
+    if source_import.get("mirrorAndScheduledSync") not in {"disabled", "deferred-pending-source-audit"}:
+        errors.append("mirroring and scheduled synchronization must remain disabled")
 
     upstream = data.get("upstream", {})
     if upstream.get("historicalRepositoryArchived") is not True:
