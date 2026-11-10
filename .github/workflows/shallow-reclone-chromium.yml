@@ -33,19 +33,7 @@ jobs:
             "openos-project%2FChromium_Browser_OS_Deving%2FFydeOS-OpenFyde%2FFyde%2520Innovations%2Fchromium-raspberry_pi"; do
             RESULT=$(curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
               "${GL_API}/projects/${ENCODED}?statistics=true" || echo '{}')
-            echo "${RESULT}" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-if 'id' not in d:
-    print('  NOT FOUND')
-    exit(0)
-s = d.get('statistics', {})
-def fmt(b):
-    if b >= 1073741824: return f'{b/1073741824:.1f}G'
-    if b >= 1048576:    return f'{b/1048576:.1f}M'
-    return f'{b}B'
-print(f\"{d['path_with_namespace']} — ID:{d['id']} repo:{fmt(s.get('repository_size',0))} total:{fmt(s.get('storage_size',0))}\")
-"
+            python3 -c 'import json,sys; d=json.load(sys.stdin); s=d.get("statistics", {}); fmt=lambda b: (f"{b/1073741824:.1f}G" if b >= 1073741824 else f"{b/1048576:.1f}M" if b >= 1048576 else f"{b}B"); print("  NOT FOUND" if "id" not in d else "{} — ID:{} repo:{} total:{}".format(d["path_with_namespace"], d["id"], fmt(s.get("repository_size",0)), fmt(s.get("storage_size",0))))' <<< "${RESULT}"
           done
 
       - name: Shallow-reclone chromium
