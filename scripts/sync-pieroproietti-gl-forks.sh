@@ -104,7 +104,7 @@ for entry in "${REPOS[@]}"; do
   printf '%s' "$gh_releases" > "$gh_releases_tmp"
   GITLAB_TOKEN="$GITLAB_TOKEN" GL_API="$GL_API" GL_PID="$gl_pid" \
     GH_PATH="$gh_path" EXISTING_TAGS="$existing_tags" \
-    python3 "$gh_releases_tmp" << 'PYEOF'
+    python3 - "$gh_releases_tmp" << 'PYEOF'
 import sys, json, os, urllib.request, urllib.error
 
 with open(sys.argv[1], encoding="utf-8") as stream:
