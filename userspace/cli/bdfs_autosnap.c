@@ -62,10 +62,11 @@ static int resolve_autosnap_path(const char *mount, const char *name,
 	char target_real[PATH_MAX];
 	struct stat st;
 	size_t mount_len;
+	char mount_prefix[PATH_MAX];
 
 	if (!mount || !name || strncmp(name, AUTOSNAP_PREFIX,
 				       strlen(AUTOSNAP_PREFIX)) != 0 ||
-	    name[0] == '\0' || strchr(name, '/') || strchr(name, '\\\\') ||
+	    name[0] == '\0' || strchr(name, '/') || strchr(name, '\\') ||
 	    strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
 		bdfs_err("invalid autosnap name");
 		return -1;
@@ -101,9 +102,19 @@ static int resolve_autosnap_path(const char *mount, const char *name,
 		return -1;
 	}
 	mount_len = strlen(mount_real);
-	if (strncmp(target_real, mount_real, mount_len) != 0 ||
-	    target_real[mount_len] != '/' ||
-	    strchr(target_real + mount_len + 1, '/')) {
+	if (mount_len == 1 && mount_real[0] == '/') {
+		strcpy(mount_prefix, "/");
+	} else {
+		if (snprintf(mount_prefix, sizeof(mount_prefix), "%s/", mount_real) >=
+		    (int)sizeof(mount_prefix)) {
+			bdfs_err("Btrfs mount path is too long");
+			return -1;
+		}
+	}
+	mount_len = strlen(mount_prefix);
+	if (strncmp(target_real, mount_prefix, mount_len) != 0 ||
+	    target_real[mount_len] == '\\0' ||
+	    strchr(target_real + mount_len, '/')) {
 		bdfs_err("autosnap target escapes the selected mount or is not a direct child");
 		return -1;
 	}
