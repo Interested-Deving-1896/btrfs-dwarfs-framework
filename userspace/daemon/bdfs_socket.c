@@ -40,9 +40,30 @@ int bdfs_socket_init(struct bdfs_daemon *d)
 	int fd;
 	char *dir_end;
 	char dir[256];
+	size_t socket_path_len;
 
-	/* Ensure the socket directory exists */
-	strncpy(dir, d->cfg.socket_path, sizeof(dir) - 1);
+	if (!d)
+		return -EINVAL;
+
+	/*
+	 * sockaddr_un.sun_path is commonly much smaller than our config
+	 * buffer.  Reject overlong paths instead of silently binding a
+	 * truncated, potentially different socket name.
+	 */
+	socket_path_len = strnlen(d->cfg.socket_path,
+				  sizeof(d->cfg.socket_path));
+	if (socket_path_len == 0 ||
+	    socket_path_len >= sizeof(d->cfg.socket_path) ||
+	    socket_path_len >= sizeof(addr.sun_path) ||
+	    socket_path_len >= sizeof(dir)) {
+		syslog(LOG_ERR, "bdfs: invalid or overlong CLI socket path");
+		return -ENAMETOOLONG;
+	}
+
+	/* Copy the validated path including its terminator. */
+	memcpy(dir, d->cfg.socket_path, socket_path_len + 1);
+
+	/* Ensure the socket directory exists. */
 	dir_end = strrchr(dir, '/');
 	if (dir_end) {
 		*dir_end = '\0';
@@ -58,11 +79,39 @@ int bdfs_socket_init(struct bdfs_daemon *d)
 		return -errno;
 	}
 
-	unlink(d->cfg.socket_path);
+	/*
+	 * Never remove an unrelated file if the configured socket path is
+	 * occupied.  A stale socket may be safely unlinked before bind.
+	 */
+	{
+		struct stat existing;
+		if (lstat(d->cfg.socket_path, &existing) == 0) {
+			if (!S_ISSOCK(existing.st_mode)) {
+				syslog(LOG_ERR,
+				       "bdfs: refusing to replace non-socket at %s",
+				       d->cfg.socket_path);
+				close(fd);
+				return -EEXIST;
+			}
+			if (unlink(d->cfg.socket_path) < 0) {
+				int err = errno;
+				syslog(LOG_ERR, "bdfs: unlink stale socket %s: %m",
+				       d->cfg.socket_path);
+				close(fd);
+				return -err;
+			}
+		} else if (errno != ENOENT) {
+			int err = errno;
+			syslog(LOG_ERR, "bdfs: inspect socket path %s: %m",
+			       d->cfg.socket_path);
+			close(fd);
+			return -err;
+		}
+	}
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, d->cfg.socket_path, sizeof(addr.sun_path) - 1);
+	memcpy(addr.sun_path, d->cfg.socket_path, socket_path_len + 1);
 
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		syslog(LOG_ERR, "bdfs: socket bind %s: %m", d->cfg.socket_path);
