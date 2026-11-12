@@ -431,21 +431,23 @@ jobs:
           set -euo pipefail
           # A missing binary, failed scan, missing report, or malformed report
           # is an infrastructure/validation failure, not a clean scan.
+          set +e
           npx --yes ecc-agentshield scan \
             --path . \
             --format json \
             --output /tmp/agentshield-report.json
+          scan_rc=$?
+          set -e
           test -s /tmp/agentshield-report.json || {
-            echo "::error::AgentShield did not produce a non-empty JSON report"
+            echo "::error::AgentShield did not produce a non-empty JSON report (exit $scan_rc)"
             exit 1
           }
-          # Parse report and fail closed if the scanner output is invalid.
-          python3 - << 'PYEOF'
+          # AgentShield documents exit 2 as a completed scan with critical findings.
+          # Capture that status so the JSON report is still parsed and findings are
+          # shown; exit 1 remains a scanner/runtime failure.
+          AGENTSHIELD_EXIT_CODE="$scan_rc" python3 - << 'PYEOF'
           import json, sys, os
           report_path = "/tmp/agentshield-report.json"
-          if not os.path.exists(report_path) or os.path.getsize(report_path) == 0:
-              print("::error::AgentShield report missing or empty")
-              sys.exit(1)
           try:
               with open(report_path, encoding="utf-8") as stream:
                   report = json.load(stream)
@@ -455,16 +457,29 @@ jobs:
           if not isinstance(report, dict) or not isinstance(report.get("findings"), list):
               print("::error::AgentShield report has an unexpected schema (findings must be a list)")
               sys.exit(1)
-          findings = report.get("findings", [])
+          findings = report["findings"]
+          if not all(isinstance(f, dict) for f in findings):
+              print("::error::AgentShield report findings must all be objects")
+              sys.exit(1)
           criticals = [f for f in findings if f.get("severity") == "critical"]
-          grade = report.get("grade", "?")
-          score = report.get("score", "?")
-          print(f"AgentShield grade: {grade} ({score}/100)")
-          print(f"Total findings: {len(findings)} ({len(criticals)} critical)")
+          score = report.get("score", {})
+          summary = report.get("summary", {})
+          grade = score.get("grade", "?") if isinstance(score, dict) else "?"
+          numeric_score = score.get("numericScore", "?") if isinstance(score, dict) else "?"
+          total = summary.get("totalFindings", len(findings)) if isinstance(summary, dict) else len(findings)
+          print(f"AgentShield grade: {grade} ({numeric_score}/100)")
+          print(f"Total findings: {total} ({len(criticals)} critical)")
+          scan_rc = int(os.environ.get("AGENTSHIELD_EXIT_CODE", "1"))
+          if scan_rc not in (0, 2):
+              print(f"::error::AgentShield runtime/usage failure (exit {scan_rc})")
+              sys.exit(1)
+          if (scan_rc == 2) != bool(criticals):
+              print("::error::AgentShield exit status does not match reported critical findings")
+              sys.exit(1)
           if criticals:
               print("Critical findings:")
-              for f in criticals[:10]:
-                  print(f"  [{f.get('severity','?')}] {f.get('title','?')} — {f.get('file','?')}:{f.get('line','?')}")
+              for finding in criticals[:10]:
+                  print(f"  [{finding.get('severity','?')}] {finding.get('title','?')} — {finding.get('file','?')}:{finding.get('line','?')}")
               sys.exit(1)
           PYEOF
 
