@@ -34,6 +34,7 @@
 
 #define _GNU_SOURCE
 #include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
 #include <stdio.h>
@@ -228,8 +229,8 @@ static int list_autosnap_subvols(const char *btrfs_mount, bool json)
 	int count = 0;
 	int child_status = 0;
 
-	if (!btrfs_mount || !btrfs_mount[0]) {
-		bdfs_err("Btrfs mount path is required");
+	if (!btrfs_mount || btrfs_mount[0] != '/') {
+		bdfs_err("Btrfs mount path must be an absolute path");
 		return 1;
 	}
 	if (pipe2(pipefd, O_CLOEXEC) < 0) {
