@@ -259,7 +259,11 @@ do_import() {
     fi
 
     local work_dir
-    work_dir=$(mktemp -d)
+    work_dir=$(mktemp -d) || {
+      warn "  Could not create temporary clone directory for ${name}"
+      (( failed++ )) || true
+      continue
+    }
 
     # Inject auth into URL
     local auth_url="$clone_url"
@@ -283,7 +287,12 @@ do_import() {
 
     local target_url="https://${GH_TOKEN}@github.com/${TARGET_ORG}/${name}.git"
 
-    cd "$work_dir"
+    cd "$work_dir" || {
+      warn "  Could not enter temporary clone directory for ${name}"
+      rm -rf -- "$work_dir"
+      (( failed++ )) || true
+      continue
+    }
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     source "${script_dir}/branch-name-conv.sh"
@@ -291,8 +300,13 @@ do_import() {
     local push_ok=true
     push_branches_encoded "$target_url" 2>&1 | sanitize || push_ok=false
     git push "$target_url" '+refs/tags/*:refs/tags/*' 2>&1 | sanitize || true
-    cd /
-    rm -rf "$work_dir"
+    cd / || {
+      warn "  Could not leave temporary clone directory for ${name}"
+      rm -rf -- "$work_dir"
+      (( failed++ )) || true
+      continue
+    }
+    rm -rf -- "$work_dir"
 
     if $push_ok; then
       info "  ✓ Imported"
