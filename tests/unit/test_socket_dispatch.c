@@ -224,7 +224,7 @@ static void *write_fragmented_request(void *opaque)
 static void test_fragmented_request_io(void)
 {
     int fds[2];
-    const char request[] = "{\\"cmd\\":\\"ping\\"}\\n";
+    const char request[] = "{\"cmd\":\"ping\"}\n";
     char buffer[64] = {0};
     pthread_t thread;
     struct socket_writer_args args = {0};
@@ -243,7 +243,7 @@ static void test_fragmented_request_io(void)
     int rc = bdfs_socket_read_request(fds[1], buffer, sizeof(buffer));
     pthread_join(thread, &thread_result);
     CHECK("fragmented newline request accepted", rc == (int)(sizeof(request) - 2));
-    CHECK("fragmented request preserved", strcmp(buffer, "{\\"cmd\\":\\"ping\\"}") == 0);
+    CHECK("fragmented request preserved", strcmp(buffer, "{\"cmd\":\"ping\"}") == 0);
     CHECK("fragmented writer completed", thread_result == NULL);
     close(fds[0]);
     close(fds[1]);
@@ -265,7 +265,7 @@ static void test_embedded_nul_request_io(void)
 {
     int fds[2];
     char buffer[32] = {0};
-    const char request[] = {'{', '}', '\\0', '\\n'};
+    const char request[] = {'{', '}', '\0', '\n'};
     CHECK("socketpair for NUL request", socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0);
     CHECK("write NUL request", write(fds[0], request, sizeof(request)) == (ssize_t)sizeof(request));
     CHECK("embedded NUL rejected", bdfs_socket_read_request(fds[1], buffer, sizeof(buffer)) == -EINVAL);
@@ -277,7 +277,7 @@ static void test_complete_response_io(void)
 {
     int fds[2];
     char buffer[64] = {0};
-    const char response[] = "{\\"status\\":\\"ok\\"}\\n";
+    const char response[] = "{\"status\":\"ok\"}\n";
     CHECK("socketpair for response", socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0);
     CHECK("complete response write", bdfs_socket_write_response(fds[0], response, sizeof(response) - 1) == 0);
     ssize_t n = read(fds[1], buffer, sizeof(buffer) - 1);
