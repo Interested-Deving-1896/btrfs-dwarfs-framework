@@ -111,6 +111,7 @@ jobs:
           sparse-checkout: |
             scripts/includes/fsa-mode.sh
             scripts/write-summary.sh
+            .fsa-autonomous
           sparse-checkout-cone-mode: false
       - name: Check FSA mode
         id: fsa
