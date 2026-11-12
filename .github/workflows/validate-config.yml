@@ -414,7 +414,7 @@ jobs:
     name: AgentShield — scan AI agent configs
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Opt-in: only runs when the secret is set. Fails on critical findings.
+    # Scan the repository's Claude Code config when present; fail on critical findings.
     if: always()
     steps:
       - name: Harden runner
@@ -424,7 +424,18 @@ jobs:
           disable-sudo: false
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
+      - name: Detect Claude Code configuration
+        id: agent_config
+        run: |
+          if [[ -d .claude ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No .claude/ configuration found; AgentShield scan is not applicable."
+          fi
+
       - name: Run AgentShield scan
+        if: steps.agent_config.outputs.present == 'true'
         # Scans .claude/ for hardcoded secrets, permission misconfigs, hook
         # injection vectors, and MCP server risks. Fails on critical findings.
         run: |
@@ -433,7 +444,7 @@ jobs:
           # is an infrastructure/validation failure, not a clean scan.
           set +e
           npx --yes ecc-agentshield scan \
-            --path . \
+            --path .claude \
             --format json \
             --output /tmp/agentshield-report.json
           scan_rc=$?
@@ -484,7 +495,7 @@ jobs:
           PYEOF
 
       - name: Upload AgentShield report
-        if: ${{ always() && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
+        if: ${{ always() && steps.agent_config.outputs.present == 'true' && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7
         with:
           name: agentshield-report
