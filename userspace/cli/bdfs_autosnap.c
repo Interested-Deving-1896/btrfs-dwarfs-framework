@@ -202,51 +202,113 @@ static int resolve_partition(struct bdfs_cli *cli,
  * AUTOSNAP_PREFIX, using `btrfs subvolume list -o`.
  * Prints in human or JSON format.
  */
+static bool is_autosnap_name(const char *name)
+{
+	if (!name || strncmp(name, AUTOSNAP_PREFIX, strlen(AUTOSNAP_PREFIX)) != 0)
+		return false;
+	for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+		if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+		      (*p >= '0' && *p <= '9') || *p == '-' || *p == '_' || *p == '.'))
+			return false;
+	}
+	return true;
+}
+
+/*
+ * List subvolumes without a shell. The mount path is an argv element, never
+ * shell source. btrfs subvolume list emits a final " path NAME" field.
+ */
 static int list_autosnap_subvols(const char *btrfs_mount, bool json)
 {
-	char cmd[512];
-	snprintf(cmd, sizeof(cmd),
-		 "btrfs subvolume list -o '%s' 2>/dev/null"
-		 " | awk '$NF ~ /^" AUTOSNAP_PREFIX "/ {print $NF}'",
-		 btrfs_mount);
+	int pipefd[2];
+	pid_t child;
+	FILE *fp;
+	char *line = NULL;
+	size_t line_capacity = 0;
+	int count = 0;
+	int child_status = 0;
 
-	FILE *fp = popen(cmd, "r");
+	if (!btrfs_mount || !btrfs_mount[0]) {
+		bdfs_err("Btrfs mount path is required");
+		return 1;
+	}
+	if (pipe2(pipefd, O_CLOEXEC) < 0) {
+		bdfs_err("pipe2: %s", strerror(errno));
+		return 1;
+	}
+	child = fork();
+	if (child < 0) {
+		bdfs_err("fork: %s", strerror(errno));
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return 1;
+	}
+	if (child == 0) {
+		char *const args[] = {"btrfs", "subvolume", "list", "-o",
+			(char *)btrfs_mount, NULL};
+		dup2(pipefd[1], STDOUT_FILENO);
+		close(pipefd[0]);
+		close(pipefd[1]);
+		int devnull = open("/dev/null", O_WRONLY | O_CLOEXEC);
+		if (devnull >= 0) {
+			dup2(devnull, STDERR_FILENO);
+			close(devnull);
+		}
+		execvp(args[0], args);
+		_exit(127);
+	}
+	close(pipefd[1]);
+	fp = fdopen(pipefd[0], "r");
 	if (!fp) {
-		bdfs_err("popen: %s", strerror(errno));
+		bdfs_err("fdopen: %s", strerror(errno));
+		close(pipefd[0]);
+		(void)waitpid(child, &child_status, 0);
 		return 1;
 	}
 
-	char line[512];
-	int count = 0;
-
 	if (json)
 		printf("[");
-
-	while (fgets(line, sizeof(line), fp)) {
-		/* Strip trailing newline */
-		size_t len = strlen(line);
-		if (len > 0 && line[len - 1] == '\n')
-			line[len - 1] = '\0';
-
-		if (!line[0])
+	while (getline(&line, &line_capacity, fp) >= 0) {
+		char *path = strstr(line, " path ");
+		char *name;
+		if (!path)
 			continue;
-
+		name = path + strlen(" path ");
+		name[strcspn(name, "\r\n")] = '\0';
+		/* Only direct-child names in our strict allowlist are emitted. */
+		if (strchr(name, '/') || !is_autosnap_name(name))
+			continue;
 		if (json) {
 			if (count)
 				printf(",");
-			printf("{\"name\":\"%s\"}", line);
+			printf("{\"name\":\"%s\"}", name);
 		} else {
-			printf("  %s\n", line);
+			printf("  %s\n", name);
 		}
 		count++;
 	}
-
+	free(line);
+	if (ferror(fp)) {
+		bdfs_err("failed reading btrfs subvolume list output");
+		fclose(fp);
+		(void)waitpid(child, &child_status, 0);
+		return 1;
+	}
+	fclose(fp);
+	while (waitpid(child, &child_status, 0) < 0) {
+		if (errno != EINTR) {
+			bdfs_err("waitpid: %s", strerror(errno));
+			return 1;
+		}
+	}
+	if (!WIFEXITED(child_status) || WEXITSTATUS(child_status) != 0) {
+		bdfs_err("btrfs subvolume list failed");
+		return 1;
+	}
 	if (json)
 		printf("]\n");
 	else if (count == 0)
 		printf("  (no autosnap snapshots found)\n");
-
-	pclose(fp);
 	return 0;
 }
 
