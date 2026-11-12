@@ -48,6 +48,7 @@ add_test(NAME policy_engine COMMAND test_policy_engine)
 # Tests JSON request parsing and response formatting.
 add_executable(test_socket_dispatch test_socket_dispatch.c ../../userspace/daemon/bdfs_socket_io.c)
 target_compile_definitions(test_socket_dispatch PRIVATE BDFS_UNIT_TEST)
+target_link_libraries(test_socket_dispatch PRIVATE pthread)
 add_test(NAME socket_dispatch COMMAND test_socket_dispatch)
 
 # ── test_exec_wrappers ───────────────────────────────────────────────────────
