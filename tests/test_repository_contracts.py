@@ -30,8 +30,8 @@ def run_fsa_mode(cwd: Path, **overrides: str) -> subprocess.CompletedProcess[str
     )
 
 
-def test_bdfs_autonomous_marker_overrides_owner_repository_heuristic() -> None:
-    result = run_fsa_mode(ROOT, GH_TOKEN="test-token")
+def test_bdfs_autonomous_marker_overrides_managed_variable_and_owner_heuristic() -> None:
+    result = run_fsa_mode(ROOT, FSA_MANAGED="true", GH_TOKEN="test-token")
     assert result.returncode == 1
     assert "autonomous marker present" in result.stderr
 
