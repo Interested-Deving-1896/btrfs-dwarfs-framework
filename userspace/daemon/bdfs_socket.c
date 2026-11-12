@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <syslog.h>
 #include <dirent.h>
 #include <sys/socket.h>
