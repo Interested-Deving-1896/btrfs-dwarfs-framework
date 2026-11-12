@@ -57,7 +57,8 @@ workspace_mountpoint() {
 # ── workspace ─────────────────────────────────────────────────────────────────
 
 cmd_workspace() {
-    local source="" name="incusos-workspace-$(date +%Y%m%d-%H%M%S)"
+    local source="" name
+    name="incusos-workspace-$(date +%Y%m%d-%H%M%S)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source) source="$2"; shift 2 ;;
@@ -125,11 +126,12 @@ cmd_import() {
     require_incus
     require_cmd dwarfs "dwarfs"
 
-    local tmpdir mp
+    local tmpdir mp cleanup_cmd
     tmpdir="$(mktemp -d /tmp/bdfs-incusos-import.XXXXXX)"
     mp="$tmpdir/mount"
     mkdir -p "$mp"
-    trap "fusermount -u '$mp' 2>/dev/null; rm -rf '$tmpdir'" EXIT
+    printf -v cleanup_cmd 'fusermount -u %q 2>/dev/null; rm -rf -- %q' "$mp" "$tmpdir"
+    trap "$cleanup_cmd" EXIT
 
     info "Mounting DwarFS image: $image"
     dwarfs "$image" "$mp"
