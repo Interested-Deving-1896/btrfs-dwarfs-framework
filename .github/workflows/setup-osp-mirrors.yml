@@ -36,6 +36,8 @@ permissions:
 
 jobs:
   setup:
+    # Mirror execution is paused until upstream source-repository audits are complete.
+    if: vars.BDFS_MIRRORS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
