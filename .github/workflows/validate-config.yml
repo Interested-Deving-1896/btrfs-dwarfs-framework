@@ -393,8 +393,8 @@ jobs:
         # Rules are defined in .yamllint.yml at the repo root.
         run: |
           mapfile -d '' config_files < <(
-            find config -maxdepth 1 -type f \\
-              \\( -name '*.yml' -o -name '*.yaml' \\) -print0 | sort -z
+            find config -maxdepth 1 -type f \
+              \( -name '*.yml' -o -name '*.yaml' \) -print0 | sort -z
           )
           if (( ${#config_files[@]} == 0 )); then
             echo "::error::No repository-owned YAML config files found"
