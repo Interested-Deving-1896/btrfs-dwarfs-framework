@@ -130,7 +130,11 @@ for entry in "${REPOS[@]}"; do
   gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_repo}.git"
   gl_url="${GL_HOST/https:\/\//https://oauth2:${GITLAB_TOKEN}@}/${gl_path}.git"
 
-  work_dir=$(mktemp -d)
+  work_dir=$(mktemp -d) || {
+    warn "Could not create temporary clone directory for ${gh_repo}"
+    failed=$((failed + 1))
+    continue
+  }
 
   # Clone a bare mirror from GitHub
   if ! git clone --mirror "$gh_url" "$work_dir" 2>&1 \
@@ -141,7 +145,12 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  cd "$work_dir"
+  cd "$work_dir" || {
+    warn "Could not enter temporary clone directory for ${gh_repo}"
+    rm -rf -- "$work_dir"
+    failed=$((failed + 1))
+    continue
+  }
 
   # Push branches to GitLab with platform-safe name encoding.
   # branch-name-conv.sh encodes names that would be rejected by stricter
@@ -171,8 +180,13 @@ for entry in "${REPOS[@]}"; do
   git push "$gl_url" '+refs/tags/*:refs/tags/*' 2>&1 \
     | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" || true  # tag failures are non-fatal
 
-  cd /
-  rm -rf "$work_dir"
+  cd / || {
+    warn "Could not leave temporary clone directory for ${gh_repo}"
+    rm -rf -- "$work_dir"
+    failed=$((failed + 1))
+    continue
+  }
+  rm -rf -- "$work_dir"
 
   if $push_ok; then
     info "✅ ${gh_repo} done"
