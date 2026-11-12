@@ -5,6 +5,10 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <poll.h>
+#include <stdint.h>
+#include <time.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -53,71 +57,145 @@ int bdfs_cli_open_ctl(struct bdfs_cli *cli)
 	return 0;
 }
 
-int bdfs_cli_send_recv(struct bdfs_cli *cli, const char *request,
-		       char *response, size_t response_size)
+#define BDFS_CLI_IO_TIMEOUT_MS 5000
+
+static int bdfs_cli_wait_fd(int fd, short events,
+                            const struct timespec *deadline)
 {
-	struct sockaddr_un address;
-	size_t sent = 0;
-	size_t used = 0;
-	int fd;
-	int ret = 0;
+    struct pollfd pfd = {.fd = fd, .events = events};
+    for (;;) {
+        struct timespec now;
+        if (clock_gettime(CLOCK_MONOTONIC, &now) < 0)
+            return -errno;
+        int64_t remaining =
+            (int64_t)(deadline->tv_sec - now.tv_sec) * 1000 +
+            (deadline->tv_nsec - now.tv_nsec) / 1000000;
+        if (remaining <= 0)
+            return -ETIMEDOUT;
+        int timeout_ms = remaining > INT_MAX ? INT_MAX : (int)remaining;
+        int rc = poll(&pfd, 1, timeout_ms);
+        if (rc > 0) {
+            if (pfd.revents & (POLLERR | POLLNVAL))
+                return -EIO;
+            if (pfd.revents & (events | POLLHUP))
+                return 0;
+            continue;
+        }
+        if (rc == 0)
+            return -ETIMEDOUT;
+        if (errno != EINTR)
+            return -errno;
+    }
+}
 
-	if (!cli || !request || !response || response_size < 2)
-		return -EINVAL;
-	response[0] = '\0';
-	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-	if (fd < 0)
-		return -errno;
+int bdfs_cli_send_recv(struct bdfs_cli *cli, const char *request,
+                       char *response, size_t response_size)
+{
+    struct sockaddr_un address;
+    struct timespec deadline;
+    size_t sent = 0;
+    size_t used = 0;
+    size_t request_len;
+    int fd;
+    int ret = 0;
 
-	memset(&address, 0, sizeof(address));
-	address.sun_family = AF_UNIX;
-	strncpy(address.sun_path, cli->socket_path, sizeof(address.sun_path) - 1);
-	if (connect(fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-		ret = -errno;
-		goto out;
-	}
+    if (!cli || !request || !response || response_size < 2)
+        return -EINVAL;
+    response[0] = '\0';
+    request_len = strlen(request);
+    if (request_len == 0 || request[request_len - 1] != '\n')
+        return -EINVAL;
+    if (clock_gettime(CLOCK_MONOTONIC, &deadline) < 0)
+        return -errno;
+    deadline.tv_sec += BDFS_CLI_IO_TIMEOUT_MS / 1000;
+    deadline.tv_nsec += (BDFS_CLI_IO_TIMEOUT_MS % 1000) * 1000000L;
+    if (deadline.tv_nsec >= 1000000000L) {
+        deadline.tv_sec++;
+        deadline.tv_nsec -= 1000000000L;
+    }
 
-	while (sent < strlen(request)) {
-		ssize_t n = send(fd, request + sent, strlen(request) - sent, MSG_NOSIGNAL);
-		if (n < 0) {
-			if (errno == EINTR)
-				continue;
-			ret = -errno;
-			goto out;
-		}
-		if (n == 0) {
-			ret = -EPIPE;
-			goto out;
-		}
-		sent += (size_t)n;
-	}
+    fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+    if (fd < 0)
+        return -errno;
 
-	for (;;) {
-		ssize_t n = recv(fd, response + used, response_size - used - 1, 0);
-		if (n < 0) {
-			if (errno == EINTR)
-				continue;
-			ret = -errno;
-			goto out;
-		}
-		if (n == 0)
-			break;
-		used += (size_t)n;
-		response[used] = '\0';
-		if (memchr(response, '\n', used))
-			break;
-		if (used == response_size - 1) {
-			ret = -ENOSPC;
-			goto out;
-		}
-	}
-	if (used == 0)
-		ret = -ECONNRESET;
+    memset(&address, 0, sizeof(address));
+    address.sun_family = AF_UNIX;
+    size_t socket_path_len = strnlen(cli->socket_path, sizeof(address.sun_path));
+    if (socket_path_len == 0 || socket_path_len >= sizeof(address.sun_path)) {
+        ret = -ENAMETOOLONG;
+        goto out;
+    }
+    memcpy(address.sun_path, cli->socket_path, socket_path_len + 1);
+
+    if (connect(fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+        if (errno != EINPROGRESS) {
+            ret = -errno;
+            goto out;
+        }
+        ret = bdfs_cli_wait_fd(fd, POLLOUT, &deadline);
+        if (ret < 0)
+            goto out;
+        int socket_error = 0;
+        socklen_t error_len = sizeof(socket_error);
+        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &socket_error, &error_len) < 0) {
+            ret = -errno;
+            goto out;
+        }
+        if (socket_error != 0) {
+            ret = -socket_error;
+            goto out;
+        }
+    }
+
+    while (sent < request_len) {
+        ret = bdfs_cli_wait_fd(fd, POLLOUT, &deadline);
+        if (ret < 0)
+            goto out;
+        ssize_t n = send(fd, request + sent, request_len - sent, MSG_NOSIGNAL);
+        if (n > 0) {
+            sent += (size_t)n;
+            continue;
+        }
+        if (n < 0 && (errno == EINTR || errno == EAGAIN ||
+                      errno == EWOULDBLOCK))
+            continue;
+        ret = n == 0 ? -EPIPE : -errno;
+        goto out;
+    }
+
+    while (used < response_size - 1) {
+        ret = bdfs_cli_wait_fd(fd, POLLIN, &deadline);
+        if (ret < 0)
+            goto out;
+        char ch;
+        ssize_t n = recv(fd, &ch, 1, 0);
+        if (n == 1) {
+            if (ch == '\n') {
+                response[used] = '\0';
+                goto out;
+            }
+            if (ch == '\0') {
+                ret = -EINVAL;
+                goto out;
+            }
+            response[used++] = ch;
+            continue;
+        }
+        if (n == 0) {
+            ret = -ECONNRESET;
+            goto out;
+        }
+        if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
+            ret = -errno;
+            goto out;
+        }
+    }
+    ret = -EMSGSIZE;
 out:
-	close(fd);
-	if (ret)
-		response[0] = '\0';
-	return ret;
+    close(fd);
+    if (ret)
+        response[0] = '\0';
+    return ret;
 }
 
 static void print_json_string(const char *value)
