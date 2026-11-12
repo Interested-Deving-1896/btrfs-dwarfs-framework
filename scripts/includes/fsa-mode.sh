@@ -81,6 +81,13 @@ _fsa_get() {
 fsa_is_managed() {
   local owner="${REPO_OWNER:-${GITHUB_REPOSITORY_OWNER:-}}"
 
+  # A checked-in opt-out marker is authoritative for repositories that
+  # intentionally remain independent even when their owner has an FSA repo.
+  if [[ -f "${FSA_AUTONOMOUS_MARKER:-.fsa-autonomous}" ]]; then
+    echo "[fsa-mode] autonomous marker present — explicit autonomous mode" >&2
+    return 1
+  fi
+
   # ── Check B: repo variable FSA_MANAGED ──────────────────────────────────
   local var_val="${FSA_MANAGED:-}"
   if [[ "$var_val" == "true" ]]; then
@@ -89,10 +96,6 @@ fsa_is_managed() {
   fi
   if [[ "$var_val" == "false" ]]; then
     echo "[fsa-mode] FSA_MANAGED=false — explicit autonomous mode" >&2
-    return 1
-  fi
-  if [[ -f "${FSA_AUTONOMOUS_MARKER:-.fsa-autonomous}" ]]; then
-    echo "[fsa-mode] autonomous marker present — explicit autonomous mode" >&2
     return 1
   fi
 
