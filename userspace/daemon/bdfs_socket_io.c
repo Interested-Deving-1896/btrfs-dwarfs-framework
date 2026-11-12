@@ -12,7 +12,7 @@
 #define BDFS_SOCK_IO_TIMEOUT_MS 5000
 
 /* Wait for socket readiness against one absolute monotonic deadline. */
-int bdfs_socket_wait(int fd, short events,
+static int bdfs_socket_wait(int fd, short events,
 			    const struct timespec *deadline)
 {
 	struct pollfd pfd = {.fd = fd, .events = events};
