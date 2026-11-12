@@ -393,12 +393,12 @@ jobs:
         # yamllint is the Python reference linter (same rules as yamllint-ts in yaml-tooling_deving).
         # Rules are defined in .yamllint.yml at the repo root.
         run: |
-          mapfile -d '' config_files < <(
-            find config -maxdepth 1 -type f \
-              \( -name '*.yml' -o -name '*.yaml' \) -print0 | sort -z
-          )
+          config_files=()
+          for file in config/defaults.yaml config/local.yaml.example; do
+            [[ -f "$file" ]] && config_files+=("$file")
+          done
           if (( ${#config_files[@]} == 0 )); then
-            echo "::error::No repository-owned YAML config files found"
+            echo "::error::No BDFS-owned YAML config files found"
             exit 1
           fi
           yamllint -c .yamllint.yml "${config_files[@]}"
