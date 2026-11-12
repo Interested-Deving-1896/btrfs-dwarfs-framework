@@ -65,6 +65,7 @@ if(BUILD_DAEMON)
         daemon/bdfs_shutdown_log.c
         daemon/bdfs_netlink.c
         daemon/bdfs_socket.c
+        daemon/bdfs_socket_io.c
         daemon/bdfs_policy.c
     )
 
