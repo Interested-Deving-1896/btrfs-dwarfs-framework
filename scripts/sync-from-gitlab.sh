@@ -183,7 +183,10 @@ sync_repo() {
   local gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
 
   local work_dir
-  work_dir=$(mktemp -d)
+  work_dir=$(mktemp -d) || {
+    warn "  Could not create temporary clone directory for ${gl_path}"
+    return 1
+  }
 
   info "  Cloning gitlab.com/${gl_path} ..."
   local clone_out
@@ -200,7 +203,11 @@ sync_repo() {
     return 1
   }
 
-  cd "$work_dir"
+  cd "$work_dir" || {
+    warn "  Could not enter temporary clone directory for ${gl_path}"
+    rm -rf -- "$work_dir"
+    return 1
+  }
 
   local push_ok=true
   local gh_remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
@@ -220,8 +227,12 @@ sync_repo() {
     | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
     || true
 
-  cd /
-  rm -rf "$work_dir"
+  cd / || {
+    warn "  Could not leave temporary clone directory for ${gl_path}"
+    rm -rf -- "$work_dir"
+    return 1
+  }
+  rm -rf -- "$work_dir"
 
   $push_ok
 }
