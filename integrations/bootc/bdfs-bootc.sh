@@ -70,7 +70,8 @@ workspace_mountpoint() {
 # ── workspace ─────────────────────────────────────────────────────────────────
 
 cmd_workspace() {
-    local source="" name="bootc-workspace-$(date +%Y%m%d-%H%M%S)"
+    local source="" name
+    name="bootc-workspace-$(date +%Y%m%d-%H%M%S)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source) source="$2"; shift 2 ;;
@@ -115,9 +116,10 @@ cmd_commit() {
 
     info "Building OCI image from workspace '$name' ($mp)"
     # Create a minimal Containerfile that uses the workspace root as the base
-    local tmpdir
+    local tmpdir cleanup_cmd
     tmpdir="$(mktemp -d /tmp/bdfs-bootc-commit.XXXXXX)"
-    trap "rm -rf '$tmpdir'" EXIT
+    printf -v cleanup_cmd 'rm -rf -- %q' "$tmpdir"
+    trap "$cleanup_cmd" EXIT
 
     cat > "$tmpdir/Containerfile" <<EOF
 FROM scratch
