@@ -29,6 +29,8 @@ install() {
     done
 
     # The boot script
+    # moddir is injected by dracut when it sources module-setup.sh.
+    # shellcheck disable=SC2154
     inst_hook pre-mount 50 "$moddir/bdfs-root.sh"
 
     # Configuration
