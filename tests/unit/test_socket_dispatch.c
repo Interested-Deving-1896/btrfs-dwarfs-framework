@@ -233,7 +233,13 @@ static void test_fragmented_request_io(void)
     args.fd = fds[0];
     args.data = request;
     args.length = sizeof(request) - 1;
-    CHECK("start fragmented writer", pthread_create(&thread, NULL, write_fragmented_request, &args) == 0);
+    int thread_rc = pthread_create(&thread, NULL, write_fragmented_request, &args);
+    CHECK("start fragmented writer", thread_rc == 0);
+    if (thread_rc != 0) {
+        close(fds[0]);
+        close(fds[1]);
+        return;
+    }
     int rc = bdfs_socket_read_request(fds[1], buffer, sizeof(buffer));
     pthread_join(thread, &thread_result);
     CHECK("fragmented newline request accepted", rc == (int)(sizeof(request) - 2));
