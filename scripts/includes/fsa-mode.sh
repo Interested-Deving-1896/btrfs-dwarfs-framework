@@ -87,6 +87,14 @@ fsa_is_managed() {
     echo "[fsa-mode] FSA_MANAGED=true — managed mode" >&2
     return 0
   fi
+  if [[ "$var_val" == "false" ]]; then
+    echo "[fsa-mode] FSA_MANAGED=false — explicit autonomous mode" >&2
+    return 1
+  fi
+  if [[ -f "${FSA_AUTONOMOUS_MARKER:-.fsa-autonomous}" ]]; then
+    echo "[fsa-mode] autonomous marker present — explicit autonomous mode" >&2
+    return 1
+  fi
 
   # Skip API checks if no token available
   local token="${GH_TOKEN:-}"
