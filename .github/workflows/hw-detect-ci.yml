@@ -1,4 +1,3 @@
-```yaml
 name: HW Detect CI
 
 # Validates the KPort hardware detection and build-environment layer on all
@@ -235,4 +234,3 @@ jobs:
               f"Unexpected CARGO_BUILD_TARGET: {os.environ.get('CARGO_BUILD_TARGET')}"
           print('Cross-compile vars correct.')
           EOF
-```
