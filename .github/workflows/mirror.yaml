@@ -11,6 +11,7 @@ on:
 
 jobs:
   mirror:
+    if: vars.BDFS_MIRRORS_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout full history (detached HEAD)
