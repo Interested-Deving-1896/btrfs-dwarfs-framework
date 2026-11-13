@@ -368,6 +368,7 @@ print(json.dumps({
   "KPORT_RUSTFLAGS":     "${KPORT_RUSTFLAGS}",
   "KPORT_LDFLAGS":       "${KPORT_LDFLAGS}",
   "KPORT_CMAKE_ARGS":    "${KPORT_CMAKE_ARGS}",
+  "KPORT_MAKE_ARGS":     "${KPORT_MAKE_ARGS}",
   "KPORT_ARCH":          "${KPORT_ARCH}",
   "KPORT_CROSS":         "${KPORT_CROSS}",
   "KPORT_CROSS_TRIPLE":  "${KPORT_CROSS_TRIPLE}",

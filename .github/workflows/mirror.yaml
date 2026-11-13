@@ -11,6 +11,8 @@ on:
 
 jobs:
   mirror:
+    # Mirror execution is paused until upstream source-repository audits are complete.
+    if: vars.BDFS_MIRRORS_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout full history (detached HEAD)

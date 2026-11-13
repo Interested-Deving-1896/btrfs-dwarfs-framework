@@ -27,7 +27,6 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BDFS_CMD="${BDFS_CMD:-bdfs}"
 OSTREE_CMD="${OSTREE_CMD:-ostree}"
 
@@ -59,7 +58,8 @@ workspace_mountpoint() {
 # ── commit ────────────────────────────────────────────────────────────────────
 
 cmd_commit() {
-    local name="" repo="" branch="" message="bdfs-ostree commit $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    local name="" repo="" branch="" message
+    message="bdfs-ostree commit $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --repo)    repo="$2";    shift 2 ;;
@@ -140,9 +140,11 @@ cmd_export() {
     require_ostree
     require_cmd mkdwarfs "dwarfs (mkdwarfs)"
 
-    local tmpdir
+    local tmpdir cleanup_cmd
     tmpdir="$(mktemp -d /tmp/bdfs-ostree-export.XXXXXX)"
-    trap "rm -rf '$tmpdir'" EXIT
+    printf -v cleanup_cmd 'rm -rf -- %q' "$tmpdir"
+    # shellcheck disable=SC2064 # cleanup_cmd is pre-escaped with printf %q; expand it at registration.
+    trap "$cleanup_cmd" EXIT
 
     info "Checking out OSTree ref '$ref' to $tmpdir"
     $OSTREE_CMD checkout --repo="$repo" "$ref" "$tmpdir/checkout"
@@ -174,11 +176,13 @@ cmd_import() {
     require_ostree
     require_cmd dwarfs "dwarfs"
 
-    local tmpdir mp
+    local tmpdir mp cleanup_cmd
     tmpdir="$(mktemp -d /tmp/bdfs-ostree-import.XXXXXX)"
     mp="$tmpdir/mount"
     mkdir -p "$mp"
-    trap "fusermount -u '$mp' 2>/dev/null; rm -rf '$tmpdir'" EXIT
+    printf -v cleanup_cmd 'fusermount -u %q 2>/dev/null; rm -rf -- %q' "$mp" "$tmpdir"
+    # shellcheck disable=SC2064 # cleanup_cmd is pre-escaped with printf %q; expand it at registration.
+    trap "$cleanup_cmd" EXIT
 
     info "Mounting DwarFS image: $image"
     dwarfs "$image" "$mp"

@@ -111,6 +111,7 @@ jobs:
           sparse-checkout: |
             scripts/includes/fsa-mode.sh
             scripts/write-summary.sh
+            .fsa-autonomous
           sparse-checkout-cone-mode: false
       - name: Check FSA mode
         id: fsa
@@ -392,13 +393,15 @@ jobs:
         # yamllint is the Python reference linter (same rules as yamllint-ts in yaml-tooling_deving).
         # Rules are defined in .yamllint.yml at the repo root.
         run: |
-          yamllint -c .yamllint.yml \
-            config/gitlab-subgroups.yml \
-            config/workflow-cost-profiles.yml \
-            config/workflow-priority-tiers.yml \
-            config/workflow-sync.yml \
-            config/template-manifest.yml \
-            config/template-consumers.yml
+          config_files=()
+          for file in config/defaults.yaml config/local.yaml.example; do
+            [[ -f "$file" ]] && config_files+=("$file")
+          done
+          if (( ${#config_files[@]} == 0 )); then
+            echo "::error::No BDFS-owned YAML config files found"
+            exit 1
+          fi
+          yamllint -c .yamllint.yml "${config_files[@]}"
 
       - name: Write summary
         if: always()
@@ -411,7 +414,7 @@ jobs:
     name: AgentShield — scan AI agent configs
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Opt-in: only runs when the secret is set. Fails on critical findings.
+    # Scan the repository's Claude Code config when present; fail on critical findings.
     if: always()
     steps:
       - name: Harden runner
@@ -421,28 +424,41 @@ jobs:
           disable-sudo: false
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # ratchet:actions/checkout@v7
 
+      - name: Detect Claude Code configuration
+        id: agent_config
+        run: |
+          if [[ -d .claude ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No .claude/ configuration found; AgentShield scan is not applicable."
+          fi
+
       - name: Run AgentShield scan
+        if: steps.agent_config.outputs.present == 'true'
         # Scans .claude/ for hardcoded secrets, permission misconfigs, hook
         # injection vectors, and MCP server risks. Fails on critical findings.
         run: |
           set -euo pipefail
           # A missing binary, failed scan, missing report, or malformed report
           # is an infrastructure/validation failure, not a clean scan.
+          set +e
           npx --yes ecc-agentshield scan \
-            --path . \
+            --path .claude \
             --format json \
             --output /tmp/agentshield-report.json
+          scan_rc=$?
+          set -e
           test -s /tmp/agentshield-report.json || {
-            echo "::error::AgentShield did not produce a non-empty JSON report"
+            echo "::error::AgentShield did not produce a non-empty JSON report (exit $scan_rc)"
             exit 1
           }
-          # Parse report and fail closed if the scanner output is invalid.
-          python3 - << 'PYEOF'
+          # AgentShield documents exit 2 as a completed scan with critical findings.
+          # Capture that status so the JSON report is still parsed and findings are
+          # shown; exit 1 remains a scanner/runtime failure.
+          AGENTSHIELD_EXIT_CODE="$scan_rc" python3 - << 'PYEOF'
           import json, sys, os
           report_path = "/tmp/agentshield-report.json"
-          if not os.path.exists(report_path) or os.path.getsize(report_path) == 0:
-              print("::error::AgentShield report missing or empty")
-              sys.exit(1)
           try:
               with open(report_path, encoding="utf-8") as stream:
                   report = json.load(stream)
@@ -452,21 +468,34 @@ jobs:
           if not isinstance(report, dict) or not isinstance(report.get("findings"), list):
               print("::error::AgentShield report has an unexpected schema (findings must be a list)")
               sys.exit(1)
-          findings = report.get("findings", [])
+          findings = report["findings"]
+          if not all(isinstance(f, dict) for f in findings):
+              print("::error::AgentShield report findings must all be objects")
+              sys.exit(1)
           criticals = [f for f in findings if f.get("severity") == "critical"]
-          grade = report.get("grade", "?")
-          score = report.get("score", "?")
-          print(f"AgentShield grade: {grade} ({score}/100)")
-          print(f"Total findings: {len(findings)} ({len(criticals)} critical)")
+          score = report.get("score", {})
+          summary = report.get("summary", {})
+          grade = score.get("grade", "?") if isinstance(score, dict) else "?"
+          numeric_score = score.get("numericScore", "?") if isinstance(score, dict) else "?"
+          total = summary.get("totalFindings", len(findings)) if isinstance(summary, dict) else len(findings)
+          print(f"AgentShield grade: {grade} ({numeric_score}/100)")
+          print(f"Total findings: {total} ({len(criticals)} critical)")
+          scan_rc = int(os.environ.get("AGENTSHIELD_EXIT_CODE", "1"))
+          if scan_rc not in (0, 2):
+              print(f"::error::AgentShield runtime/usage failure (exit {scan_rc})")
+              sys.exit(1)
+          if (scan_rc == 2) != bool(criticals):
+              print("::error::AgentShield exit status does not match reported critical findings")
+              sys.exit(1)
           if criticals:
               print("Critical findings:")
-              for f in criticals[:10]:
-                  print(f"  [{f.get('severity','?')}] {f.get('title','?')} — {f.get('file','?')}:{f.get('line','?')}")
+              for finding in criticals[:10]:
+                  print(f"  [{finding.get('severity','?')}] {finding.get('title','?')} — {finding.get('file','?')}:{finding.get('line','?')}")
               sys.exit(1)
           PYEOF
 
       - name: Upload AgentShield report
-        if: ${{ always() && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
+        if: ${{ always() && steps.agent_config.outputs.present == 'true' && inputs.dry_run != true && github.event.inputs.dry_run != 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7
         with:
           name: agentshield-report

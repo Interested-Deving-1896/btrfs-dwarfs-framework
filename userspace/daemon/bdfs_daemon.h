@@ -27,6 +27,7 @@ struct bdfs_daemon_config {
 	char ctl_device[256];        /* default: /dev/bdfs_ctl */
 	char socket_path[256];       /* default: /run/bdfs/daemon.sock */
 	char state_dir[256];         /* default: /var/lib/bdfs */
+	char archive_dir[256];       /* default: /var/lib/bdfs/archives */
 	char mkdwarfs_bin[256];
 	char dwarfs_bin[256];
 	char dwarfsextract_bin[256];

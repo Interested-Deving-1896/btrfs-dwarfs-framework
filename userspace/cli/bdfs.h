@@ -6,9 +6,14 @@
 #ifndef _BDFS_CLI_H
 #define _BDFS_CLI_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "../../include/uapi/bdfs_ioctl.h"
+
+/* Flags shared with the daemon prune-job JSON protocol. */
+#define BDFS_PRUNE_DEMOTE_FIRST (1U << 0)
+#define BDFS_PRUNE_DRY_RUN      (1U << 1)
 
 #define BDFS_CLI_VERSION  "1.0.0"
 
@@ -77,8 +82,11 @@ int cmd_policy_scan(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 
+void bdfs_cli_init(struct bdfs_cli *cli);
+void bdfs_cli_cleanup(struct bdfs_cli *cli);
 int  bdfs_cli_open_ctl(struct bdfs_cli *cli);
 void bdfs_cli_close(struct bdfs_cli *cli);
+int  bdfs_cli_send_recv(struct bdfs_cli *cli, const char *request, char *response, size_t response_size);
 
 /* Output helpers */
 void bdfs_print_partition(const struct bdfs_partition *p, bool json);

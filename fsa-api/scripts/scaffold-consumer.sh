@@ -129,18 +129,24 @@ fsa_quota_check 10 || exit 0
 quota=\$(bash "\${_FSA_ROOT}/fsa-api/core/adapters/quota/status.sh" 2>/dev/null || echo '{}')
 chain=\$(bash "\${_FSA_ROOT}/fsa-api/core/adapters/chain/status.sh" 2>/dev/null || echo '{}')
 
-python3 -c "
-import json, sys
-quota = json.loads('''${quota}''') if '''${quota}''' != '{}' else {}
-chain = json.loads('''${chain}''') if '''${chain}''' != '{}' else {}
+QUOTA_JSON="\${quota}" CHAIN_JSON="\${chain}" python3 -c '
+import json, os
+
+def load_object(name):
+    try:
+        value = json.loads(os.environ.get(name, "{}"))
+        return value if isinstance(value, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
 print(json.dumps({
-    'ok': True,
-    'brand': '${BRAND}',
-    'prefix': '${PREFIX}',
-    'quota': quota,
-    'chain': chain,
+    "ok": True,
+    "brand": "${BRAND}",
+    "prefix": "${PREFIX}",
+    "quota": load_object("QUOTA_JSON"),
+    "chain": load_object("CHAIN_JSON"),
 }, indent=2))
-" 2>/dev/null || echo '{"ok":true,"brand":"${BRAND}","prefix":"${PREFIX}"}'
+' 2>/dev/null || echo '{"ok":true,"brand":"${BRAND}","prefix":"${PREFIX}"}'
 BASH
 
 chmod +x \

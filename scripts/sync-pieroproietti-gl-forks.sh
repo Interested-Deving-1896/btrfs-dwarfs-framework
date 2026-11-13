@@ -72,7 +72,7 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  cd "$work_dir/mirror"
+  cd "$work_dir/mirror" || { warn "Cannot enter mirror worktree for ${gh_path}"; FAILED=$((FAILED + 1)); rm -rf "$work_dir"; continue; }
 
   # Push all refs (branches + tags) to GitLab
   # --prune would delete our local-only branches, so we push selectively:
@@ -100,10 +100,15 @@ for entry in "${REPOS[@]}"; do
   existing_tags=$(echo "$gl_releases" | python3 -c \
     "import sys,json; [print(r['tag_name']) for r in json.load(sys.stdin)]" 2>/dev/null || true)
 
-  echo "$gh_releases" | python3 - << 'PYEOF'
+  gh_releases_tmp=$(mktemp) || { warn "Could not create temporary GitHub release file"; exit 1; }
+  printf '%s' "$gh_releases" > "$gh_releases_tmp"
+  GITLAB_TOKEN="$GITLAB_TOKEN" GL_API="$GL_API" GL_PID="$gl_pid" \
+    GH_PATH="$gh_path" EXISTING_TAGS="$existing_tags" \
+    python3 - "$gh_releases_tmp" << 'PYEOF'
 import sys, json, os, urllib.request, urllib.error
 
-releases = json.load(sys.stdin)
+with open(sys.argv[1], encoding="utf-8") as stream:
+    releases = json.load(stream)
 token = os.environ.get("GITLAB_TOKEN", "")
 api = os.environ.get("GL_API", "")
 pid = os.environ.get("GL_PID", "")
@@ -143,6 +148,12 @@ for r in releases:
         else:
             print(f"  ⚠️  release {tag}: HTTP {e.code} {body_err[:100]}")
 PYEOF
+  release_sync_rc=$?
+  rm -f "$gh_releases_tmp"
+  if [[ $release_sync_rc -ne 0 ]]; then
+    warn "GitHub release metadata could not be processed for ${gh_path}"
+    exit 1
+  fi
 
   cd /
   rm -rf "$work_dir"

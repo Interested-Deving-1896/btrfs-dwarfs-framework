@@ -1,0 +1,3 @@
+# Btrfs-Dwarfs-Framework is an independent integration base.
+# It is not an onboarded Fork-Sync-All consumer/control-plane repository.
+# Remove this marker only when the repository is explicitly enrolled in FSA management.

@@ -17,7 +17,6 @@
 
 _dwarfs_detect_upper_backend() {
     # Prefer BTRFS for the upper layer if available, fall back to tmpfs
-    local state_dir="$1"
     local btrfs_mount="${BDFS_BTRFS_MOUNT:-}"
 
     if [[ -n "$btrfs_mount" ]] && \

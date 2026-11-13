@@ -22,11 +22,13 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <syslog.h>
 #include <dirent.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+#include "bdfs_socket_io.h"
 
 #include "bdfs_daemon.h"
 #include "bdfs_policy.h"
@@ -40,9 +42,30 @@ int bdfs_socket_init(struct bdfs_daemon *d)
 	int fd;
 	char *dir_end;
 	char dir[256];
+	size_t socket_path_len;
 
-	/* Ensure the socket directory exists */
-	strncpy(dir, d->cfg.socket_path, sizeof(dir) - 1);
+	if (!d)
+		return -EINVAL;
+
+	/*
+	 * sockaddr_un.sun_path is commonly much smaller than our config
+	 * buffer.  Reject overlong paths instead of silently binding a
+	 * truncated, potentially different socket name.
+	 */
+	socket_path_len = strnlen(d->cfg.socket_path,
+				  sizeof(d->cfg.socket_path));
+	if (socket_path_len == 0 ||
+	    socket_path_len >= sizeof(d->cfg.socket_path) ||
+	    socket_path_len >= sizeof(addr.sun_path) ||
+	    socket_path_len >= sizeof(dir)) {
+		syslog(LOG_ERR, "bdfs: invalid or overlong CLI socket path");
+		return -ENAMETOOLONG;
+	}
+
+	/* Copy the validated path including its terminator. */
+	memcpy(dir, d->cfg.socket_path, socket_path_len + 1);
+
+	/* Ensure the socket directory exists. */
 	dir_end = strrchr(dir, '/');
 	if (dir_end) {
 		*dir_end = '\0';
@@ -58,11 +81,39 @@ int bdfs_socket_init(struct bdfs_daemon *d)
 		return -errno;
 	}
 
-	unlink(d->cfg.socket_path);
+	/*
+	 * Never remove an unrelated file if the configured socket path is
+	 * occupied.  A stale socket may be safely unlinked before bind.
+	 */
+	{
+		struct stat existing;
+		if (lstat(d->cfg.socket_path, &existing) == 0) {
+			if (!S_ISSOCK(existing.st_mode)) {
+				syslog(LOG_ERR,
+				       "bdfs: refusing to replace non-socket at %s",
+				       d->cfg.socket_path);
+				close(fd);
+				return -EEXIST;
+			}
+			if (unlink(d->cfg.socket_path) < 0) {
+				int err = errno;
+				syslog(LOG_ERR, "bdfs: unlink stale socket %s: %m",
+				       d->cfg.socket_path);
+				close(fd);
+				return -err;
+			}
+		} else if (errno != ENOENT) {
+			int err = errno;
+			syslog(LOG_ERR, "bdfs: inspect socket path %s: %m",
+			       d->cfg.socket_path);
+			close(fd);
+			return -err;
+		}
+	}
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, d->cfg.socket_path, sizeof(addr.sun_path) - 1);
+	memcpy(addr.sun_path, d->cfg.socket_path, socket_path_len + 1);
 
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		syslog(LOG_ERR, "bdfs: socket bind %s: %m", d->cfg.socket_path);
@@ -83,6 +134,7 @@ int bdfs_socket_init(struct bdfs_daemon *d)
 	return 0;
 }
 
+
 /*
  * Handle a single CLI connection.  Reads one newline-terminated JSON request,
  * dispatches it, and writes a JSON response.
@@ -91,13 +143,12 @@ static void bdfs_handle_client(struct bdfs_daemon *d, int client_fd)
 {
 	char req[BDFS_SOCK_BUFSIZE];
 	char resp[BDFS_SOCK_BUFSIZE];
-	ssize_t n;
 	int status = 0;
-
-	n = recv(client_fd, req, sizeof(req) - 1, 0);
-	if (n <= 0)
+	int io_rc = bdfs_socket_read_request(client_fd, req, sizeof(req));
+	if (io_rc < 0) {
+		status = io_rc;
 		goto out;
-	req[n] = '\0';
+	}
 
 	/*
 	 * Command dispatch.  Uses simple string matching on the JSON "cmd"
@@ -695,7 +746,10 @@ static void bdfs_handle_client(struct bdfs_daemon *d, int client_fd)
 	}
 
 send:
-	send(client_fd, resp, strlen(resp), MSG_NOSIGNAL);
+	io_rc = bdfs_socket_write_response(client_fd, resp, strlen(resp));
+	if (io_rc < 0)
+		syslog(LOG_WARNING, "bdfs: socket response write failed: %s",
+		       strerror(-io_rc));
 
 out:
 	close(client_fd);

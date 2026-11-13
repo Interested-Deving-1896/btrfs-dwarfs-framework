@@ -1,4 +1,3 @@
-```yaml
 name: HW Detect CI
 
 # Validates the KPort hardware detection and build-environment layer on all
@@ -71,13 +70,16 @@ jobs:
           bash scripts/hw-detect.sh --json | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
-          print('CPU_ARCH:', d.get('CPU_ARCH','?'))
-          print('CPU_TIER:', d.get('CPU_TIER','?'))
-          print('GPU_TIER:', d.get('GPU_TIER','?'))
-          print('NPU_TIER:', d.get('NPU_TIER','?'))
-          # Validate required fields are present and non-empty
-          for key in ['CPU_ARCH','CPU_TIER','GPU_TIER','NPU_TIER']:
-              assert d.get(key), f'Missing or empty: {key}'
+          cpu, gpu, npu = (d.get('cpu', {}), d.get('gpu', {}), d.get('npu', {}))
+          fields = {
+              'CPU_ARCH': cpu.get('cpu_arch'),
+              'CPU_TIER': cpu.get('cpu_tier'),
+              'GPU_TIER': gpu.get('gpu_tier'),
+              'NPU_TIER': npu.get('npu_tier'),
+          }
+          for key, value in fields.items():
+              print('{}: {}'.format(key, value or '?'))
+              assert value, 'Missing or empty: {}'.format(key)
           print('All required fields present.')
           "
 
@@ -91,12 +93,16 @@ jobs:
           | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
-          print('CPU_ARCH:', d.get('CPU_ARCH','?'))
-          print('CPU_TIER:', d.get('CPU_TIER','?'))
-          print('GPU_TIER:', d.get('GPU_TIER','?'))
-          print('NPU_TIER:', d.get('NPU_TIER','?'))
-          for key in ['CPU_ARCH','CPU_TIER','GPU_TIER','NPU_TIER']:
-              assert d.get(key), f'Missing or empty: {key}'
+          cpu, gpu, npu = (d.get('cpu', {}), d.get('gpu', {}), d.get('npu', {}))
+          fields = {
+              'CPU_ARCH': cpu.get('cpu_arch'),
+              'CPU_TIER': cpu.get('cpu_tier'),
+              'GPU_TIER': gpu.get('gpu_tier'),
+              'NPU_TIER': npu.get('npu_tier'),
+          }
+          for key, value in fields.items():
+              print('{}: {}'.format(key, value or '?'))
+              assert value, 'Missing or empty: {}'.format(key)
           print('All required fields present.')
           "
 
@@ -176,29 +182,24 @@ jobs:
             debian:sid-slim \
             bash -c '
               eval "$(bash /repo/scripts/hw-build-env.sh --export 2>/dev/null)"
-              python3 - <<EOF
-          import os, sys
-          required = [
-              "KPORT_ARCH", "KPORT_CFLAGS", "KPORT_CMAKE_ARGS",
-              "KPORT_MAKE_ARGS", "KPORT_GPU_BACKEND", "KPORT_NPU_BACKEND",
-          ]
-          missing = [k for k in required if not os.environ.get(k)]
-          if missing:
-              print("MISSING or empty:", missing, file=sys.stderr)
-              sys.exit(1)
-          for k in required:
-              print(f"{k}={os.environ[k]!r}")
-          print("All KPORT_* variables present.")
-          EOF
+              required=(KPORT_ARCH KPORT_CFLAGS KPORT_CMAKE_ARGS KPORT_MAKE_ARGS KPORT_GPU_BACKEND KPORT_NPU_BACKEND)
+              for key in "${required[@]}"; do
+                value="${!key:-}"
+                if [[ -z "$value" ]]; then
+                  printf "MISSING or empty: %s\\n" "$key" >&2
+                  exit 1
+                fi
+                printf "%s=%q\\n" "$key" "$value"
+              done
+              echo "All KPORT_* variables present."
             '
-
       - name: Validate --json output (QEMU ${{ matrix.arch }})
         if: ${{ matrix.qemu == true }}
         run: |
           docker run --rm --platform linux/${{ matrix.arch }} \
             -v "${{ github.workspace }}:/repo" \
             debian:sid-slim \
-            bash /repo/scripts/hw-build-env.sh --json 2>/dev/null \
+            bash -c 'apt-get update -qq && apt-get install -y -qq python3 >/dev/null && bash /repo/scripts/hw-build-env.sh --json 2>/dev/null' \
           | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
@@ -235,4 +236,3 @@ jobs:
               f"Unexpected CARGO_BUILD_TARGET: {os.environ.get('CARGO_BUILD_TARGET')}"
           print('Cross-compile vars correct.')
           EOF
-```

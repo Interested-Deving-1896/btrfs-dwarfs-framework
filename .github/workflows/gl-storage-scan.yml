@@ -13,79 +13,69 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Fetch all projects under openos-project recursively, all pages
           PAGE=1
           ALL_PROJECTS="[]"
           while true; do
             BATCH=$(curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
               "${GL_API}/groups/${GROUP_PATH}/projects?include_subgroups=true&per_page=100&page=${PAGE}&statistics=true&with_statistics=true")
-            COUNT=$(echo "${BATCH}" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+            COUNT=$(echo "${BATCH}" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')
             echo "Page ${PAGE}: ${COUNT} projects"
             if [ "${COUNT}" -eq 0 ]; then break; fi
-            ALL_PROJECTS=$(echo "${ALL_PROJECTS}${BATCH}" | python3 -c "
-import sys, json
-data = sys.stdin.read()
-# Split on the boundary between the two JSON arrays
-import re
-arrays = re.findall(r'\[.*?\]', data, re.DOTALL)
-combined = []
-for a in arrays:
-    try:
-        combined.extend(json.loads(a))
-    except:
-        pass
-print(json.dumps(combined))
-")
+            ALL_PROJECTS=$(python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1]) + json.load(sys.stdin)))' "${ALL_PROJECTS}" <<< "${BATCH}")
             PAGE=$((PAGE + 1))
-            if [ "${PAGE}" -gt 20 ]; then break; fi  # safety cap
+            if [ "${PAGE}" -gt 20 ]; then
+              echo "::warning::Stopped at the 20-page safety cap"
+              break
+            fi
           done
 
-          echo "${ALL_PROJECTS}" | python3 -c "
-import sys, json
+          ALL_PROJECTS_JSON="${ALL_PROJECTS}" python3 - <<'PY'
+          import json
+          import os
 
-projects = json.load(sys.stdin)
-print(f'Total projects found: {len(projects)}')
-print()
+          projects = json.loads(os.environ["ALL_PROJECTS_JSON"])
+          print(f"Total projects found: {len(projects)}")
+          print()
 
-# Sort by repository storage descending
-def repo_size(p):
-    return p.get('statistics', {}).get('repository_size', 0)
+          def repo_size(project):
+              return project.get("statistics", {}).get("repository_size", 0)
 
-projects.sort(key=repo_size, reverse=True)
+          def fmt(value):
+              if value >= 1073741824:
+                  return f"{value / 1073741824:.1f}G"
+              if value >= 1048576:
+                  return f"{value / 1048576:.1f}M"
+              if value >= 1024:
+                  return f"{value / 1024:.1f}K"
+              return f"{value}B"
 
-print(f'{'Project':<70} {'Repo':>10} {'LFS':>10} {'Artifacts':>10} {'Total':>10}')
-print('-' * 115)
+          print("{:<70} {:>10} {:>10} {:>10} {:>10}".format(
+              "Project", "Repo", "LFS", "Artifacts", "Total"
+          ))
+          print("-" * 115)
 
-total_repo = 0
-total_lfs = 0
-total_art = 0
-total_all = 0
+          total_repo = total_lfs = total_art = total_all = 0
+          for project in sorted(projects, key=repo_size, reverse=True):
+              stats = project.get("statistics", {})
+              repo = stats.get("repository_size", 0)
+              lfs = stats.get("lfs_objects_size", 0)
+              artifacts = stats.get("job_artifacts_size", 0)
+              total = stats.get("storage_size", 0)
+              if total == 0:
+                  continue
+              name = project.get("path_with_namespace", project.get("name", "?"))
+              if len(name) > 68:
+                  name = name[:65] + "..."
+              print("{:<70} {:>10} {:>10} {:>10} {:>10}".format(
+                  name, fmt(repo), fmt(lfs), fmt(artifacts), fmt(total)
+              ))
+              total_repo += repo
+              total_lfs += lfs
+              total_art += artifacts
+              total_all += total
 
-for p in projects:
-    s = p.get('statistics', {})
-    repo  = s.get('repository_size', 0)
-    lfs   = s.get('lfs_objects_size', 0)
-    art   = s.get('job_artifacts_size', 0)
-    total = s.get('storage_size', 0)
-    if total == 0:
-        continue
-    def fmt(b):
-        if b >= 1073741824: return f'{b/1073741824:.1f}G'
-        if b >= 1048576:    return f'{b/1048576:.1f}M'
-        if b >= 1024:       return f'{b/1024:.1f}K'
-        return f'{b}B'
-    name = p.get('path_with_namespace', p.get('name', '?'))
-    if len(name) > 68: name = name[:65] + '...'
-    print(f'{name:<70} {fmt(repo):>10} {fmt(lfs):>10} {fmt(art):>10} {fmt(total):>10}')
-    total_repo += repo
-    total_lfs  += lfs
-    total_art  += art
-    total_all  += total
-
-print('-' * 115)
-def fmt(b):
-    if b >= 1073741824: return f'{b/1073741824:.1f}G'
-    if b >= 1048576:    return f'{b/1048576:.1f}M'
-    return f'{b}B'
-print(f'{'TOTAL':<70} {fmt(total_repo):>10} {fmt(total_lfs):>10} {fmt(total_art):>10} {fmt(total_all):>10}')
-"
+          print("-" * 115)
+          print("{:<70} {:>10} {:>10} {:>10} {:>10}".format(
+              "TOTAL", fmt(total_repo), fmt(total_lfs), fmt(total_art), fmt(total_all)
+          ))
+          PY

@@ -23,22 +23,19 @@ jobs:
         run: find . -name '*.sh' -exec shellcheck -x -S warning --exclude=SC1083 {} +
 
   test:
-    name: Unit Tests
+    name: C Userspace Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install shellcheck
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - name: Install build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq cmake build-essential
 
-      - name: Run tests
-        run: ./tests/run-tests.sh
+      - name: Configure unit-test build
+        run: cmake -S userspace -B build/unit-tests -DBUILD_TESTS=ON -DBUILD_DAEMON=OFF -DBUILD_CLI=OFF
 
-  validate:
-    name: Profile Validation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
+      - name: Build unit tests
+        run: cmake --build build/unit-tests --parallel
 
-      - name: Validate profiles
-        run: ./profiles/validate.sh
+      - name: Run unit tests
+        run: ctest --test-dir build/unit-tests --output-on-failure

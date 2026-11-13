@@ -34,17 +34,97 @@
 
 #define _GNU_SOURCE
 #include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "bdfs.h"
 
 #define AUTOSNAP_PATTERN "autosnap-*"
 #define AUTOSNAP_PREFIX  "autosnap-"
+
+/*
+ * Resolve an autosnap name to an existing direct-child Btrfs subvolume.
+ * Reject path syntax and symlinks, canonicalize both paths, and verify
+ * containment before any destructive operation.
+ */
+static int resolve_autosnap_path(const char *mount, const char *name,
+				 char resolved[PATH_MAX])
+{
+	char mount_real[PATH_MAX];
+	char candidate[PATH_MAX];
+	char target_real[PATH_MAX];
+	struct stat st;
+	size_t mount_len;
+	char mount_prefix[PATH_MAX];
+
+	if (!mount || !name || strncmp(name, AUTOSNAP_PREFIX,
+				       strlen(AUTOSNAP_PREFIX)) != 0 ||
+	    name[0] == '\0' || strchr(name, '/') || strchr(name, '\\') ||
+	    strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+		bdfs_err("invalid autosnap name");
+		return -1;
+	}
+	for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+		if (!( (*p >= 'a' && *p <= 'z') ||
+		       (*p >= 'A' && *p <= 'Z') ||
+		       (*p >= '0' && *p <= '9') ||
+		       *p == '-' || *p == '_' || *p == '.' )) {
+			bdfs_err("invalid character in autosnap name");
+			return -1;
+		}
+	}
+	if (!realpath(mount, mount_real)) {
+		bdfs_err("cannot resolve Btrfs mount '%s': %s", mount, strerror(errno));
+		return -1;
+	}
+	if (snprintf(candidate, sizeof(candidate), "%s/%s", mount_real, name) >=
+	    (int)sizeof(candidate)) {
+		bdfs_err("autosnap path is too long");
+		return -1;
+	}
+	if (lstat(candidate, &st) < 0) {
+		bdfs_err("autosnap snapshot does not exist: %s", name);
+		return -1;
+	}
+	if (S_ISLNK(st.st_mode) || !S_ISDIR(st.st_mode)) {
+		bdfs_err("autosnap target must be a real directory, not a symlink");
+		return -1;
+	}
+	if (!realpath(candidate, target_real)) {
+		bdfs_err("cannot resolve autosnap target: %s", strerror(errno));
+		return -1;
+	}
+	mount_len = strlen(mount_real);
+	if (mount_len == 1 && mount_real[0] == '/') {
+		strcpy(mount_prefix, "/");
+	} else {
+		if (snprintf(mount_prefix, sizeof(mount_prefix), "%s/", mount_real) >=
+		    (int)sizeof(mount_prefix)) {
+			bdfs_err("Btrfs mount path is too long");
+			return -1;
+		}
+	}
+	mount_len = strlen(mount_prefix);
+	if (strncmp(target_real, mount_prefix, mount_len) != 0 ||
+	    target_real[mount_len] == '\\0' ||
+	    strchr(target_real + mount_len, '/')) {
+		bdfs_err("autosnap target escapes the selected mount or is not a direct child");
+		return -1;
+	}
+	if (snprintf(resolved, PATH_MAX, "%s", target_real) >= PATH_MAX) {
+		bdfs_err("autosnap path is too long");
+		return -1;
+	}
+	return 0;
+}
 
 /* ── Partition auto-detection ────────────────────────────────────────────── */
 
@@ -123,51 +203,113 @@ static int resolve_partition(struct bdfs_cli *cli,
  * AUTOSNAP_PREFIX, using `btrfs subvolume list -o`.
  * Prints in human or JSON format.
  */
+static bool is_autosnap_name(const char *name)
+{
+	if (!name || strncmp(name, AUTOSNAP_PREFIX, strlen(AUTOSNAP_PREFIX)) != 0)
+		return false;
+	for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+		if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+		      (*p >= '0' && *p <= '9') || *p == '-' || *p == '_' || *p == '.'))
+			return false;
+	}
+	return true;
+}
+
+/*
+ * List subvolumes without a shell. The mount path is an argv element, never
+ * shell source. btrfs subvolume list emits a final " path NAME" field.
+ */
 static int list_autosnap_subvols(const char *btrfs_mount, bool json)
 {
-	char cmd[512];
-	snprintf(cmd, sizeof(cmd),
-		 "btrfs subvolume list -o '%s' 2>/dev/null"
-		 " | awk '$NF ~ /^" AUTOSNAP_PREFIX "/ {print $NF}'",
-		 btrfs_mount);
+	int pipefd[2];
+	pid_t child;
+	FILE *fp;
+	char *line = NULL;
+	size_t line_capacity = 0;
+	int count = 0;
+	int child_status = 0;
 
-	FILE *fp = popen(cmd, "r");
+	if (!btrfs_mount || btrfs_mount[0] != '/') {
+		bdfs_err("Btrfs mount path must be an absolute path");
+		return 1;
+	}
+	if (pipe2(pipefd, O_CLOEXEC) < 0) {
+		bdfs_err("pipe2: %s", strerror(errno));
+		return 1;
+	}
+	child = fork();
+	if (child < 0) {
+		bdfs_err("fork: %s", strerror(errno));
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return 1;
+	}
+	if (child == 0) {
+		char *const args[] = {"btrfs", "subvolume", "list", "-o",
+			(char *)btrfs_mount, NULL};
+		dup2(pipefd[1], STDOUT_FILENO);
+		close(pipefd[0]);
+		close(pipefd[1]);
+		int devnull = open("/dev/null", O_WRONLY | O_CLOEXEC);
+		if (devnull >= 0) {
+			dup2(devnull, STDERR_FILENO);
+			close(devnull);
+		}
+		execvp(args[0], args);
+		_exit(127);
+	}
+	close(pipefd[1]);
+	fp = fdopen(pipefd[0], "r");
 	if (!fp) {
-		bdfs_err("popen: %s", strerror(errno));
+		bdfs_err("fdopen: %s", strerror(errno));
+		close(pipefd[0]);
+		(void)waitpid(child, &child_status, 0);
 		return 1;
 	}
 
-	char line[512];
-	int count = 0;
-
 	if (json)
 		printf("[");
-
-	while (fgets(line, sizeof(line), fp)) {
-		/* Strip trailing newline */
-		size_t len = strlen(line);
-		if (len > 0 && line[len - 1] == '\n')
-			line[len - 1] = '\0';
-
-		if (!line[0])
+	while (getline(&line, &line_capacity, fp) >= 0) {
+		char *path = strstr(line, " path ");
+		char *name;
+		if (!path)
 			continue;
-
+		name = path + strlen(" path ");
+		name[strcspn(name, "\r\n")] = '\0';
+		/* Only direct-child names in our strict allowlist are emitted. */
+		if (strchr(name, '/') || !is_autosnap_name(name))
+			continue;
 		if (json) {
 			if (count)
 				printf(",");
-			printf("{\"name\":\"%s\"}", line);
+			printf("{\"name\":\"%s\"}", name);
 		} else {
-			printf("  %s\n", line);
+			printf("  %s\n", name);
 		}
 		count++;
 	}
-
+	free(line);
+	if (ferror(fp)) {
+		bdfs_err("failed reading btrfs subvolume list output");
+		fclose(fp);
+		(void)waitpid(child, &child_status, 0);
+		return 1;
+	}
+	fclose(fp);
+	while (waitpid(child, &child_status, 0) < 0) {
+		if (errno != EINTR) {
+			bdfs_err("waitpid: %s", strerror(errno));
+			return 1;
+		}
+	}
+	if (!WIFEXITED(child_status) || WEXITSTATUS(child_status) != 0) {
+		bdfs_err("btrfs subvolume list failed");
+		return 1;
+	}
 	if (json)
 		printf("]\n");
 	else if (count == 0)
 		printf("  (no autosnap snapshots found)\n");
-
-	pclose(fp);
 	return 0;
 }
 
@@ -258,35 +400,33 @@ static int cmd_autosnap_delete(struct bdfs_cli *cli, int argc, char *argv[])
 	if (resolve_partition(cli, uuid_arg, uuid) < 0)
 		return 1;
 
-	/* Build the full subvolume path and delete it */
-	char snap_path[1024];
-	snprintf(snap_path, sizeof(snap_path), "%s/%s",
-		 btrfs_mount, snap_name);
-
-	if (bdfs_cli_open_ctl(cli))
+	/* Resolve and contain the requested snapshot before deletion. */
+	char snap_path[PATH_MAX];
+	if (resolve_autosnap_path(btrfs_mount, snap_name, snap_path) < 0)
 		return 1;
 
-	struct bdfs_ioctl_snapshot_dwarfs_container del_arg;
-	memset(&del_arg, 0, sizeof(del_arg));
-	memcpy(del_arg.partition_uuid, uuid, 16);
-	strncpy(del_arg.snapshot_name, snap_name,
-		sizeof(del_arg.snapshot_name) - 1);
-	del_arg.flags |= BDFS_SNAP_DELETE;
-
-	if (ioctl(cli->ctl_fd, BDFS_IOC_SNAPSHOT_DWARFS_CONTAINER,
-		  &del_arg) < 0) {
-		/*
-		 * Fall back to direct btrfs subvolume delete if the ioctl
-		 * doesn't support BDFS_SNAP_DELETE yet.
-		 */
-		char cmd[1024];
-		snprintf(cmd, sizeof(cmd),
-			 "btrfs subvolume delete '%s' 2>&1", snap_path);
-		int rc = system(cmd);
-		if (rc != 0) {
-			bdfs_err("failed to delete snapshot: %s", snap_path);
-			return 1;
-		}
+	/*
+	 * The current UAPI exposes only BDFS_SNAP_READONLY for this ioctl;
+	 * there is no BDFS_SNAP_DELETE operation. Use argv-based execution
+	 * rather than constructing a shell command from the supplied path.
+	 */
+	const char *delete_argv[] = {
+		"btrfs", "subvolume", "delete", snap_path, NULL
+	};
+	pid_t child = fork();
+	if (child < 0) {
+		bdfs_err("fork: %s", strerror(errno));
+		return 1;
+	}
+	if (child == 0) {
+		execvp(delete_argv[0], (char *const *)delete_argv);
+		_exit(127);
+	}
+	int child_status = 0;
+	if (waitpid(child, &child_status, 0) < 0 ||
+	    !WIFEXITED(child_status) || WEXITSTATUS(child_status) != 0) {
+		bdfs_err("failed to delete snapshot: %s", snap_path);
+		return 1;
 	}
 
 	if (!cli->json_output)
