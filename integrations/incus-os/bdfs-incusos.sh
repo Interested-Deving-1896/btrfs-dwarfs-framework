@@ -57,7 +57,8 @@ workspace_mountpoint() {
 # ── workspace ─────────────────────────────────────────────────────────────────
 
 cmd_workspace() {
-    local source="" name="incusos-workspace-$(date +%Y%m%d-%H%M%S)"
+    local source="" name
+    name="incusos-workspace-$(date +%Y%m%d-%H%M%S)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source) source="$2"; shift 2 ;;
@@ -129,6 +130,7 @@ cmd_import() {
     tmpdir="$(mktemp -d /tmp/bdfs-incusos-import.XXXXXX)"
     mp="$tmpdir/mount"
     mkdir -p "$mp"
+    # shellcheck disable=SC2064 # Capture local mount and temp paths before this function returns.
     trap "fusermount -u '$mp' 2>/dev/null; rm -rf '$tmpdir'" EXIT
 
     info "Mounting DwarFS image: $image"

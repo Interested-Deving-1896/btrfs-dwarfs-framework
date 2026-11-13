@@ -36,15 +36,31 @@
 #include <errno.h>
 #include <getopt.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "bdfs.h"
 
 #define AUTOSNAP_PATTERN "autosnap-*"
 #define AUTOSNAP_PREFIX  "autosnap-"
+
+static int run_btrfs_delete(const char *path)
+{
+    pid_t pid = fork();
+    int status;
+    if (pid < 0) return -errno;
+    if (pid == 0) {
+        const char *argv[] = { "btrfs", "subvolume", "delete", "-c", path, NULL };
+        execvp(argv[0], (char *const *)argv);
+        _exit(127);
+    }
+    if (waitpid(pid, &status, 0) < 0) return -errno;
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -EIO;
+}
 
 /* ── Partition auto-detection ────────────────────────────────────────────── */
 
@@ -247,7 +263,8 @@ static int cmd_autosnap_delete(struct bdfs_cli *cli, int argc, char *argv[])
 
 	/* Reject names that don't look like autosnap snapshots */
 	if (strncmp(snap_name, AUTOSNAP_PREFIX,
-		    strlen(AUTOSNAP_PREFIX)) != 0) {
+		    strlen(AUTOSNAP_PREFIX)) != 0 || strchr(snap_name, '/') ||
+	    strcmp(snap_name, ".") == 0 || strcmp(snap_name, "..") == 0) {
 		bdfs_err("'%s' does not look like an autosnap snapshot "
 			 "(expected prefix '" AUTOSNAP_PREFIX "')",
 			 snap_name);
@@ -263,30 +280,10 @@ static int cmd_autosnap_delete(struct bdfs_cli *cli, int argc, char *argv[])
 	snprintf(snap_path, sizeof(snap_path), "%s/%s",
 		 btrfs_mount, snap_name);
 
-	if (bdfs_cli_open_ctl(cli))
+	int rc = run_btrfs_delete(snap_path);
+	if (rc != 0) {
+		bdfs_err("failed to delete snapshot: %s (status %d)", snap_path, rc);
 		return 1;
-
-	struct bdfs_ioctl_snapshot_dwarfs_container del_arg;
-	memset(&del_arg, 0, sizeof(del_arg));
-	memcpy(del_arg.partition_uuid, uuid, 16);
-	strncpy(del_arg.snapshot_name, snap_name,
-		sizeof(del_arg.snapshot_name) - 1);
-	del_arg.flags |= BDFS_SNAP_DELETE;
-
-	if (ioctl(cli->ctl_fd, BDFS_IOC_SNAPSHOT_DWARFS_CONTAINER,
-		  &del_arg) < 0) {
-		/*
-		 * Fall back to direct btrfs subvolume delete if the ioctl
-		 * doesn't support BDFS_SNAP_DELETE yet.
-		 */
-		char cmd[1024];
-		snprintf(cmd, sizeof(cmd),
-			 "btrfs subvolume delete '%s' 2>&1", snap_path);
-		int rc = system(cmd);
-		if (rc != 0) {
-			bdfs_err("failed to delete snapshot: %s", snap_path);
-			return 1;
-		}
 	}
 
 	if (!cli->json_output)
@@ -521,7 +518,24 @@ static int cmd_autosnap_prune(struct bdfs_cli *cli, int argc, char *argv[])
 		switch (opt) {
 		case 'p': strncpy(uuid_arg,    optarg, sizeof(uuid_arg) - 1);    break;
 		case 'm': strncpy(btrfs_mount, optarg, sizeof(btrfs_mount) - 1); break;
-		case 'k': keep = (uint32_t)atoi(optarg);                         break;
+		case 'k': {
+			char *end = NULL;
+			unsigned long value;
+
+			if (!optarg[0] || optarg[0] < '0' || optarg[0] > '9') {
+				bdfs_err("--keep must be a positive decimal integer");
+				return 1;
+			}
+			errno = 0;
+			value = strtoul(optarg, &end, 10);
+			if (errno == ERANGE || end == optarg || *end != '\0' ||
+			    value == 0 || value > UINT32_MAX) {
+				bdfs_err("--keep must be between 1 and %u", UINT32_MAX);
+				return 1;
+			}
+			keep = (uint32_t)value;
+			break;
+		}
 		case 'D': flags |= BDFS_PRUNE_DEMOTE_FIRST;                      break;
 		case 'c': compression = bdfs_compression_from_name(optarg);      break;
 		case 'n': flags |= BDFS_PRUNE_DRY_RUN;                           break;

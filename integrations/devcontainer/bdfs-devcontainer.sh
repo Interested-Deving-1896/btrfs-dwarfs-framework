@@ -62,7 +62,8 @@ container_rootfs() {
 # ── snapshot ──────────────────────────────────────────────────────────────────
 
 cmd_snapshot() {
-    local container="" name="devcontainer-snapshot-$(date +%Y%m%d-%H%M%S)"
+    local container="" name
+    name="devcontainer-snapshot-$(date +%Y%m%d-%H%M%S)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --container) container="$2"; shift 2 ;;
@@ -111,6 +112,7 @@ cmd_export() {
 
     local tmpdir
     tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-export.XXXXXX)"
+    # shellcheck disable=SC2064 # Capture the local path before this function returns.
     trap "rm -rf '$tmpdir'" EXIT
 
     if [[ -n "$container" ]]; then
@@ -155,6 +157,7 @@ cmd_import() {
     tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-import.XXXXXX)"
     mp="$tmpdir/mount"
     mkdir -p "$mp"
+    # shellcheck disable=SC2064 # Capture local mount and temp paths before this function returns.
     trap "fusermount -u '$mp' 2>/dev/null; rm -rf '$tmpdir'" EXIT
 
     info "Mounting DwarFS image: $image"
@@ -196,6 +199,7 @@ cmd_build() {
         require_cmd mkdwarfs "dwarfs (mkdwarfs)"
         local tmpdir
         tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-build.XXXXXX)"
+        # shellcheck disable=SC2064 # Capture the local path before this function returns.
         trap "rm -rf '$tmpdir'" EXIT
         info "Exporting built image to DwarFS: $out"
         # Save image as tar, extract, pack with mkdwarfs
@@ -223,7 +227,8 @@ cmd_up() {
 
     if $snapshot; then
         require_bdfs
-        local snap_name="pre-up-$(basename "$workspace")-$(date +%Y%m%d-%H%M%S)"
+        local snap_name
+        snap_name="pre-up-$(basename "$workspace")-$(date +%Y%m%d-%H%M%S)"
         info "Pre-snapshot of workspace root → bdfs workspace '$snap_name'"
         $BDFS_CMD dev create "$snap_name" --source "$workspace"
         info "Snapshot saved. Continuing with devcontainer up..."

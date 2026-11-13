@@ -17,7 +17,6 @@
 
 _dwarfs_detect_upper_backend() {
     # Prefer BTRFS for the upper layer if available, fall back to tmpfs
-    local state_dir="$1"
     local btrfs_mount="${BDFS_BTRFS_MOUNT:-}"
 
     if [[ -n "$btrfs_mount" ]] && \
@@ -69,7 +68,7 @@ backend_create() {
 
     # Step 2: Set up upper layer
     local upper_backend
-    upper_backend="$(_dwarfs_detect_upper_backend "$ws_dir")"
+    upper_backend="$(_dwarfs_detect_upper_backend)"
 
     if [[ -n "$upper_hint" ]]; then
         # Explicit upper directory provided

@@ -27,7 +27,6 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BDFS_CMD="${BDFS_CMD:-bdfs}"
 OSTREE_CMD="${OSTREE_CMD:-ostree}"
 
@@ -59,7 +58,8 @@ workspace_mountpoint() {
 # ── commit ────────────────────────────────────────────────────────────────────
 
 cmd_commit() {
-    local name="" repo="" branch="" message="bdfs-ostree commit $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    local name="" repo="" branch="" message
+    message="bdfs-ostree commit $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --repo)    repo="$2";    shift 2 ;;
@@ -142,6 +142,7 @@ cmd_export() {
 
     local tmpdir
     tmpdir="$(mktemp -d /tmp/bdfs-ostree-export.XXXXXX)"
+    # shellcheck disable=SC2064 # Capture the local path before this function returns.
     trap "rm -rf '$tmpdir'" EXIT
 
     info "Checking out OSTree ref '$ref' to $tmpdir"
@@ -178,6 +179,7 @@ cmd_import() {
     tmpdir="$(mktemp -d /tmp/bdfs-ostree-import.XXXXXX)"
     mp="$tmpdir/mount"
     mkdir -p "$mp"
+    # shellcheck disable=SC2064 # Capture local mount and temp paths before this function returns.
     trap "fusermount -u '$mp' 2>/dev/null; rm -rf '$tmpdir'" EXIT
 
     info "Mounting DwarFS image: $image"

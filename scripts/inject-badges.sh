@@ -240,10 +240,6 @@ process_gl_project() {
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-injected=0
-skipped=0
-failed=0
-
 echo "========================================"
 echo "  Badge Injector"
 echo "  Orgs: ${ORGS}"

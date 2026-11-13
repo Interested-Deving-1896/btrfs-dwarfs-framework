@@ -141,7 +141,7 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  cd "$work_dir"
+  cd "$work_dir" || { warn "Cannot enter temporary clone directory"; rm -rf "$work_dir"; return 1; }
 
   # Push branches to GitLab with platform-safe name encoding.
   # branch-name-conv.sh encodes names that would be rejected by stricter
