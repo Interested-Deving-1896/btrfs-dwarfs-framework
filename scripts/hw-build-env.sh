@@ -150,16 +150,40 @@ NEON_SUMMARY
     fi
     ;;
   json)
-    # Merge hw flags JSON with neon flags JSON if applicable
-    if [[ -n "$_NEON_CHANNEL" && -f "$_NEON_FLAGS" ]]; then
-      python3 -c "
-import json, subprocess
-hw   = json.loads(subprocess.check_output(['bash', '${_BUILD_FLAGS}', '--json'], stderr=subprocess.DEVNULL))
-neon = json.loads(subprocess.check_output(['bash', '${_NEON_FLAGS}', '--channel', '${_NEON_CHANNEL}', '--json'], stderr=subprocess.DEVNULL))
-print(json.dumps({**hw, **neon}, indent=2))
-"
-    else
-      bash "$_BUILD_FLAGS" --json
-    fi
+    HW_DETECT_PATH="$_HW_DETECT" \
+    BUILD_FLAGS_PATH="$_BUILD_FLAGS" \
+    NEON_FLAGS_PATH="$_NEON_FLAGS" \
+    NEON_CHANNEL="$_NEON_CHANNEL" \
+    python3 - <<'PY'
+import json
+import os
+import subprocess
+
+def load_json(command):
+    output = subprocess.check_output(command, stderr=subprocess.DEVNULL)
+    return json.loads(output)
+
+hw = load_json(['bash', os.environ['HW_DETECT_PATH'], '--json'])
+build = load_json(['bash', os.environ['BUILD_FLAGS_PATH'], '--json'])
+cpu = hw.get('cpu', {})
+gpu = hw.get('gpu', {})
+npu = hw.get('npu', {})
+
+result = {
+    'CPU_ARCH': cpu.get('cpu_arch'),
+    'CPU_TIER': cpu.get('cpu_tier'),
+    'GPU_TIER': gpu.get('gpu_tier'),
+    'NPU_TIER': npu.get('npu_tier'),
+}
+result.update(build)
+
+channel = os.environ.get('NEON_CHANNEL', '')
+neon_path = os.environ.get('NEON_FLAGS_PATH', '')
+if channel and neon_path:
+    neon = load_json(['bash', neon_path, '--channel', channel, '--json'])
+    result.update(neon)
+
+print(json.dumps(result, indent=2))
+PY
     ;;
 esac
