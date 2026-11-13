@@ -71,7 +71,39 @@ PYEOF
 total=$(echo "$projects_json" | wc -l)
 info "Found ${total} projects to sync"
 
-while IFS=$'\t' read -r gl_url kde_path default_branch; do
+while IFS=
+    [ -z "$gl_url" ] && continue
+
+    kde_url="${KDE_BASE}/${kde_path}.git"
+    gl_auth_url="${gl_url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}"
+
+    info "Syncing ${kde_path} ..."
+    work_dir=$(mktemp -d)
+
+    if git clone --mirror "${kde_url}" "${work_dir}" 2>/dev/null; then
+        # Push only branches and tags — skip merge-request refs
+        if git -C "${work_dir}" push "${gl_auth_url}" \
+            "+refs/heads/*:refs/heads/*" \
+            "+refs/tags/*:refs/tags/*" 2>/dev/null; then
+            info "  ✅ ${kde_path}"
+            SYNCED=$((SYNCED + 1))
+        else
+            warn "  ❌ ${kde_path} — push failed"
+            FAILED=$((FAILED + 1))
+        fi
+    else
+        warn "  ❌ ${kde_path} — clone from invent.kde.org failed (repo may be empty or moved)"
+        FAILED=$((FAILED + 1))
+    fi
+
+    rm -rf "${work_dir}"
+
+done <<< "$projects_json"
+
+echo ""
+info "Done — synced=${SYNCED} | failed=${FAILED} | skipped=${SKIPPED}"
+[ "${FAILED}" -eq 0 ] || exit 1
+\t' read -r gl_url kde_path _; do
     [ -z "$gl_url" ] && continue
 
     kde_url="${KDE_BASE}/${kde_path}.git"
