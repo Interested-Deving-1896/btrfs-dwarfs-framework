@@ -1,0 +1,18 @@
+schema_version: 1
+integration:
+  id: incus-engine-subsystem
+  name: Incus Engine Subsystem
+  repository: Interested-Deving-1896/Incus-Engine-Subsystem
+  registry: https://raw.githubusercontent.com/Interested-Deving-1896/Incus-Engine-Subsystem/main/components.yml
+  role: Cross-platform Incus component ecosystem integration for BDFS
+  ownership: external-components-remain-in-their-own-repositories
+  related_integrations:
+    - ../incus-os
+  artifact_boundaries:
+    - btrfs-snapshot
+    - dwarfs-archive
+    - incus-image
+    - oci-image
+  automation:
+    enabled: false
+    reason: No verified end-to-end BDFS-to-Incus adapter contract is defined yet.
