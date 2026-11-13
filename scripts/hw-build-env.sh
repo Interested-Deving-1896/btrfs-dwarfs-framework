@@ -130,6 +130,24 @@ SUMMARY
 [hw-build-env] Neon cmake args: ${KPORT_NEON_CMAKE_ARGS:-?}
 NEON_SUMMARY
     fi
+    if [[ "$_OUTPUT_MODE" == "export" ]]; then
+      for _name in \
+        CPU_ARCH CPU_TIER CPU_FLAGS CPU_CORES CPU_MODEL \
+        GPU_TIER GPU_VENDOR GPU_FLAGS GPU_MODEL GPU_VRAM_MB \
+        NPU_TIER NPU_FLAGS NPU_MODEL NPU_TOPS \
+        USE_VULKAN USE_OPENGL USE_VAAPI USE_VDPAU USE_CUDA USE_ROCM \
+        USE_OPENCL USE_NPU USE_LLM_LOCAL \
+        KPORT_CFLAGS KPORT_CXXFLAGS KPORT_RUSTFLAGS KPORT_LDFLAGS \
+        KPORT_CMAKE_ARGS KPORT_MAKE_ARGS KPORT_ARCH KPORT_CROSS \
+        KPORT_CROSS_TRIPLE KPORT_GPU_BACKEND KPORT_NPU_BACKEND \
+        CC CXX AR STRIP RANLIB CMAKE_TOOLCHAIN_FILE CARGO_BUILD_TARGET \
+        NEON_CHANNEL NEON_QT_VERSION NEON_KF_VERSION \
+        KPORT_NEON_CMAKE_ARGS KPORT_NEON_QMAKE_ARGS; do
+        if [[ -n "${!_name+x}" ]]; then
+          printf 'export %s=%q\n' "$_name" "${!_name}"
+        fi
+      done
+    fi
     ;;
   json)
     # Merge hw flags JSON with neon flags JSON if applicable
