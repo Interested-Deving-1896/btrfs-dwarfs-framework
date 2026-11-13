@@ -95,7 +95,6 @@ if [[ -z "$upstream_exists" ]]; then
 fi
 
 upstream_private=$(echo "$upstream_info" | jq -r '.private')
-upstream_desc=$(echo "$upstream_info" | jq -r '.description // ""')
 echo "  Found: ${UPSTREAM_OWNER}/${repo_name} (private: ${upstream_private})"
 echo ""
 
