@@ -21,7 +21,7 @@ permissions:
 jobs:
   retry:
     runs-on: ubuntu-latest
-    if: vars.BDFS_MIRRORS_ENABLED == 'true' && github.event.workflow_run.conclusion == 'failure'
+    if: vars.BDFS_MIRRORS_ENABLED == 'true' && vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && github.event.workflow_run.conclusion == 'failure'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
