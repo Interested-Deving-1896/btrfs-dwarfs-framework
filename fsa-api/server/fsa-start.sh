@@ -75,7 +75,7 @@ with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
     c = yaml.safe_load(f) or {}
 print(c.get('consumer',{}).get('brand',''))
 " 2>/dev/null)
-    export CONSUMER_PREFIX=$(python3 -c "
+    CONSUMER_PREFIX=$(python3 -c "
 import yaml
 with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
     c = yaml.safe_load(f) or {}
