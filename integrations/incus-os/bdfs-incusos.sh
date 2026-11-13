@@ -131,6 +131,7 @@ cmd_import() {
     mp="$tmpdir/mount"
     mkdir -p "$mp"
     printf -v cleanup_cmd 'fusermount -u %q 2>/dev/null; rm -rf -- %q' "$mp" "$tmpdir"
+    # shellcheck disable=SC2064 # cleanup_cmd is pre-escaped with printf %q; expand it at registration.
     trap "$cleanup_cmd" EXIT
 
     info "Mounting DwarFS image: $image"
