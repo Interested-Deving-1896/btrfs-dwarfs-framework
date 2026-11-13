@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0.0",
+  "migration_id": "kumbe-example-lts-audit",
+  "provider": "xanmod-unified-kernel",
+  "kernel_line": "lts",
+  "source": {
+    "repository": "linux-stable",
+    "url": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+    "ref": "linux-6.12.y",
+    "commit": "0123456789abcdef0123456789abcdef01234567",
+    "kernel_version": "6.12.1"
+  },
+  "target": {
+    "repository": "xanmod-unified-kernel",
+    "ref": "candidate/lts-example",
+    "kernel_version": "6.12.1",
+    "architectures": ["x86_64"]
+  },
+  "operation": "audit-only",
+  "changes": [
+    {
+      "change_id": "example-upstream-change",
+      "upstream_commit": "0123456789abcdef0123456789abcdef01234567",
+      "upstream_url": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0123456789abcdef0123456789abcdef01234567",
+      "classification": "blocked",
+      "subsystem": "example",
+      "license": "GPL-2.0-only",
+      "risk": "unknown",
+      "dependencies": [],
+      "abi_impact": "unknown",
+      "decision_reason": "Illustrative fixture only; no patch has been evaluated or applied."
+    }
+  ],
+  "policy": {
+    "dry_run": true,
+    "human_approval_required": true,
+    "protected_branch_write": false,
+    "security_fixes_first": true,
+    "allow_eol_target": false,
+    "approval_reference": null
+  },
+  "validation": [
+    {
+      "check": "fixture-only-no-build-performed",
+      "state": "not-applicable",
+      "architecture": "x86_64",
+      "toolchain": null,
+      "evidence_uri": null,
+      "details": "This fixture validates the schema only and is not kernel compatibility evidence."
+    }
+  ],
+  "status": "proposed",
+  "notes": [
+    "Example only. The commit identifier is a placeholder and must not be treated as verified upstream provenance."
+  ]
+}

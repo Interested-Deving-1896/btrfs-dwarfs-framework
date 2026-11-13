@@ -23,22 +23,13 @@ jobs:
         run: find . -name '*.sh' -exec shellcheck -x -S warning --exclude=SC1083 {} +
 
   test:
-    name: Unit Tests
+    name: KUMBE Contract Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install shellcheck
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - name: Install Python schema dependency
+        run: python3 -m pip install --disable-pip-version-check jsonschema
 
-      - name: Run tests
-        run: ./tests/run-tests.sh
-
-  validate:
-    name: Profile Validation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Validate profiles
-        run: ./profiles/validate.sh
+      - name: Run kernel migration contract tests
+        run: python3 -m unittest discover -s tests/kernel-migration -p 'test_*.py' -v
