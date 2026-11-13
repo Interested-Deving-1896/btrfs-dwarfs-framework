@@ -119,6 +119,7 @@ cmd_commit() {
     local tmpdir cleanup_cmd
     tmpdir="$(mktemp -d /tmp/bdfs-bootc-commit.XXXXXX)"
     printf -v cleanup_cmd 'rm -rf -- %q' "$tmpdir"
+    # shellcheck disable=SC2064 # cleanup_cmd is pre-escaped with printf %q; expand it at registration.
     trap "$cleanup_cmd" EXIT
 
     cat > "$tmpdir/Containerfile" <<EOF
