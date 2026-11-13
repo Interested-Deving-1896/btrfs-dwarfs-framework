@@ -35,7 +35,6 @@ if [ -z "${GITLAB_TOKEN:-}" ]; then
 fi
 
 GL_API="https://gitlab.com/api/v4"
-GH_API="https://api.github.com"
 
 # ── Subgroup map — loaded from config/gitlab-subgroups.yml ───────────────────
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
