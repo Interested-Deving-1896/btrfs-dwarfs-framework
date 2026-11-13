@@ -199,7 +199,7 @@ jobs:
           docker run --rm --platform linux/${{ matrix.arch }} \
             -v "${{ github.workspace }}:/repo" \
             debian:sid-slim \
-            bash /repo/scripts/hw-build-env.sh --json 2>/dev/null \
+            bash -c 'apt-get update -qq && apt-get install -y -qq python3 >/dev/null && bash /repo/scripts/hw-build-env.sh --json 2>/dev/null' \
           | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
