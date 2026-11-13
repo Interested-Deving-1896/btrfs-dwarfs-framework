@@ -55,7 +55,7 @@ while IFS=$'\t' read -r _ name gl_url; do
 done < <(printf '%s' "$projects" | python3 -c "
 import sys, json
 for project in json.load(sys.stdin):
-    print(project['id'], project['name'], project['http_url_to_repo'], sep='\\t')
+    print(project['id'], project['name'], project['http_url_to_repo'], sep='\t')
 ")
 
 echo ""
