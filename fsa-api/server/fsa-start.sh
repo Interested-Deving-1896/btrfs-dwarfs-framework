@@ -57,6 +57,9 @@ export FSA_PORT FSA_HOST FSA_LOG FSA_ORG FSA_REPO FSA_API_ROOT UAA_ROOT
 # Wire shared.sh toggle system for UAA adapters served by FSA
 export UAA_TOGGLES_FILE="$FSA_API_ROOT/config/fsa-toggles.yml"
 
+# Resolve the optional consumer configuration before testing it under set -u.
+FSA_CONSUMER_CFG="${FSA_CONSUMER_CFG:-$FSA_API_ROOT/config/fsa-consumer.yml}"
+
 # Consumer brand/prefix — read from fsa-consumer.yml if enabled
 if [[ -f "$FSA_CONSUMER_CFG" ]] 2>/dev/null; then
   _consumer_enabled=$(python3 -c "
@@ -66,7 +69,7 @@ with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
 print(str(c.get('consumer',{}).get('enabled', False)).lower())
 " 2>/dev/null || echo "false")
   if [[ "$_consumer_enabled" == "true" ]]; then
-    export CONSUMER_BRAND=$(python3 -c "
+    CONSUMER_BRAND=$(python3 -c "
 import yaml
 with open('$FSA_API_ROOT/config/fsa-consumer.yml') as f:
     c = yaml.safe_load(f) or {}
