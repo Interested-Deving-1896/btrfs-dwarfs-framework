@@ -38,13 +38,8 @@ info() { echo "[sync-registered-imports] $*"; }
 warn() { echo "[warn] $*" >&2; }
 
 sanitize() {
-  # Accepts either a positional argument or stdin.
   local out
-  if [[ $# -gt 0 ]]; then
-    out="$1"
-  else
-    out=$(cat)
-  fi
+  out=$(cat)
   echo "$out" \
     | sed "s/${GH_TOKEN}/***TOKEN***/g" \
     | sed "s/${GITLAB_TOKEN:-NOGLTOKEN}/***TOKEN***/g" \
@@ -119,7 +114,10 @@ sync_entry() {
   clone_url=$(auth_clone_url "$source_url" "$platform")
 
   local work_dir
-  work_dir=$(mktemp -d)
+  work_dir=$(mktemp -d) || {
+    warn "Unable to create temporary directory — skipping ${target_name}"
+    return 1
+  }
 
   # Clone
   local clone_out clone_rc=0
@@ -131,7 +129,11 @@ sync_entry() {
     return 1
   fi
 
-  cd "$work_dir"
+  cd "$work_dir" || {
+    warn "Unable to enter temporary directory for ${target_name} — skipping"
+    rm -rf -- "$work_dir"
+    return 1
+  }
 
   local gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${target_name}.git"
   local push_ok=true
