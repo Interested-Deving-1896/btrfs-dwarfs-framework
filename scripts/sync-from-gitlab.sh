@@ -180,7 +180,6 @@ sync_repo() {
   local gl_path="$1" gh_name="$2"
 
   local gl_url="https://oauth2:${GITLAB_TOKEN}@gitlab.com/${gl_path}.git"
-  local gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
 
   local work_dir
   work_dir=$(mktemp -d) || {
