@@ -140,7 +140,6 @@ push_branches_encoded() {
   local remote="$1"; shift
   local extra_args=("$@")
   local refspecs=()
-  local skipped=0
 
   while IFS= read -r fullref; do
     [[ -z "$fullref" ]] && continue
