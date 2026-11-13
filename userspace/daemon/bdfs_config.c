@@ -11,6 +11,7 @@
  *   ctl_device       = /dev/bdfs_ctl
  *   socket_path      = /run/bdfs/bdfs.sock
  *   state_dir        = /var/lib/bdfs
+ *   archive_dir      = /var/lib/bdfs/archives
  *   worker_threads   = 4
  *   mkdwarfs_timeout = 2700
  *   shutdown_log     = /var/log/bdfs/workspace-shutdown.jsonl
@@ -152,6 +153,9 @@ int bdfs_config_load(const char *path, struct bdfs_daemon_config *cfg)
 			else if (strcmp(key, "state_dir") == 0)
 				set_str(cfg->state_dir,
 					sizeof(cfg->state_dir), val);
+			else if (strcmp(key, "archive_dir") == 0)
+				set_str(cfg->archive_dir,
+					sizeof(cfg->archive_dir), val);
 			else if (strcmp(key, "worker_threads") == 0)
 				cfg->worker_threads = atoi(val);
 			else if (strcmp(key, "mkdwarfs_timeout") == 0)
