@@ -245,7 +245,7 @@ int cmd_blend_mount(struct bdfs_cli *cli, int argc, char *argv[])
 			break;
 		case 'w':
 			karg.opts.flags |= BDFS_MOUNT_WRITEBACK;
-			uarg.flags      |= BDFS_MOUNT_WRITEBACK;
+			uarg.flags      |= BDFS_USERSPACE_MOUNT_WRITEBACK;
 			break;
 		case 'L':
 			karg.opts.flags |= BDFS_MOUNT_LAZY_LOAD;
