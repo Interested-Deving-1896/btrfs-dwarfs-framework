@@ -167,7 +167,7 @@ if ! git clone --bare "$upstream_url" "$clonedir" 2>&1 | sanitize; then
   exit 1
 fi
 
-cd "$clonedir"
+cd "$clonedir" || exit 1
 
 attempt=0
 push_ok=false
