@@ -383,7 +383,7 @@ except Exception:
     elif [[ "$fetch_rc" -ne 0 ]]; then
       sleep "$MIN_POLL_SEC"; continue
     fi
-    read -r run_id status conclusion created_epoch updated_epoch < /tmp/_qm_run_line
+    read -r run_id status conclusion created_epoch _ < /tmp/_qm_run_line
 
     local run_age=0
     [[ "$created_epoch" -gt 0 ]] && run_age=$(( NOW - created_epoch ))
