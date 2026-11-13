@@ -281,7 +281,6 @@ generate_resources() {
   local owner="$1" repo="$2"
   # Build a links table from known files — no LLM needed
   local base="https://github.com/${owner}/${repo}/blob/main"
-  local raw="https://raw.githubusercontent.com/${owner}/${repo}/main"
 
   # Probe which files exist
   local rows=""
