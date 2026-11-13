@@ -113,6 +113,7 @@ cmd_export() {
     local tmpdir cleanup_cmd
     tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-export.XXXXXX)"
     printf -v cleanup_cmd 'rm -rf -- %q' "$tmpdir"
+    # shellcheck disable=SC2064 # cleanup_cmd is pre-escaped with printf %q; expand it at registration.
     trap "$cleanup_cmd" EXIT
 
     if [[ -n "$container" ]]; then
@@ -158,6 +159,7 @@ cmd_import() {
     mp="$tmpdir/mount"
     mkdir -p "$mp"
     printf -v cleanup_cmd 'fusermount -u %q 2>/dev/null; rm -rf -- %q' "$mp" "$tmpdir"
+    # shellcheck disable=SC2064 # cleanup_cmd is pre-escaped with printf %q; expand it at registration.
     trap "$cleanup_cmd" EXIT
 
     info "Mounting DwarFS image: $image"
@@ -200,6 +202,7 @@ cmd_build() {
         local tmpdir cleanup_cmd
         tmpdir="$(mktemp -d /tmp/bdfs-devcontainer-build.XXXXXX)"
         printf -v cleanup_cmd 'rm -rf -- %q' "$tmpdir"
+        # shellcheck disable=SC2064 # cleanup_cmd is pre-escaped with printf %q; expand it at registration.
         trap "$cleanup_cmd" EXIT
         info "Exporting built image to DwarFS: $out"
         # Save image as tar, extract, pack with mkdwarfs
