@@ -36,6 +36,7 @@ permissions:
 
 jobs:
   setup:
+    if: vars.BDFS_MIRRORS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
