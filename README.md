@@ -56,6 +56,7 @@ Each subdirectory under `integrations/` bridges bdfs with a specific ecosystem.
 | [`integrations/ostree/`](integrations/ostree/) | `bdfs-ostree` | Commit bdfs workspaces to an OSTree repo, deploy as next boot target, round-trip through DwarFS images. Includes systemd units for auto-pruning old deployments. |
 | [`integrations/bootc/`](integrations/bootc/) | `bdfs-bootc` | Create bdfs workspaces from a live bootc root, pack them back into OCI images via podman, switch/upgrade the booted image, export root as DwarFS. |
 | [`integrations/incus-os/`](integrations/incus-os/) | `bdfs-incusos` | Create bdfs workspaces from a live IncusOS root, export as DwarFS, import DwarFS archives as Incus container/VM images, trigger in-place updates. |
+| [`integrations/incus-engine-subsystem/`](integrations/incus-engine-subsystem/) | — (integration contract; no CLI claimed) | Register and document the cross-platform Incus Engine Subsystem and its canonical component registry; complements the IncusOS-specific integration. |
 | [`integrations/devcontainer/`](integrations/devcontainer/) | `bdfs-devcontainer` | Snapshot running dev containers into bdfs workspaces, export/import via DwarFS for offline distribution, wrap `devcontainer up` with pre-snapshots. |
 
 ### Upstream submodules
