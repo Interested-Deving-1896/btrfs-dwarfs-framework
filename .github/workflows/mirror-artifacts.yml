@@ -51,6 +51,7 @@ concurrency:
 
 jobs:
   mirror:
+    if: vars.BDFS_MIRRORS_ENABLED == 'true' && vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
