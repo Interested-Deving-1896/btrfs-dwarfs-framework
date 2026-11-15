@@ -146,31 +146,86 @@ static const struct tool_check TOOLS[] = {
 	{ "lsblk",          "--version", true  },
 };
 
+/*
+ * Capture the first line of a tool's version output without invoking a shell.
+ * execvp performs PATH lookup while keeping the executable name and arguments
+ * as distinct argv elements. Output is bounded and the child is always reaped.
+ */
+static int capture_tool_version(const char *tool, const char *flag,
+			       char *output, size_t output_size)
+{
+	int pipefd[2];
+	pid_t pid;
+	int status = 0;
+	size_t used = 0;
+	char buffer[256];
+
+	if (!output || output_size == 0 || pipe(pipefd) < 0)
+		return -1;
+	output[0] = '\0';
+
+	pid = fork();
+	if (pid < 0) {
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return -1;
+	}
+	if (pid == 0) {
+		close(pipefd[0]);
+		if (dup2(pipefd[1], STDOUT_FILENO) < 0 ||
+		    dup2(pipefd[1], STDERR_FILENO) < 0)
+			_exit(127);
+		close(pipefd[1]);
+		execlp(tool, tool, flag, (char *)NULL);
+		_exit(127);
+	}
+
+	close(pipefd[1]);
+	for (;;) {
+		ssize_t n = read(pipefd[0], buffer, sizeof(buffer));
+		if (n == 0)
+			break;
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			close(pipefd[0]);
+			while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
+				;
+			return -1;
+		}
+		for (ssize_t i = 0; i < n; i++) {
+			if (buffer[i] == '\n')
+				goto output_complete;
+			if (used + 1 < output_size)
+				output[used++] = buffer[i];
+		}
+	}
+output_complete:
+	output[used] = '\0';
+	close(pipefd[0]);
+	while (waitpid(pid, &status, 0) < 0) {
+		if (errno != EINTR)
+			return -1;
+	}
+	return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
 static int cmd_setup_check(struct bdfs_cli *cli, int argc, char *argv[])
 {
 	(void)cli; (void)argc; (void)argv;
 
 	int missing_required = 0;
 
-	printf("%-20s %-10s %s\n", "Tool", "Status", "Path / Version");
-	printf("%-20s %-10s %s\n",
-	       "----", "------", "--------------");
+	printf("%-20s %-10s %s\n", "Tool", "Status", "Version");
+	printf("%-20s %-10s %s\n", "----", "------", "-------");
 
 	for (size_t i = 0; i < sizeof(TOOLS) / sizeof(TOOLS[0]); i++) {
 		const struct tool_check *t = &TOOLS[i];
+		char version[128] = "";
 
-		/* Locate the binary */
-		char cmd[256];
-		snprintf(cmd, sizeof(cmd), "command -v %s 2>/dev/null", t->name);
-		FILE *fp = popen(cmd, "r");
-		char path[PATH_MAX] = "";
-		if (fp) {
-			if (fgets(path, sizeof(path), fp))
-				path[strcspn(path, "\n")] = '\0';
-			pclose(fp);
-		}
-
-		if (!path[0]) {
+		int rc = capture_tool_version(t->name, t->version_flag,
+					      version, sizeof(version));
+		if (rc == 127 || rc < 0) {
 			printf("%-20s %-10s %s\n",
 			       t->name,
 			       t->required ? "MISSING*" : "absent",
@@ -180,19 +235,8 @@ static int cmd_setup_check(struct bdfs_cli *cli, int argc, char *argv[])
 			continue;
 		}
 
-		/* Get version string */
-		char ver_cmd[PATH_MAX + 32];
-		snprintf(ver_cmd, sizeof(ver_cmd),
-			 "%s %s 2>&1 | head -1", path, t->version_flag);
-		FILE *vfp = popen(ver_cmd, "r");
-		char ver[128] = "";
-		if (vfp) {
-			if (fgets(ver, sizeof(ver), vfp))
-				ver[strcspn(ver, "\n")] = '\0';
-			pclose(vfp);
-		}
-
-		printf("%-20s %-10s %s\n", t->name, "ok", ver[0] ? ver : path);
+		printf("%-20s %-10s %s\n", t->name, "ok",
+		       version[0] ? version : "(version unavailable)");
 	}
 
 	if (missing_required) {
