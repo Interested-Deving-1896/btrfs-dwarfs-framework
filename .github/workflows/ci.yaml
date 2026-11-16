@@ -28,17 +28,33 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install shellcheck
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - name: Install build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq cmake build-essential
 
-      - name: Run tests
-        run: ./tests/run-tests.sh
+      - name: Configure unit tests
+        run: cmake -S userspace -B build/ci-tests -DCMAKE_BUILD_TYPE=Debug -DBUILD_DAEMON=OFF -DBUILD_CLI=OFF -DBUILD_TESTS=ON
+
+      - name: Build unit tests
+        run: cmake --build build/ci-tests --parallel 2
+
+      - name: Run unit tests
+        run: ctest --test-dir build/ci-tests --output-on-failure
 
   validate:
-    name: Profile Validation
+    name: Repository Layout Validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Validate profiles
-        run: ./profiles/validate.sh
+      - name: Validate checked-in CI and test entry points
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f userspace/CMakeLists.txt
+          test -f tests/unit/CMakeLists.txt
+          test -d configs
+          test -f configs/bdfs.conf
+          test -d tests/integration
+          test -f tests/integration/run_all.sh
+          bash -n tests/integration/run_all.sh
+          echo "Repository build, configuration, and test entry points are present."
