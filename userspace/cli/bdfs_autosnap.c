@@ -34,6 +34,7 @@
 
 #define _GNU_SOURCE
 #include <errno.h>
+#include <fcntl.h>
 #include <ctype.h>
 #include <getopt.h>
 #include <stdio.h>
