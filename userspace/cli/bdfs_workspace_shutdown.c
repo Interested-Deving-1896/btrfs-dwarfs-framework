@@ -21,6 +21,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <getopt.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -133,9 +134,15 @@ int cmd_workspace_shutdown(struct bdfs_cli *cli, int argc, char *argv[])
 		case 'c':
 			strncpy(compression, optarg, sizeof(compression) - 1);
 			break;
-		case 'k':
-			prune_keep = atoi(optarg);
+		case 'k': {
+			uint32_t keep;
+			if (bdfs_parse_u32(optarg, 0, INT_MAX, &keep) < 0) {
+				bdfs_err("prune-keep must be between 0 and %d", INT_MAX);
+				return 2;
+			}
+			prune_keep = (int)keep;
 			break;
+		}
 		case 'i':
 			strncpy(image_path, optarg, sizeof(image_path) - 1);
 			break;
