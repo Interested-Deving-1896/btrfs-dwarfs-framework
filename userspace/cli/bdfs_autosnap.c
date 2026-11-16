@@ -244,10 +244,21 @@ static int autosnap_show_diff(const char *pre_path, const char *post_path)
 		fputs(line, stdout);
 	}
 	fclose(fp);
-	while (waitpid(send_pid, &send_status, 0) < 0 && errno == EINTR)
-		;
-	while (waitpid(recv_pid, &recv_status, 0) < 0 && errno == EINTR)
-		;
+	pid_t waited;
+	do {
+		waited = waitpid(send_pid, &send_status, 0);
+	} while (waited < 0 && errno == EINTR);
+	if (waited < 0) {
+		int err = errno;
+		kill(recv_pid, SIGKILL);
+		waitpid(recv_pid, NULL, 0);
+		return -err;
+	}
+	do {
+		waited = waitpid(recv_pid, &recv_status, 0);
+	} while (waited < 0 && errno == EINTR);
+	if (waited < 0)
+		return -errno;
 	if (!WIFEXITED(send_status) || WEXITSTATUS(send_status) != 0 ||
 	    !WIFEXITED(recv_status) || WEXITSTATUS(recv_status) != 0)
 		return -EIO;
