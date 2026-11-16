@@ -37,6 +37,7 @@
 #define BDFS_DEFAULT_CTL_DEVICE  "/dev/bdfs_ctl"
 #define BDFS_DEFAULT_SOCKET_PATH "/run/bdfs/daemon.sock"
 #define BDFS_DEFAULT_STATE_DIR   "/var/lib/bdfs"
+#define BDFS_DEFAULT_ARCHIVE_DIR "/var/lib/bdfs/archives"
 #define BDFS_DEFAULT_WORKERS     4
 #define BDFS_NETLINK_PROTO       31
 
@@ -146,6 +147,9 @@ int bdfs_daemon_init(struct bdfs_daemon *d, struct bdfs_daemon_config *cfg)
 	if (!d->cfg.state_dir[0])
 		strncpy(d->cfg.state_dir, BDFS_DEFAULT_STATE_DIR,
 			sizeof(d->cfg.state_dir) - 1);
+	if (!d->cfg.archive_dir[0])
+		strncpy(d->cfg.archive_dir, BDFS_DEFAULT_ARCHIVE_DIR,
+			sizeof(d->cfg.archive_dir) - 1);
 	if (!d->cfg.worker_threads)
 		d->cfg.worker_threads = BDFS_DEFAULT_WORKERS;
 	if (!d->cfg.netlink_proto)
