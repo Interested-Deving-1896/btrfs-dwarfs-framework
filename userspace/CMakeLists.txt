@@ -111,6 +111,11 @@ if(BUILD_CLI)
         cli/bdfs_verify.c
         cli/bdfs_policy.c
         cli/bdfs_autosnap.c
+        cli/bdfs_setup.c
+        cli/bdfs_home.c
+        cli/bdfs_workspace_shutdown.c
+        cli/bdfs_userconf.c
+        cli/bdfs_common.c
     )
 
     target_include_directories(bdfs PRIVATE
