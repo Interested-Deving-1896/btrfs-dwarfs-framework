@@ -94,6 +94,8 @@ void bdfs_print_subvol(const struct bdfs_btrfs_subvol *sv, bool json);
 /* UUID helpers */
 void bdfs_uuid_to_str(const uint8_t uuid[16], char out[37]);
 int  bdfs_str_to_uuid(const char *str, uint8_t uuid[16]);
+int  bdfs_parse_u32(const char *text, uint32_t min_value,
+		    uint32_t max_value, uint32_t *out);
 
 /* Compression name ↔ enum */
 const char *bdfs_compression_name(uint32_t c);
