@@ -140,8 +140,16 @@ int bdfs_userconf_load(struct bdfs_userconf *cfg)
 			if (strcmp(key, "dir") == 0)
 				strncpy(cfg->snapshot_dir, val,
 					sizeof(cfg->snapshot_dir) - 1);
-			else if (strcmp(key, "keep") == 0)
-				cfg->keep = (uint32_t)atoi(val);
+			else if (strcmp(key, "keep") == 0) {
+				if (bdfs_parse_u32(val, 1, 1000000,
+						   &cfg->keep) < 0) {
+					fprintf(stderr,
+						"bdfs: config line %d: invalid snapshots.keep\\n",
+						lineno);
+					fclose(f);
+					return -EINVAL;
+				}
+			}
 		} else if (strcmp(section, "sources") == 0) {
 			if (strcmp(key, "path") == 0 &&
 			    cfg->source_count < BDFS_USERCONF_MAX_SOURCES) {
@@ -156,8 +164,16 @@ int bdfs_userconf_load(struct bdfs_userconf *cfg)
 					sizeof(cfg->archive_dir) - 1);
 			else if (strcmp(key, "compression") == 0)
 				cfg->compression = compression_from_name(val);
-			else if (strcmp(key, "auto_demote_keep") == 0)
-				cfg->auto_demote_keep = (uint32_t)atoi(val);
+			else if (strcmp(key, "auto_demote_keep") == 0) {
+				if (bdfs_parse_u32(val, 0, 1000000,
+						   &cfg->auto_demote_keep) < 0) {
+					fprintf(stderr,
+						"bdfs: config line %d: invalid demote.auto_demote_keep\\n",
+						lineno);
+					fclose(f);
+					return -EINVAL;
+				}
+			}
 		}
 	}
 
