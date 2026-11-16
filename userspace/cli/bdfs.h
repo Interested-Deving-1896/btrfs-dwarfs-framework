@@ -52,6 +52,7 @@ int cmd_umount(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* snapshot */
 int cmd_snapshot(struct bdfs_cli *cli, int argc, char *argv[]);
+int cmd_snapshot_prune(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* promote / demote (blend layer) */
 int cmd_promote(struct bdfs_cli *cli, int argc, char *argv[]);
