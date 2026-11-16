@@ -28,9 +28,9 @@ typedef int (*bdfs_cmd_fn)(struct bdfs_cli *cli, int argc, char *argv[]);
 
 struct bdfs_command {
 	const char     *name;
-	const char     *summary;
-	const char     *usage;
+	const char     *alias;
 	bdfs_cmd_fn     fn;
+	const char     *summary;
 };
 
 /* ── Subcommand groups ─────────────────────────────────────────────────── */
@@ -77,6 +77,10 @@ int cmd_policy_scan(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 
+void bdfs_cli_init(struct bdfs_cli *cli);
+void bdfs_cli_cleanup(struct bdfs_cli *cli);
+int  bdfs_cli_send_recv(struct bdfs_cli *cli, const char *request,
+                        char *response, size_t response_size);
 int  bdfs_cli_open_ctl(struct bdfs_cli *cli);
 void bdfs_cli_close(struct bdfs_cli *cli);
 
@@ -96,6 +100,11 @@ uint32_t    bdfs_compression_from_name(const char *name);
 /* Error printing */
 void bdfs_err(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void bdfs_info(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
+/* Additional command groups */
+int cmd_setup(struct bdfs_cli *cli, int argc, char *argv[]);
+int cmd_home(struct bdfs_cli *cli, int argc, char *argv[]);
+int cmd_workspace_shutdown(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* autosnap subcommand group */
 int cmd_autosnap(struct bdfs_cli *cli, int argc, char *argv[]);
