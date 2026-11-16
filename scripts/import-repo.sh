@@ -35,6 +35,27 @@ OSP_ORG="${OSP_ORG:-OpenOS-Project-OSP}"
 OOC_ORG="${OOC_ORG:-OpenOS-Project-Ecosystem-OOC}"
 MIRROR_TO_OSP_OOC="${MIRROR_TO_OSP_OOC:-false}"
 ONGOING_SYNC="${ONGOING_SYNC:-false}"
+DRY_RUN="${DRY_RUN:-true}"
+
+if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
+  echo "ERROR: DRY_RUN must be exactly 'true' or 'false'." >&2
+  exit 2
+fi
+if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" ||
+      "${BDFS_IMPORTS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: imports require BDFS_SOURCE_AUDITS_COMPLETE=true and BDFS_IMPORTS_ENABLED=true." >&2
+  exit 2
+fi
+if [[ "$DRY_RUN" == "false" ]]; then
+  if [[ "${BDFS_LIVE_IMPORTS_ENABLED:-}" != "true" ]]; then
+    echo "ERROR: live imports require BDFS_LIVE_IMPORTS_ENABLED=true." >&2
+    exit 2
+  fi
+  if [[ "$MIRROR_TO_OSP_OOC" == "true" && "${BDFS_MIRRORS_ENABLED:-}" != "true" ]]; then
+    echo "ERROR: downstream mirrors require BDFS_MIRRORS_ENABLED=true." >&2
+    exit 2
+  fi
+fi
 
 GH_API="https://api.github.com"
 
@@ -210,7 +231,9 @@ info "Checking ${GITHUB_OWNER}/${target_name}..."
 existing=$(gh_api_get "${GH_API}/repos/${GITHUB_OWNER}/${target_name}" 2>/dev/null \
   | grep -o '"name":"[^"]*"' | head -1 | sed 's/"name":"//;s/"//' || echo "")
 
-if [ -n "$existing" ]; then
+if [ "$DRY_RUN" = "true" ]; then
+  info "  DRY RUN — will not create or modify ${GITHUB_OWNER}/${target_name}."
+elif [ -n "$existing" ]; then
   info "  Already exists — will overwrite via push."
 else
   info "  Creating ${GITHUB_OWNER}/${target_name}..."
@@ -265,6 +288,14 @@ if ! git clone --mirror "$clone_url" "$work_dir/repo.git" 2>&1 | sanitize; then
 fi
 
 cd "$work_dir/repo.git"
+
+if [ "$DRY_RUN" = "true" ]; then
+  info "DRY RUN complete — source clone succeeded; no target repo, refs, mirrors, or registrations were changed."
+  info "Would import ${GITHUB_OWNER}/${target_name}; mirror=${MIRROR_TO_OSP_OOC}; ongoing_sync=${ONGOING_SYNC}."
+  cd /
+  rm -rf "$work_dir"
+  exit 0
+fi
 
 gh_push_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${target_name}.git"
 
