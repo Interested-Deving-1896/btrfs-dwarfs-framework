@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include "../../include/uapi/bdfs_ioctl.h"
+#include "../../include/btrfs_dwarfs/parse.h"
 
 #define BDFS_USERCONF_MAX_SOURCES 32
 
