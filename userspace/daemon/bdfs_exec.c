@@ -476,6 +476,13 @@ int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
 	}
 
 	close(pipefd[1]);
+	if (fcntl(pipefd[0], F_SETFL, O_NONBLOCK) < 0) {
+		int err = errno;
+		kill(pid, SIGKILL);
+		waitpid(pid, NULL, 0);
+		close(pipefd[0]);
+		return -err;
+	}
 	clock_gettime(CLOCK_MONOTONIC, &start);
 	while (!child_done) {
 		char chunk[4096];
