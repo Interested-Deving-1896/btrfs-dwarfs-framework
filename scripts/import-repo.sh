@@ -212,7 +212,7 @@ case "$platform" in
       info "No BITBUCKET_TOKEN set — attempting unauthenticated clone (public repos only)"
     fi
     ;;
-  gitea)
+  gitea|codeberg)
     if [ -n "${SOURCE_TOKEN:-}" ]; then
       clone_url="${clean_url/https:\/\//https://x-access-token:${SOURCE_TOKEN}@}.git"
     else
