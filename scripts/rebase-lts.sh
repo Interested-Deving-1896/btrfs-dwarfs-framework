@@ -63,6 +63,8 @@ echo "  Upstream: ${upstream_repo:-not a fork; using target base branch}"
 echo "── Fetching branches into an isolated workspace ──"
 git clone --no-checkout --no-tags "$REPO_URL" "$WORK_DIR/repo"
 cd "$WORK_DIR/repo"
+git config user.name "BDFS LTS Rebuild"
+git config user.email "bdfs-lts-rebuild@users.noreply.github.com"
 
 git fetch --no-tags origin \
   "+refs/heads/${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}" \
