@@ -66,7 +66,7 @@ error() { echo "[error] $*" >&2; exit 1; }
 sanitize() {
   local output token
   output=$(cat)
-  for token in "${GH_TOKEN}" "${GITLAB_TOKEN:-}" "${BITBUCKET_TOKEN:-}" "${GITEA_TOKEN:-}"; do
+  for token in "${GH_TOKEN}" "${SOURCE_TOKEN:-}"; do
     [[ -n "$token" ]] && output="${output//"$token"/***TOKEN***}"
   done
   printf '%s\n' "$output"
@@ -148,7 +148,7 @@ token_missing_hint() {
 
 case "$platform" in
   gitlab)
-    if [ -z "${GITLAB_TOKEN:-}" ]; then
+    if [ -z "${SOURCE_TOKEN:-}" ]; then
       if echo "$clean_url" | grep -q "gitlab.com"; then
         info "No GITLAB_SYNC_TOKEN set — will attempt unauthenticated clone."
         info "If the repo is private this will fail. To fix:"
@@ -158,7 +158,7 @@ case "$platform" in
     fi
     ;;
   bitbucket)
-    if [ -z "${BITBUCKET_TOKEN:-}" ]; then
+    if [ -z "${SOURCE_TOKEN:-}" ]; then
       info "No BITBUCKET_TOKEN set — will attempt unauthenticated clone."
       info "If the repo is private this will fail. To fix:"
       token_missing_hint "BITBUCKET_TOKEN" "Bitbucket"
@@ -166,7 +166,7 @@ case "$platform" in
     fi
     ;;
   gitea)
-    if [ -z "${GITEA_TOKEN:-}" ]; then
+    if [ -z "${SOURCE_TOKEN:-}" ]; then
       info "No GITEA_TOKEN set — will attempt unauthenticated clone."
       info "If the repo is private this will fail. To fix:"
       token_missing_hint "GITEA_TOKEN" "Gitea"
@@ -174,7 +174,7 @@ case "$platform" in
     fi
     ;;
   codeberg)
-    if [ -z "${GITEA_TOKEN:-}" ]; then
+    if [ -z "${SOURCE_TOKEN:-}" ]; then
       info "No GITEA_TOKEN set — Codeberg uses the same token as Gitea."
       info "If the repo is private this will fail. To fix:"
       token_missing_hint "GITEA_TOKEN" "Codeberg/Gitea"
@@ -192,28 +192,29 @@ clone_url="$clean_url"
 
 case "$platform" in
   github)
-    clone_url="${clean_url/https:\/\//https://x-access-token:${GH_TOKEN}@}.git"
+    source_auth_token="${SOURCE_TOKEN:-$GH_TOKEN}"
+    clone_url="${clean_url/https:\/\//https://x-access-token:${source_auth_token}@}.git"
     ;;
   gitlab)
-    if [ -n "${GITLAB_TOKEN:-}" ]; then
-      clone_url="${clean_url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}.git"
+    if [ -n "${SOURCE_TOKEN:-}" ]; then
+      clone_url="${clean_url/https:\/\//https://oauth2:${SOURCE_TOKEN}@}.git"
     else
       clone_url="${clean_url}.git"
       info "No GITLAB_TOKEN set — attempting unauthenticated clone (public repos only)"
     fi
     ;;
   bitbucket)
-    if [ -n "${BITBUCKET_TOKEN:-}" ]; then
+    if [ -n "${SOURCE_TOKEN:-}" ]; then
       # Bitbucket: https://<user>:<app-password>@bitbucket.org/...
-      clone_url="${clean_url/https:\/\/bitbucket.org\//https://x-token-auth:${BITBUCKET_TOKEN}@bitbucket.org/}.git"
+      clone_url="${clean_url/https:\/\/bitbucket.org\//https://x-token-auth:${SOURCE_TOKEN}@bitbucket.org/}.git"
     else
       clone_url="${clean_url}.git"
       info "No BITBUCKET_TOKEN set — attempting unauthenticated clone (public repos only)"
     fi
     ;;
   gitea)
-    if [ -n "${GITEA_TOKEN:-}" ]; then
-      clone_url="${clean_url/https:\/\//https://x-access-token:${GITEA_TOKEN}@}.git"
+    if [ -n "${SOURCE_TOKEN:-}" ]; then
+      clone_url="${clean_url/https:\/\//https://x-access-token:${SOURCE_TOKEN}@}.git"
     else
       clone_url="${clean_url}.git"
     fi
