@@ -2,13 +2,7 @@
 
 Status: design contract; implementation and package-availability validation are pending.
 
-This document defines the userspace profile dimension for BDFS rootfs builds. It generalizes the profile intent in the following Ubuntu 26.04 bootc repositories:
-
-- [Ubuntu 26.04 minimal bootc base](https://github.com/Interested-Deving-1896/ubuntu-26.04-bootc)
-- [Ubuntu 26.04 desktop bootc](https://github.com/Interested-Deving-1896/ubuntu-26.04-desktop-bootc)
-- [Ubuntu 26.04 server bootc](https://github.com/Interested-Deving-1896/ubuntu-26.04-server-bootc)
-
-These are reference implementations, not runtime dependencies. BDFS must build ordinary root filesystems without requiring bootc, OCI image semantics, or bootc's special `/var` layout.
+This document defines the userspace profile dimension for BDFS rootfs builds. The Debian, Devuan, and Ubuntu userspace pipelines are native BDFS rootfs workflows and must remain independent of the separate bootc integration.
 
 ## 1. Profile matrix
 
@@ -131,14 +125,16 @@ The build matrix adds profile as a dimension:
 
 Allowed report states: `passed`, `failed`, `skipped`, `unavailable`, `legacy`, and `not-applicable`. A skipped or unavailable check must never satisfy a required gate.
 
-## 7. bootc relationship
+## 7. Integration boundary and explicit exclusions
 
-The Ubuntu bootc repositories demonstrate three useful package-layer intents, but bootc image assembly is a separate integration:
+The existing bootc integration remains separate under `BDFS/Integrations`. It is not part of these userspace pipelines.
 
-- BDFS profile generation must not depend on bootc being installed.
+- Do not install, invoke, detect, configure, test, package, or require bootc in the Debian/Devuan/Ubuntu userspace pipeline.
+- Do not add bootc-specific build stages, image assembly, OCI/ostree semantics, filesystem layout assumptions, or bootc-specific validation to these pipelines.
 - Do not copy bootc-specific filesystem operations (including wiping `/var`, deleting the dpkg database, or constructing an ostree symlink forest) into ordinary BDFS rootfs generation.
-- If a bootc consumer is added later, it must be an adapter that consumes a completed BDFS-compatible profile and applies bootc-specific validation in its own isolated build.
-- Preserve the source repositories' distinct roles; the current desktop reference is GNOME-oriented, while the BDFS desktop target defined here is KDE Plasma.
+- Do not make the userspace profile manifests, CI jobs, package adapters, or acceptance gates depend on the existing integration.
+- Keep the existing integration's files and workflows unchanged as part of this work. Any future changes to that integration require a separate, explicit scope.
+- The three userspace profiles are implemented and validated entirely through BDFS-native rootfs/bootstrap/package/service mechanisms.
 
 ## 8. Acceptance criteria
 
@@ -148,10 +144,11 @@ The Ubuntu bootc repositories demonstrate three useful package-layer intents, bu
 4. Devuan init/service behavior is independently detected and validated.
 5. The matrix report is generated from actual build evidence and distinguishes passed, failed, skipped, unavailable, legacy, and not-applicable.
 6. No image publication, downstream mirror write, destructive host operation, or release action is part of profile validation.
+7. The Debian/Devuan/Ubuntu userspace pipelines have no bootc dependency or bootc-specific steps; the existing integration remains isolated and untouched.
 
 ## 9. Implementation sequence
 
-1. Inventory existing BDFS rootfs/bootstrap entry points, package installation logic, and CI build contexts.
+1. Inventory existing BDFS rootfs/bootstrap entry points, package installation logic, and CI build contexts; exclude the separate integration directory from pipeline discovery and implementation scope.
 2. Add manifest parsing and schema validation with negative tests before package installation is automated.
 3. Implement package-resolution adapters for one current supported release per distribution.
 4. Add the minimal profile and prove rootfs isolation and package database integrity.
@@ -159,4 +156,4 @@ The Ubuntu bootc repositories demonstrate three useful package-layer intents, bu
 6. Expand to legacy compatibility cohorts and additional architectures only where package metadata, toolchains, and execution evidence exist.
 7. Publish the complete machine-readable matrix; keep unsupported combinations explicit.
 
-This contract does not authorize mirror/publication workflows, repository creation, host modification, destructive filesystem operations, or bypassing existing audit and CI gates.
+This contract does not authorize mirror/publication workflows, repository creation, host modification, destructive filesystem operations, changes to the separate integration, or bypassing existing audit and CI gates.
