@@ -184,27 +184,6 @@ int bdfs_str_to_uuid(const char *str, uint8_t uuid[16])
 	return pos == 16 && high < 0 ? 0 : -EINVAL;
 }
 
-int bdfs_parse_u32(const char *text, uint32_t min_value,
-		    uint32_t max_value, uint32_t *out)
-{
-	unsigned long long value;
-	char *end = NULL;
-
-	if (!text || !text[0] || !out || min_value > max_value)
-		return -EINVAL;
-	for (const unsigned char *p = (const unsigned char *)text; *p; p++) {
-		if (*p < '0' || *p > '9')
-			return -EINVAL;
-	}
-	errno = 0;
-	value = strtoull(text, &end, 10);
-	if (errno == ERANGE || !end || *end != '\0' ||
-	    value > UINT32_MAX || value < min_value || value > max_value)
-		return -ERANGE;
-	*out = (uint32_t)value;
-	return 0;
-}
-
 const char *bdfs_compression_name(uint32_t compression)
 {
 	switch (compression) {
