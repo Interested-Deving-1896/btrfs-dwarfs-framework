@@ -5,7 +5,7 @@ on:
   workflow_run:
     workflows: ["Sync Interested-Deving-1896 Forks"]
     types: [completed]
-  # Also allow manual trigger
+  # Also allow manual trigger; release gates below still apply.
   workflow_dispatch:
     inputs:
       base_branch:
@@ -17,7 +17,7 @@ on:
         required: false
         default: "all-features"
       lts_branch:
-        description: "Branch to force-push the result to"
+        description: "Branch to publish the result to"
         required: false
         default: "lts"
 
@@ -26,10 +26,11 @@ permissions:
 
 jobs:
   rebase-lts:
+    # This is a destructive cross-repository operation. Neither manual dispatch
+    # nor a successful sync bypasses the two explicit repository-variable gates.
+    if: ${{ vars.BDFS_SOURCE_AUDIT_COMPLETE == 'true' && vars.BDFS_LTS_REBASE_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # Only run if the triggering sync workflow succeeded (ignored for workflow_dispatch)
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout fork-sync-all
@@ -42,6 +43,8 @@ jobs:
           BASE_BRANCH: ${{ inputs.base_branch || 'master' }}
           FEATURE_BRANCH: ${{ inputs.feature_branch || 'all-features' }}
           LTS_BRANCH: ${{ inputs.lts_branch || 'lts' }}
+          BDFS_SOURCE_AUDIT_COMPLETE: ${{ vars.BDFS_SOURCE_AUDIT_COMPLETE }}
+          BDFS_LTS_REBASE_ENABLED: ${{ vars.BDFS_LTS_REBASE_ENABLED }}
         run: bash scripts/rebase-lts.sh
       - name: Write summary
         if: always()

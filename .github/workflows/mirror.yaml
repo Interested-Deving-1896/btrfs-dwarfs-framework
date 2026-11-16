@@ -11,6 +11,9 @@ on:
 
 jobs:
   mirror:
+    # Fail closed until the source audit is complete and mirroring is explicitly enabled.
+    # Repository variables are deliberate release gates; secrets are not read before this job gate.
+    if: ${{ vars.BDFS_SOURCE_AUDIT_COMPLETE == 'true' && vars.BDFS_MIRRORS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout full history (detached HEAD)
@@ -34,9 +37,9 @@ jobs:
             exit 1
           fi
           git config --global credential.helper store
-          printf 'https://x-access-token:%s@github.com\n' "$MIRROR_TOKEN" \
+          printf 'https://x-access-token:%s@github.com\\n' "$MIRROR_TOKEN" \\
             > ~/.git-credentials
-          git remote add mirror \
+          git remote add mirror \\
             "https://x-access-token:${MIRROR_TOKEN}@github.com/Interested-Deving-1896/eggs-ai.git"
           git push mirror 'refs/remotes/origin/*:refs/heads/*' --force
           git push mirror --tags --force
