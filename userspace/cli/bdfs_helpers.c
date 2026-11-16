@@ -196,17 +196,17 @@ void bdfs_print_partition(const struct bdfs_partition *p, bool json)
     bdfs_uuid_to_str(p->uuid, uuid);
 
     if (json) {
-        printf("{\\"uuid\\":");
+        printf("{\"uuid\":");
         print_json_string(uuid);
-        printf(",\\"type\\":");
+        printf(",\"type\":");
         print_json_string(partition_type_name(p->type));
-        printf(",\\"label\\":");
+        printf(",\"label\":");
         print_json_string(p->label);
-        printf(",\\"device_path\\":");
+        printf(",\"device_path\":");
         print_json_string(p->device_path);
-        printf(",\\"mount_point\\":");
+        printf(",\"mount_point\":");
         print_json_string(p->mount_point);
-        printf(",\\"version_major\\":%u,\\"version_minor\\":%u}",
+        printf(",\"version_major\":%u,\"version_minor\":%u}",
                p->version_major, p->version_minor);
         return;
     }
@@ -227,17 +227,17 @@ void bdfs_print_image(const struct bdfs_dwarfs_image *img, bool json)
     bdfs_uuid_to_str(img->uuid, uuid);
 
     if (json) {
-        printf("{\\"image_id\\":%llu,\\"name\\":",
+        printf("{\"image_id\":%llu,\"name\":",
                (unsigned long long)img->image_id);
         print_json_string(img->name);
-        printf(",\\"uuid\\":");
+        printf(",\"uuid\":");
         print_json_string(uuid);
-        printf(",\\"size_bytes\\":%llu,\\"uncompressed_bytes\\":%llu,"
-               "\\"compression\\":",
+        printf(",\"size_bytes\":%llu,\"uncompressed_bytes\":%llu,"
+               "\"compression\":",
                (unsigned long long)img->size_bytes,
                (unsigned long long)img->uncompressed_bytes);
         print_json_string(bdfs_compression_name(img->compression));
-        printf(",\\"mounted\\":%s,\\"mount_point\\":",
+        printf(",\"mounted\":%s,\"mount_point\":",
                img->mounted ? "true" : "false");
         print_json_string(img->mount_point);
         putchar('}');
@@ -264,13 +264,13 @@ void bdfs_print_subvol(const struct bdfs_btrfs_subvol *sv, bool json)
         return;
 
     if (json) {
-        printf("{\\"subvol_id\\":%llu,\\"name\\":",
+        printf("{\"subvol_id\":%llu,\"name\":",
                (unsigned long long)sv->subvol_id);
         print_json_string(sv->name);
-        printf(",\\"path\\":");
+        printf(",\"path\":");
         print_json_string(sv->path);
-        printf(",\\"generation\\":%llu,\\"is_snapshot\\":%s,"
-               "\\"is_readonly\\":%s}",
+        printf(",\"generation\":%llu,\"is_snapshot\":%s,"
+               "\"is_readonly\":%s}",
                (unsigned long long)sv->generation,
                sv->is_snapshot ? "true" : "false",
                sv->is_readonly ? "true" : "false");
