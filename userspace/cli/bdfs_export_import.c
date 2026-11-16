@@ -64,8 +64,18 @@ int cmd_export(struct bdfs_cli *cli, int argc, char *argv[])
 		case 'b': strncpy(arg.btrfs_mount,      optarg, sizeof(arg.btrfs_mount)      - 1); break;
 		case 'n': strncpy(arg.image_name,        optarg, sizeof(arg.image_name)        - 1); break;
 		case 'c': arg.compression     = bdfs_compression_from_name(optarg); break;
-		case 'B': arg.block_size_bits  = (uint32_t)atoi(optarg); break;
-		case 'w': arg.worker_threads   = (uint32_t)atoi(optarg); break;
+		case 'B':
+			if (bdfs_parse_u32(optarg, 12, 30, &arg.block_size_bits) < 0) {
+				bdfs_err("block-size-bits must be between 12 and 30");
+				return 2;
+			}
+			break;
+		case 'w':
+			if (bdfs_parse_u32(optarg, 1, 1024, &arg.worker_threads) < 0) {
+				bdfs_err("workers must be between 1 and 1024");
+				return 2;
+			}
+			break;
 		case 'i': arg.flags |= BDFS_EXPORT_INCREMENTAL; break;
 		case 'P': strncpy(arg.parent_snap_path, optarg, sizeof(arg.parent_snap_path) - 1); break;
 		case 'V': arg.flags |= BDFS_EXPORT_VERIFY;      break;
