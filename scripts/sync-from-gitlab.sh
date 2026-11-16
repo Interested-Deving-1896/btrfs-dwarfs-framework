@@ -231,7 +231,8 @@ sync_repo() {
     || push_ok=false
 
   # Push tags (non-fatal if some already exist)
-  git push "$gh_remote" '+refs/tags/*:refs/tags/*' 2>&1 \
+  # Never force-update existing tags; divergent tag names must fail safely.
+  git push "$gh_remote" 'refs/tags/*:refs/tags/*' 2>&1 \
     | sed "s/${GH_TOKEN}/***TOKEN***/g" \
     | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
     || true
