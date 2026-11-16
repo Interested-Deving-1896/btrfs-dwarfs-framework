@@ -87,6 +87,17 @@ CONCURRENCY="${CONCURRENCY:-5}"
 CLONE_DEPTH="${CLONE_DEPTH:-}"
 BACKUP_MODE="${BACKUP_MODE:-false}"
 
+if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" ||
+      "${BDFS_IMPORTS_ENABLED:-}" != "true" ||
+      "${BDFS_LIVE_IMPORTS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: org cloning requires BDFS_SOURCE_AUDITS_COMPLETE=true, BDFS_IMPORTS_ENABLED=true, and BDFS_LIVE_IMPORTS_ENABLED=true." >&2
+  exit 2
+fi
+if [[ "$MIRROR_TO_OSP" == "true" && "${BDFS_MIRRORS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: downstream mirrors require BDFS_MIRRORS_ENABLED=true." >&2
+  exit 2
+fi
+
 GH_API="https://api.github.com"
 
 info()  { echo "[clone-org] $*"; }
