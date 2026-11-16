@@ -144,7 +144,7 @@ int bdfs_userconf_load(struct bdfs_userconf *cfg)
 				if (bdfs_parse_u32(val, 1, 1000000,
 						   &cfg->keep) < 0) {
 					fprintf(stderr,
-						"bdfs: config line %d: invalid snapshots.keep\\n",
+						"bdfs: config line %d: invalid snapshots.keep\n",
 						lineno);
 					fclose(f);
 					return -EINVAL;
@@ -168,7 +168,7 @@ int bdfs_userconf_load(struct bdfs_userconf *cfg)
 				if (bdfs_parse_u32(val, 0, 1000000,
 						   &cfg->auto_demote_keep) < 0) {
 					fprintf(stderr,
-						"bdfs: config line %d: invalid demote.auto_demote_keep\\n",
+						"bdfs: config line %d: invalid demote.auto_demote_keep\n",
 						lineno);
 					fclose(f);
 					return -EINVAL;
