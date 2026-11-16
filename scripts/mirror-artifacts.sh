@@ -130,14 +130,14 @@ mirror_packages_for_repo() {
     # Mirror Flatpak if .flatpak asset present
     if echo "$release" | jq -e '.assets[] | select(.name | endswith(".flatpak"))' > /dev/null 2>&1; then
       echo "    [flatpak] ${dst_org}/${src_repo}: $tag"
-      UPSTREAM_REPO="$src_repo" TARGET_ORG="$dst_org" RELEASE_TAG="$tag" \
+      UPSTREAM_REPO="$src_repo" TARGET_ORG="$dst_org" RELEASE_TAG="$tag" DRY_RUN="$DRY_RUN" \
         bash "${SCRIPT_DIR}/mirror-flatpak.sh" || echo "    flatpak mirror failed (non-fatal)"
     fi
 
     # Mirror RPM if .rpm asset present
     if echo "$release" | jq -e '.assets[] | select(.name | endswith(".rpm"))' > /dev/null 2>&1; then
       echo "    [rpm] ${dst_org}/${src_repo}: $tag"
-      UPSTREAM_REPO="$src_repo" TARGET_ORG="$dst_org" RELEASE_TAG="$tag" \
+      UPSTREAM_REPO="$src_repo" TARGET_ORG="$dst_org" RELEASE_TAG="$tag" DRY_RUN="$DRY_RUN" \
         bash "${SCRIPT_DIR}/mirror-rpm.sh" || echo "    rpm mirror failed (non-fatal)"
     fi
   done < <(echo "$releases" | jq -c '.[]')
