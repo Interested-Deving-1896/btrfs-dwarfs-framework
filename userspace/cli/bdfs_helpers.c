@@ -6,8 +6,64 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdarg.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "bdfs.h"
+
+int bdfs_cli_open_ctl(struct bdfs_cli *cli)
+{
+    const char *path;
+
+    if (!cli)
+        return -EINVAL;
+    if (cli->ctl_fd >= 0)
+        return 0;
+
+    path = cli->ctl_device[0] ? cli->ctl_device : "/dev/bdfs_ctl";
+    cli->ctl_fd = open(path, O_RDWR | O_CLOEXEC);
+    if (cli->ctl_fd < 0) {
+        int err = errno;
+        bdfs_err("cannot open %s: %s", path, strerror(err));
+        return -err;
+    }
+    return 0;
+}
+
+void bdfs_cli_close(struct bdfs_cli *cli)
+{
+    if (!cli)
+        return;
+    if (cli->ctl_fd >= 0) {
+        close(cli->ctl_fd);
+        cli->ctl_fd = -1;
+    }
+    if (cli->sock_fd >= 0) {
+        close(cli->sock_fd);
+        cli->sock_fd = -1;
+    }
+}
+
+void bdfs_err(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    fputs("bdfs: error: ", stderr);
+    vfprintf(stderr, fmt, ap);
+    fputc('\\n', stderr);
+    va_end(ap);
+}
+
+void bdfs_info(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stdout, fmt, ap);
+    fputc('\\n', stdout);
+    va_end(ap);
+}
 
 void bdfs_uuid_to_str(const uint8_t uuid[16], char out[37])
 {
