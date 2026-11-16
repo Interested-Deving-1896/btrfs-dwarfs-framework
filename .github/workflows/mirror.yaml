@@ -13,7 +13,7 @@ jobs:
   mirror:
     # Fail closed until the source audit is complete and mirroring is explicitly enabled.
     # Repository variables are deliberate release gates; secrets are not read before this job gate.
-    if: ${{ vars.BDFS_SOURCE_AUDIT_COMPLETE == 'true' && vars.BDFS_MIRRORS_ENABLED == 'true' }}
+    if: ${{ vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_MIRRORS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout full history (detached HEAD)
