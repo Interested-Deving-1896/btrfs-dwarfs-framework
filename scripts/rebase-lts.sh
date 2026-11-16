@@ -30,6 +30,12 @@ for branch in "$BASE_BRANCH" "$FEATURE_BRANCH" "$LTS_BRANCH"; do
     exit 2
   fi
 done
+if [[ "$BASE_BRANCH" == "$FEATURE_BRANCH" ||
+      "$BASE_BRANCH" == "$LTS_BRANCH" ||
+      "$FEATURE_BRANCH" == "$LTS_BRANCH" ]]; then
+  echo "ERROR: Base, feature, and LTS branches must be distinct." >&2
+  exit 2
+fi
 
 if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
   echo "ERROR: DRY_RUN must be exactly 'true' or 'false'." >&2
