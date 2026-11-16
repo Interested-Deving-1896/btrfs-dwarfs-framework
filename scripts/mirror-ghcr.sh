@@ -16,7 +16,21 @@ set -uo pipefail
 : "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
 : "${OSP_ORG:?OSP_ORG is required}"
 : "${OOC_ORG:?OOC_ORG is required}"
-DRY_RUN="${DRY_RUN:-false}"
+DRY_RUN="${DRY_RUN:-true}"
+
+if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
+  echo "ERROR: DRY_RUN must be exactly 'true' or 'false'." >&2
+  exit 2
+fi
+if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" ||
+      "${BDFS_MIRRORS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: GHCR publication requires BDFS_SOURCE_AUDITS_COMPLETE=true and BDFS_MIRRORS_ENABLED=true." >&2
+  exit 2
+fi
+if [[ "$DRY_RUN" == "true" ]]; then
+  echo "DRY RUN: GHCR publication is disabled; no images will be pushed."
+  exit 0
+fi
 
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
