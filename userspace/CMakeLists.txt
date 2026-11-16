@@ -62,6 +62,7 @@ if(BUILD_DAEMON)
         daemon/bdfs_jobs.c
         daemon/bdfs_jobs_workspace.c
         daemon/bdfs_mount_table.c
+        daemon/bdfs_shutdown_log.c
         daemon/bdfs_netlink.c
         daemon/bdfs_socket.c
         daemon/bdfs_policy.c
