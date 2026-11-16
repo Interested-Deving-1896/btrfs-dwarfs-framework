@@ -494,8 +494,7 @@ static int cmd_autosnap_rollback(struct bdfs_cli *cli, int argc, char *argv[])
 	}
 	const char *snap_name = argv[optind];
 
-	if (strncmp(snap_name, AUTOSNAP_PREFIX,
-		    strlen(AUTOSNAP_PREFIX)) != 0) {
+	if (!valid_autosnap_name(snap_name)) {
 		bdfs_err("'%s' does not look like an autosnap snapshot",
 			 snap_name);
 		return 1;
