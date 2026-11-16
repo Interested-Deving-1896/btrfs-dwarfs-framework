@@ -449,6 +449,7 @@ int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
 			     char *buf, size_t bufsz)
 {
 	int pipefd[2], status = 0, child_done = 0, timed_out = 0;
+	int truncated = 0;
 	pid_t pid;
 	size_t used = 0;
 	struct timespec start, now;
@@ -496,6 +497,8 @@ int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
 				used += copy;
 				buf[used] = '\0';
 			}
+			if (copy < (size_t)n)
+				truncated = 1;
 		}
 		if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK &&
 		    errno != EINTR) {
@@ -539,11 +542,15 @@ int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
 			used += copy;
 			buf[used] = '\0';
 		}
+		if (copy < (size_t)n)
+			truncated = 1;
 	}
 	close(pipefd[0]);
 
 	if (timed_out)
 		return -ETIMEDOUT;
+	if (truncated)
+		return -ENOSPC;
 	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
 		return -EIO;
 	return 0;
