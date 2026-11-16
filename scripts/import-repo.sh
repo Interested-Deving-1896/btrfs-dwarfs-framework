@@ -295,7 +295,7 @@ if ! git clone --mirror "$clone_url" "$work_dir/repo.git" 2>&1 | sanitize; then
   error "Clone failed — see above for the fix."
 fi
 
-cd "$work_dir/repo.git"
+cd "$work_dir/repo.git" || exit 1
 
 if [ "$DRY_RUN" = "true" ]; then
   info "DRY RUN complete — source clone succeeded; no target repo, refs, mirrors, or registrations were changed."
