@@ -63,6 +63,9 @@ if(BUILD_DAEMON)
         daemon/bdfs_netlink.c
         daemon/bdfs_socket.c
         daemon/bdfs_policy.c
+        daemon/bdfs_mount_table.c
+        daemon/bdfs_jobs_workspace.c
+        daemon/bdfs_shutdown_log.c
     )
 
     target_include_directories(bdfs_daemon PRIVATE
