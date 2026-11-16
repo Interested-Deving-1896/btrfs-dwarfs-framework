@@ -52,7 +52,7 @@ void bdfs_err(const char *fmt, ...)
     va_start(ap, fmt);
     fputs("bdfs: error: ", stderr);
     vfprintf(stderr, fmt, ap);
-    fputc('\\n', stderr);
+    fputc('\n', stderr);
     va_end(ap);
 }
 
@@ -61,7 +61,7 @@ void bdfs_info(const char *fmt, ...)
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stdout, fmt, ap);
-    fputc('\\n', stdout);
+    fputc('\n', stdout);
     va_end(ap);
 }
 
