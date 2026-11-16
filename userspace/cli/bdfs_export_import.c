@@ -60,13 +60,15 @@ int cmd_export(struct bdfs_cli *cli, int argc, char *argv[])
 				return 1;
 			}
 			break;
-		case 'S':
-			if (bdfs_parse_u64(optarg, 1, UINT64_MAX,
-					   &arg.btrfs_subvol_id) < 0) {
+		case 'S': {
+			uint64_t parsed_id;
+			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &parsed_id) < 0) {
 				bdfs_err("invalid subvolume ID: %s", optarg);
 				return 2;
 			}
+			arg.btrfs_subvol_id = parsed_id;
 			break;
+		}
 		case 'b': strncpy(arg.btrfs_mount,      optarg, sizeof(arg.btrfs_mount)      - 1); break;
 		case 'n': strncpy(arg.image_name,        optarg, sizeof(arg.image_name)        - 1); break;
 		case 'c': arg.compression     = bdfs_compression_from_name(optarg); break;
@@ -158,12 +160,15 @@ int cmd_import(struct bdfs_cli *cli, int argc, char *argv[])
 				return 1;
 			}
 			break;
-		case 'I':
-			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &arg.image_id) < 0) {
+		case 'I': {
+			uint64_t parsed_id;
+			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &parsed_id) < 0) {
 				bdfs_err("invalid image ID: %s", optarg);
 				return 2;
 			}
+			arg.image_id = parsed_id;
 			break;
+		}
 		case 'b': strncpy(arg.btrfs_mount,  optarg, sizeof(arg.btrfs_mount)  - 1); break;
 		case 'n': strncpy(arg.subvol_name,  optarg, sizeof(arg.subvol_name)  - 1); break;
 		case 'r': arg.flags |= BDFS_IMPORT_READONLY; break;
