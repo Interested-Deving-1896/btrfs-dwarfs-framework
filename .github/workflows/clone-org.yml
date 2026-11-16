@@ -107,6 +107,7 @@ permissions:
 
 jobs:
   clone:
+    if: vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_IMPORTS_ENABLED == 'true' && (inputs.mirror_to_osp != true || vars.BDFS_MIRRORS_ENABLED == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 355
     steps:

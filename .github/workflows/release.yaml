@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   release:
+    if: vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_RELEASES_ENABLED == 'true'
     name: Create Release
     runs-on: ubuntu-latest
     steps:

@@ -24,7 +24,7 @@ on:
         description: "Dry run — skip uploads and pushes"
         type: boolean
         required: false
-        default: false
+        default: true
       force:
         description: "Force re-mirror even if tag already exists at destination"
         type: boolean
@@ -51,6 +51,7 @@ concurrency:
 
 jobs:
   mirror:
+    if: vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_MIRRORS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -70,7 +71,7 @@ jobs:
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
           UPSTREAM_REPO: ${{ inputs.upstream_repo }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run || 'true' }}
           FORCE: ${{ inputs.force || 'false' }}
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then

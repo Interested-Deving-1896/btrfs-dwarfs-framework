@@ -17,7 +17,7 @@ jobs:
   mirror:
     runs-on: ubuntu-latest
     # Only run when executing in the OSP repo — no-op if mirrored elsewhere
-    if: github.repository == 'OpenOS-Project-OSP/btrfs-dwarfs-framework'
+    if: github.repository == 'OpenOS-Project-OSP/btrfs-dwarfs-framework' && vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_MIRRORS_ENABLED == 'true'
     steps:
       - name: Checkout full history
         uses: actions/checkout@v4

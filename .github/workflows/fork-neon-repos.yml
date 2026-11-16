@@ -22,12 +22,12 @@ on:
         description: 'Push through OSP→OOC mirror chain after import'
         type: boolean
         required: false
-        default: true
+        default: false
       dry_run:
         description: 'Dry run — print what would happen without making changes'
         type: boolean
         required: false
-        default: false
+        default: true
 
 concurrency:
   group: fork-neon-repos
@@ -38,6 +38,7 @@ permissions:
 
 jobs:
   fork:
+    if: vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_IMPORTS_ENABLED == 'true' && (inputs.mirror_to_osp_ooc != true || vars.BDFS_MIRRORS_ENABLED == 'true') && (inputs.dry_run == true || vars.BDFS_LIVE_IMPORTS_ENABLED == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
