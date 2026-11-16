@@ -69,7 +69,7 @@ static int autosnap_run(const char *const argv[])
 
 static int autosnap_capture(const char *const argv[], char *buf, size_t bufsz)
 {
-	int pipefd[2], status;
+	int pipefd[2], status, truncated = 0;
 	pid_t pid;
 	size_t used = 0;
 	if (!buf || bufsz < 2)
@@ -113,6 +113,8 @@ static int autosnap_capture(const char *const argv[], char *buf, size_t bufsz)
 			used += copy;
 			buf[used] = '\0';
 		}
+		if (copy < (size_t)n)
+			truncated = 1;
 	}
 	close(pipefd[0]);
 	while (waitpid(pid, &status, 0) < 0) {
@@ -120,7 +122,9 @@ static int autosnap_capture(const char *const argv[], char *buf, size_t bufsz)
 			continue;
 		return -errno;
 	}
-	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -EIO;
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+		return -EIO;
+	return truncated ? -ENOSPC : 0;
 }
 
 static bool valid_autosnap_name(const char *name)
