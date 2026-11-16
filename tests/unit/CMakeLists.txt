@@ -23,6 +23,11 @@ add_executable(test_compression test_compression.c ../../userspace/cli/bdfs_comm
 target_compile_definitions(test_compression PRIVATE BDFS_UNIT_TEST)
 add_test(NAME compression COMMAND test_compression)
 
+# ── test_numeric ────────────────────────────────────────────────────────────
+add_executable(test_numeric test_numeric.c ../../userspace/cli/bdfs_common.c)
+target_compile_definitions(test_numeric PRIVATE BDFS_UNIT_TEST)
+add_test(NAME numeric COMMAND test_numeric)
+
 # ── test_job_alloc ───────────────────────────────────────────────────────────
 add_executable(test_job_alloc test_job_alloc.c
     ../../userspace/daemon/bdfs_daemon.c
