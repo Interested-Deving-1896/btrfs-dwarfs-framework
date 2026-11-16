@@ -193,54 +193,55 @@ github_repo_exists() {
 sync_repo() {
   local gl_path="$1" gh_name="$2"
 
+  # Credentials are embedded only in in-memory remote URLs. Never print raw
+  # Git stderr: diagnostics can include those URLs and therefore expose tokens.
   local gl_url="https://oauth2:${GITLAB_TOKEN}@gitlab.com/${gl_path}.git"
   local gh_remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
 
+  local original_dir="$PWD"
   local work_dir
-  work_dir=$(mktemp -d)
-
-  info "  Cloning gitlab.com/${gl_path} ..."
-  local clone_out
-  clone_out=$(git clone --mirror "$gl_url" "$work_dir" 2>&1) || {
-    # Distinguish access-denied (token lacks scope) from other errors.
-    # Return 2 for access failures so the caller can skip rather than fail.
-    if echo "$clone_out" | grep -qiE "403|401|not found|access denied|repository not found"; then
-      warn "  Clone skipped (access denied) for ${gl_path} — check GITLAB_SYNC_TOKEN scope"
-      rm -rf "$work_dir"
-      return 2
-    fi
-    warn "  Clone failed for ${gl_path}: $clone_out"
-    rm -rf "$work_dir"
+  work_dir=$(mktemp -d) || {
+    warn "  Cannot create temporary clone directory for ${gl_path}"
     return 1
   }
 
-  cd "$work_dir" || {
+  info "  Cloning gitlab.com/${gl_path} ..."
+  if ! git clone --mirror "$gl_url" "$work_dir" >/dev/null 2>&1; then
+    warn "  Clone failed for ${gl_path}; Git diagnostics were suppressed to protect credentials"
+    rm -rf "$work_dir"
+    return 1
+  fi
+
+  if ! cd "$work_dir"; then
     warn "  Cannot enter temporary clone directory for ${gl_path}"
     rm -rf "$work_dir"
     return 1
-  }
+  fi
 
   local push_ok=true
 
-  # Push all branches back to GitHub, decoding any encoded names (e.g.
-  # upstream-commits--S--Org--S--repo--S--YYYY-MM-DD → upstream-commits/Org/repo/YYYY-MM-DD)
-  # that were encoded when originally pushed from GitHub to GitLab.
-  push_branches_decoded "$gh_remote" 2>&1 \
-    | sed "s/${GH_TOKEN}/***TOKEN***/g" \
-    | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
-    || push_ok=false
+  # Never print raw push diagnostics: Git may include credential-bearing URLs.
+  # Non-fast-forward branches and conflicting tags must fail closed.
+  if ! push_branches_decoded "$gh_remote" >/dev/null 2>&1; then
+    warn "  Branch push failed for ${gl_path}; Git diagnostics were suppressed to protect credentials"
+    push_ok=false
+  fi
 
-  # Push tags (non-fatal if some already exist)
-  # Never force-update existing tags; divergent tag names must fail safely.
-  git push "$gh_remote" 'refs/tags/*:refs/tags/*' 2>&1 \
-    | sed "s/${GH_TOKEN}/***TOKEN***/g" \
-    | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
-    || true
+  if ! git push "$gh_remote" 'refs/tags/*:refs/tags/*' >/dev/null 2>&1; then
+    warn "  Tag push failed for ${gl_path}; Git diagnostics were suppressed to protect credentials"
+    push_ok=false
+  fi
 
-  cd / || return 1
-  rm -rf "$work_dir"
+  if ! cd "$original_dir"; then
+    warn "  Cannot return to the original working directory after syncing ${gl_path}"
+    return 1
+  fi
+  rm -rf "$work_dir" || {
+    warn "  Could not remove temporary clone directory for ${gl_path}"
+    return 1
+  }
 
-  $push_ok
+  "$push_ok"
 }
 
 # ── main ─────────────────────────────────────────────────────────────────────
