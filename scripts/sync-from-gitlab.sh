@@ -28,8 +28,8 @@ if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
 fi
 
 if [[ "$DRY_RUN" == "false" ]]; then
-  if [[ "${BDFS_SOURCE_AUDIT_COMPLETE:-}" != "true" || "${BDFS_GITLAB_SYNC_ENABLED:-}" != "true" ]]; then
-    echo "ERROR: GitLab sync writes require BDFS_SOURCE_AUDIT_COMPLETE=true and BDFS_GITLAB_SYNC_ENABLED=true." >&2
+  if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" || "${BDFS_GITLAB_SYNC_ENABLED:-}" != "true" ]]; then
+    echo "ERROR: GitLab sync writes require BDFS_SOURCE_AUDITS_COMPLETE=true and BDFS_GITLAB_SYNC_ENABLED=true." >&2
     exit 2
   fi
 fi
