@@ -122,16 +122,9 @@ jobs:
       - name: Clone org
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          # All platform secrets are passed so the script can select the right
-          # one based on SOURCE_PLATFORM or the SOURCE_CREDENTIAL override.
-          # Values are masked by GitHub Actions automatically.
-          _SECRET_SYNC_TOKEN:          ${{ secrets.SYNC_TOKEN }}
-          _SECRET_GITLAB_SYNC_TOKEN:   ${{ secrets.GITLAB_SYNC_TOKEN }}
-          _SECRET_BITBUCKET_TOKEN:     ${{ secrets.BITBUCKET_TOKEN }}
-          _SECRET_GITEA_TOKEN:         ${{ secrets.GITEA_TOKEN }}
-          _SECRET_GH_SYNC_TOKEN:       ${{ secrets.GH_SYNC_TOKEN }}
-          _SECRET_ADD_MIRROR_REPO_SYNC: ${{ secrets.ADD_MIRROR_REPO_SYNC }}
-          SOURCE_CREDENTIAL: ${{ inputs.source_credential }}
+          # Pass only the credential selected for this source platform or
+          # explicit override; never expose the other platform secrets.
+          SOURCE_TOKEN: ${{ (inputs.source_credential == 'SYNC_TOKEN' || (inputs.source_credential == '(auto — use platform default)' && inputs.source_platform == 'github')) && secrets.SYNC_TOKEN || (inputs.source_credential == 'GITLAB_SYNC_TOKEN' || (inputs.source_credential == '(auto — use platform default)' && inputs.source_platform == 'gitlab')) && secrets.GITLAB_SYNC_TOKEN || (inputs.source_credential == 'BITBUCKET_TOKEN' || (inputs.source_credential == '(auto — use platform default)' && inputs.source_platform == 'bitbucket')) && secrets.BITBUCKET_TOKEN || (inputs.source_credential == 'GITEA_TOKEN' || (inputs.source_credential == '(auto — use platform default)' && inputs.source_platform == 'gitea')) && secrets.GITEA_TOKEN || (inputs.source_credential == 'GH_SYNC_TOKEN' && secrets.GH_SYNC_TOKEN) || (inputs.source_credential == 'ADD_MIRROR_REPO_SYNC' && secrets.ADD_MIRROR_REPO_SYNC) || '' }}
           SOURCE_PLATFORM: ${{ inputs.source_platform }}
           SOURCE_ORG: ${{ inputs.source_org }}
           CLONE_TYPE: ${{ inputs.clone_type }}
