@@ -40,12 +40,182 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "bdfs.h"
 
 #define AUTOSNAP_PATTERN "autosnap-*"
 #define AUTOSNAP_PREFIX  "autosnap-"
+/* Execute an argv vector directly; never interpolate paths through a shell. */
+static int autosnap_run(const char *const argv[])
+{
+	pid_t pid = fork();
+	int status;
+	if (pid < 0)
+		return -errno;
+	if (pid == 0) {
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+	while (waitpid(pid, &status, 0) < 0) {
+		if (errno == EINTR)
+			continue;
+		return -errno;
+	}
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -EIO;
+}
+
+static int autosnap_capture(const char *const argv[], char *buf, size_t bufsz)
+{
+	int pipefd[2], status;
+	pid_t pid;
+	size_t used = 0;
+	if (!buf || bufsz < 2)
+		return -EINVAL;
+	buf[0] = '\0';
+	if (pipe(pipefd) < 0)
+		return -errno;
+	pid = fork();
+	if (pid < 0) {
+		int err = errno;
+		close(pipefd[0]); close(pipefd[1]);
+		return -err;
+	}
+	if (pid == 0) {
+		close(pipefd[0]);
+		if (dup2(pipefd[1], STDOUT_FILENO) < 0)
+			_exit(126);
+		close(pipefd[1]);
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+	close(pipefd[1]);
+	for (;;) {
+		char chunk[4096];
+		ssize_t n = read(pipefd[0], chunk, sizeof(chunk));
+		if (n == 0)
+			break;
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			int err = errno;
+			close(pipefd[0]);
+			kill(pid, SIGKILL);
+			waitpid(pid, NULL, 0);
+			return -err;
+		}
+		size_t room = bufsz - used - 1;
+		size_t copy = (size_t)n < room ? (size_t)n : room;
+		if (copy) {
+			memcpy(buf + used, chunk, copy);
+			used += copy;
+			buf[used] = '\0';
+		}
+	}
+	close(pipefd[0]);
+	while (waitpid(pid, &status, 0) < 0) {
+		if (errno == EINTR)
+			continue;
+		return -errno;
+	}
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -EIO;
+}
+
+static bool valid_autosnap_name(const char *name)
+{
+	if (!name || strncmp(name, AUTOSNAP_PREFIX,
+			     strlen(AUTOSNAP_PREFIX)) != 0)
+		return false;
+	for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+		if (!( (*p >= 'a' && *p <= 'z') ||
+		       (*p >= 'A' && *p <= 'Z') ||
+		       (*p >= '0' && *p <= '9') ||
+		       *p == '-' || *p == '_' || *p == '.' ))
+			return false;
+	}
+	return true;
+}
+
+/* Run btrfs send -> btrfs receive --dump without a shell pipeline. */
+static int autosnap_show_diff(const char *pre_path, const char *post_path)
+{
+	int stream[2], output[2], send_status = 0, recv_status = 0;
+	pid_t send_pid, recv_pid;
+	FILE *fp;
+	if (pipe(stream) < 0)
+		return -errno;
+	if (pipe(output) < 0) {
+		int err = errno;
+		close(stream[0]); close(stream[1]);
+		return -err;
+	}
+	send_pid = fork();
+	if (send_pid < 0) {
+		int err = errno;
+		close(stream[0]); close(stream[1]);
+		close(output[0]); close(output[1]);
+		return -err;
+	}
+	if (send_pid == 0) {
+		const char *argv[] = { "btrfs", "send", "--no-data", "-p",
+				       pre_path, post_path, NULL };
+		close(stream[0]);
+		close(output[0]); close(output[1]);
+		if (dup2(stream[1], STDOUT_FILENO) < 0)
+			_exit(126);
+		close(stream[1]);
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+	recv_pid = fork();
+	if (recv_pid < 0) {
+		int err = errno;
+		kill(send_pid, SIGKILL);
+		waitpid(send_pid, NULL, 0);
+		close(stream[0]); close(stream[1]);
+		close(output[0]); close(output[1]);
+		return -err;
+	}
+	if (recv_pid == 0) {
+		const char *argv[] = { "btrfs", "receive", "--dump", NULL };
+		close(stream[1]);
+		close(output[0]);
+		if (dup2(stream[0], STDIN_FILENO) < 0 ||
+		    dup2(output[1], STDOUT_FILENO) < 0)
+			_exit(126);
+		close(stream[0]); close(output[1]);
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+	close(stream[0]); close(stream[1]); close(output[1]);
+	fp = fdopen(output[0], "r");
+	if (!fp) {
+		int err = errno;
+		close(output[0]);
+		kill(send_pid, SIGKILL); kill(recv_pid, SIGKILL);
+		waitpid(send_pid, NULL, 0); waitpid(recv_pid, NULL, 0);
+		return -err;
+	}
+	char line[4096];
+	while (fgets(line, sizeof(line), fp)) {
+		if (strncmp(line, "snapshot", 8) == 0 ||
+		    strncmp(line, "subvol", 6) == 0)
+			continue;
+		fputs(line, stdout);
+	}
+	fclose(fp);
+	while (waitpid(send_pid, &send_status, 0) < 0 && errno == EINTR)
+		;
+	while (waitpid(recv_pid, &recv_status, 0) < 0 && errno == EINTR)
+		;
+	if (!WIFEXITED(send_status) || WEXITSTATUS(send_status) != 0 ||
+	    !WIFEXITED(recv_status) || WEXITSTATUS(recv_status) != 0)
+		return -EIO;
+	return 0;
+}
+
 /* Execute an argv vector directly; never interpolate paths through a shell. */
 static int autosnap_run(const char *const argv[])
 {
@@ -331,8 +501,7 @@ static int cmd_autosnap_delete(struct bdfs_cli *cli, int argc, char *argv[])
 	const char *snap_name = argv[optind];
 
 	/* Reject names that don't look like autosnap snapshots */
-	if (strncmp(snap_name, AUTOSNAP_PREFIX,
-		    strlen(AUTOSNAP_PREFIX)) != 0) {
+	if (!valid_autosnap_name(snap_name)) {
 		bdfs_err("'%s' does not look like an autosnap snapshot "
 			 "(expected prefix '" AUTOSNAP_PREFIX "')",
 			 snap_name);
@@ -364,10 +533,10 @@ static int cmd_autosnap_delete(struct bdfs_cli *cli, int argc, char *argv[])
 		 * Fall back to direct btrfs subvolume delete if the ioctl
 		 * doesn't support BDFS_SNAP_DELETE yet.
 		 */
-		char cmd[1024];
-		snprintf(cmd, sizeof(cmd),
-			 "btrfs subvolume delete '%s' 2>&1", snap_path);
-		int rc = system(cmd);
+		const char *del_argv[] = {
+			"btrfs", "subvolume", "delete", snap_path, NULL
+		};
+		int rc = autosnap_run(del_argv);
 		if (rc != 0) {
 			bdfs_err("failed to delete snapshot: %s", snap_path);
 			return 1;
@@ -527,56 +696,40 @@ static int cmd_autosnap_status(struct bdfs_cli *cli, int argc, char *argv[])
 	const char *pre_name  = argv[optind];
 	const char *post_name = (remaining >= 2) ? argv[optind + 1] : NULL;
 
+	if (!valid_autosnap_name(pre_name) ||
+	    (post_name && !valid_autosnap_name(post_name))) {
+		bdfs_err("snapshot names must be autosnap basenames");
+		return 1;
+	}
+
 	char pre_path[1024];
 	snprintf(pre_path, sizeof(pre_path), "%s/%s", btrfs_mount, pre_name);
 
 	if (post_name) {
-		/* Two snapshots: show btrfs diff */
 		char post_path[1024];
 		snprintf(post_path, sizeof(post_path), "%s/%s",
 			 btrfs_mount, post_name);
-
-		char cmd[2048];
-		snprintf(cmd, sizeof(cmd),
-			 "btrfs subvolume find-new '%s' 9999999 2>/dev/null"
-			 " | head -1"
-			 " | awk '{print $4}'",
-			 pre_path);
-
-		/* Use btrfs send --no-data to get a file-level diff */
-		snprintf(cmd, sizeof(cmd),
-			 "btrfs send --no-data -p '%s' '%s' 2>/dev/null"
-			 " | btrfs receive --dump 2>/dev/null"
-			 " | grep -v '^snapshot\\|^subvol'",
-			 pre_path, post_path);
-
 		if (!cli->json_output) {
 			printf("Changes from %s → %s:\n", pre_name, post_name);
-			int rc = system(cmd);
-			if (rc != 0)
+			if (autosnap_show_diff(pre_path, post_path) != 0)
 				printf("  (no changes or diff unavailable)\n");
 		} else {
 			printf("{\"pre\":\"%s\",\"post\":\"%s\","
-			       "\"diff_cmd\":\"%s\"}\n",
-			       pre_name, post_name, cmd);
+			       "\"diff_available\":true}\n", pre_name, post_name);
 		}
 	} else {
-		/* One snapshot: show subvolume metadata */
-		char cmd[1024];
-		snprintf(cmd, sizeof(cmd),
-			 "btrfs subvolume show '%s' 2>/dev/null", pre_path);
-
+		const char *show_argv[] = {
+			"btrfs", "subvolume", "show", pre_path, NULL
+		};
 		if (!cli->json_output) {
 			printf("Snapshot: %s\n", pre_name);
-			int rc = system(cmd);
-			if (rc != 0)
+			if (autosnap_run(show_argv) != 0)
 				bdfs_err("snapshot not found: %s", pre_path);
 		} else {
 			printf("{\"name\":\"%s\",\"path\":\"%s\"}\n",
 			       pre_name, pre_path);
 		}
 	}
-
 	return 0;
 }
 
