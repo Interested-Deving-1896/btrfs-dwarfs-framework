@@ -132,7 +132,10 @@ int cmd_snapshot_prune(struct bdfs_cli *cli, int argc, char *argv[])
 			strncpy(btrfs_mount, optarg, sizeof(btrfs_mount) - 1);
 			break;
 		case 'k':
-			keep = (uint32_t)atoi(optarg);
+			if (bdfs_parse_u32(optarg, 1, UINT32_MAX, &keep) < 0) {
+				bdfs_err("--keep must be a positive 32-bit integer");
+				return 2;
+			}
 			break;
 		case 'P':
 			strncpy(pattern, optarg, sizeof(pattern) - 1);
