@@ -35,7 +35,8 @@ struct bdfs_command {
 
 /* ── Subcommand groups ─────────────────────────────────────────────────── */
 
-/* partition subcommands */
+/* partition command group and subcommands */
+int cmd_partition(struct bdfs_cli *cli, int argc, char *argv[]);
 int cmd_partition_add(struct bdfs_cli *cli, int argc, char *argv[]);
 int cmd_partition_remove(struct bdfs_cli *cli, int argc, char *argv[]);
 int cmd_partition_list(struct bdfs_cli *cli, int argc, char *argv[]);
@@ -79,6 +80,8 @@ int cmd_policy_scan(struct bdfs_cli *cli, int argc, char *argv[]);
 
 int  bdfs_cli_open_ctl(struct bdfs_cli *cli);
 void bdfs_cli_close(struct bdfs_cli *cli);
+int  bdfs_cli_send_recv(struct bdfs_cli *cli, const char *request,
+                        char *response, size_t response_size);
 
 /* Output helpers */
 void bdfs_print_partition(const struct bdfs_partition *p, bool json);
