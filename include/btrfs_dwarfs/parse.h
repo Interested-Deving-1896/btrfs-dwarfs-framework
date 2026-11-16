@@ -48,7 +48,7 @@ static inline int bdfs_parse_u64(const char *text, uint64_t min_value,
 	errno = 0;
 	value = strtoull(text, &end, 10);
 	if (errno == ERANGE || !end || *end != '\0' ||
-	    value > UINT64_MAX || value < min_value || value > max_value)
+	    value < min_value || value > max_value)
 		return -ERANGE;
 	*out = (uint64_t)value;
 	return 0;
