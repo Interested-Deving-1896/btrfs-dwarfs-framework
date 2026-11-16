@@ -11,6 +11,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #include "bdfs.h"
 
@@ -149,4 +151,207 @@ uint32_t bdfs_compression_from_name(const char *name)
     if (strcmp(name, "brotli") == 0)
         return BDFS_COMPRESS_BROTLI;
     return BDFS_COMPRESS_ZSTD;
+}
+
+
+static void print_json_string(const char *value)
+{
+    const unsigned char *p = (const unsigned char *)(value ? value : "");
+    putchar('"');
+    for (; *p; p++) {
+        switch (*p) {
+        case '"':  fputs("\\\"", stdout); break;
+        case '\\': fputs("\\\\", stdout); break;
+        case '\b': fputs("\\b", stdout); break;
+        case '\f': fputs("\\f", stdout); break;
+        case '\n': fputs("\\n", stdout); break;
+        case '\r': fputs("\\r", stdout); break;
+        case '\t': fputs("\\t", stdout); break;
+        default:
+            if (*p < 0x20)
+                printf("\\u%04x", *p);
+            else
+                putchar(*p);
+        }
+    }
+    putchar('"');
+}
+
+static const char *partition_type_name(uint32_t type)
+{
+    switch (type) {
+    case BDFS_PART_DWARFS_BACKED: return "dwarfs-backed";
+    case BDFS_PART_BTRFS_BACKED: return "btrfs-backed";
+    case BDFS_PART_HYBRID_BLEND: return "hybrid-blend";
+    default: return "unknown";
+    }
+}
+
+void bdfs_print_partition(const struct bdfs_partition *p, bool json)
+{
+    char uuid[37];
+
+    if (!p)
+        return;
+    bdfs_uuid_to_str(p->uuid, uuid);
+
+    if (json) {
+        printf("{\\"uuid\\":");
+        print_json_string(uuid);
+        printf(",\\"type\\":");
+        print_json_string(partition_type_name(p->type));
+        printf(",\\"label\\":");
+        print_json_string(p->label);
+        printf(",\\"device_path\\":");
+        print_json_string(p->device_path);
+        printf(",\\"mount_point\\":");
+        print_json_string(p->mount_point);
+        printf(",\\"version_major\\":%u,\\"version_minor\\":%u}",
+               p->version_major, p->version_minor);
+        return;
+    }
+
+    printf("  Type:        %s\\n", partition_type_name(p->type));
+    printf("  Label:       %s\\n", p->label);
+    printf("  Device:      %s\\n", p->device_path);
+    printf("  Mount point: %s\\n", p->mount_point);
+    printf("  Version:     %u.%u\\n", p->version_major, p->version_minor);
+}
+
+void bdfs_print_image(const struct bdfs_dwarfs_image *img, bool json)
+{
+    char uuid[37];
+
+    if (!img)
+        return;
+    bdfs_uuid_to_str(img->uuid, uuid);
+
+    if (json) {
+        printf("{\\"image_id\\":%llu,\\"name\\":",
+               (unsigned long long)img->image_id);
+        print_json_string(img->name);
+        printf(",\\"uuid\\":");
+        print_json_string(uuid);
+        printf(",\\"size_bytes\\":%llu,\\"uncompressed_bytes\\":%llu,"
+               "\\"compression\\":",
+               (unsigned long long)img->size_bytes,
+               (unsigned long long)img->uncompressed_bytes);
+        print_json_string(bdfs_compression_name(img->compression));
+        printf(",\\"mounted\\":%s,\\"mount_point\\":",
+               img->mounted ? "true" : "false");
+        print_json_string(img->mount_point);
+        putchar('}');
+        return;
+    }
+
+    printf("  Image ID:       %llu\\n", (unsigned long long)img->image_id);
+    printf("  Name:           %s\\n", img->name);
+    printf("  UUID:           %s\\n", uuid);
+    printf("  Size:           %llu bytes\\n",
+           (unsigned long long)img->size_bytes);
+    printf("  Uncompressed:   %llu bytes\\n",
+           (unsigned long long)img->uncompressed_bytes);
+    printf("  Compression:    %s\\n",
+           bdfs_compression_name(img->compression));
+    printf("  Mounted:        %s\\n", img->mounted ? "yes" : "no");
+    if (img->mounted)
+        printf("  Mount point:    %s\\n", img->mount_point);
+}
+
+void bdfs_print_subvol(const struct bdfs_btrfs_subvol *sv, bool json)
+{
+    if (!sv)
+        return;
+
+    if (json) {
+        printf("{\\"subvol_id\\":%llu,\\"name\\":",
+               (unsigned long long)sv->subvol_id);
+        print_json_string(sv->name);
+        printf(",\\"path\\":");
+        print_json_string(sv->path);
+        printf(",\\"generation\\":%llu,\\"is_snapshot\\":%s,"
+               "\\"is_readonly\\":%s}",
+               (unsigned long long)sv->generation,
+               sv->is_snapshot ? "true" : "false",
+               sv->is_readonly ? "true" : "false");
+        return;
+    }
+
+    printf("  Subvolume ID: %llu\\n", (unsigned long long)sv->subvol_id);
+    printf("  Name:         %s\\n", sv->name);
+    printf("  Path:         %s\\n", sv->path);
+    printf("  Generation:   %llu\\n", (unsigned long long)sv->generation);
+    printf("  Snapshot:     %s\\n", sv->is_snapshot ? "yes" : "no");
+    printf("  Read-only:    %s\\n", sv->is_readonly ? "yes" : "no");
+}
+
+int bdfs_cli_send_recv(struct bdfs_cli *cli, const char *request,
+                       char *response, size_t response_size)
+{
+    struct sockaddr_un addr;
+    size_t sent = 0;
+    size_t used = 0;
+    int fd;
+
+    if (!cli || !request || !response || response_size < 2)
+        return -EINVAL;
+    response[0] = '\0';
+
+    fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (fd < 0)
+        return -errno;
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    if (strlen(cli->socket_path) >= sizeof(addr.sun_path)) {
+        close(fd);
+        return -ENAMETOOLONG;
+    }
+    strncpy(addr.sun_path, cli->socket_path, sizeof(addr.sun_path) - 1);
+
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        int err = errno;
+        close(fd);
+        return -err;
+    }
+
+    while (sent < strlen(request)) {
+        ssize_t n = send(fd, request + sent, strlen(request) - sent,
+                         MSG_NOSIGNAL);
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;
+            int err = errno;
+            close(fd);
+            return -err;
+        }
+        if (n == 0) {
+            close(fd);
+            return -EIO;
+        }
+        sent += (size_t)n;
+    }
+
+    while (used < response_size - 1) {
+        ssize_t n = recv(fd, response + used, response_size - 1 - used, 0);
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;
+            int err = errno;
+            close(fd);
+            return -err;
+        }
+        if (n == 0)
+            break;
+        used += (size_t)n;
+        response[used] = '\0';
+        if (memchr(response, '\n', used))
+            break;
+    }
+
+    close(fd);
+    if (used == 0)
+        return -EIO;
+    response[used] = '\0';
+    return 0;
 }
