@@ -31,7 +31,7 @@ jobs:
   rebase-lts:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.dry_run == true || (vars.BDFS_SOURCE_AUDIT_COMPLETE == 'true' && vars.BDFS_LTS_REBASE_ENABLED == 'true')) }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.dry_run == true || (vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_LTS_REBASE_ENABLED == 'true')) }}
 
     steps:
       - name: Checkout repository
@@ -45,7 +45,7 @@ jobs:
           FEATURE_BRANCH: ${{ inputs.feature_branch || 'all-features' }}
           LTS_BRANCH: ${{ inputs.lts_branch || 'lts' }}
           DRY_RUN: ${{ inputs.dry_run == true && 'true' || 'false' }}
-          BDFS_SOURCE_AUDIT_COMPLETE: ${{ vars.BDFS_SOURCE_AUDIT_COMPLETE }}
+          BDFS_SOURCE_AUDITS_COMPLETE: ${{ vars.BDFS_SOURCE_AUDITS_COMPLETE }}
           BDFS_LTS_REBASE_ENABLED: ${{ vars.BDFS_LTS_REBASE_ENABLED }}
         run: bash scripts/rebase-lts.sh
 
