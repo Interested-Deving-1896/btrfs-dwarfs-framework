@@ -127,6 +127,40 @@ static int autosnap_capture(const char *const argv[], char *buf, size_t bufsz)
 	return truncated ? -ENOSPC : 0;
 }
 
+
+static int json_escape_text(const char *src, char *dst, size_t dstsz)
+{
+	size_t used = 0;
+	if (!src || !dst || dstsz == 0)
+		return -EINVAL;
+	for (const unsigned char *p = (const unsigned char *)src; *p; p++) {
+		char escaped[7];
+		size_t n = 1;
+		escaped[0] = (char)*p;
+		switch (*p) {
+		case '"': escaped[0] = '\\'; escaped[1] = '"'; n = 2; break;
+		case '\\': escaped[0] = '\\'; escaped[1] = '\\'; n = 2; break;
+		case '\b': escaped[0] = '\\'; escaped[1] = 'b'; n = 2; break;
+		case '\f': escaped[0] = '\\'; escaped[1] = 'f'; n = 2; break;
+		case '\n': escaped[0] = '\\'; escaped[1] = 'n'; n = 2; break;
+		case '\r': escaped[0] = '\\'; escaped[1] = 'r'; n = 2; break;
+		case '\t': escaped[0] = '\\'; escaped[1] = 't'; n = 2; break;
+		default:
+			if (*p < 0x20) {
+				snprintf(escaped, sizeof(escaped), "\\u%04x", *p);
+				n = 6;
+			}
+			break;
+		}
+		if (used + n >= dstsz)
+			return -ENOSPC;
+		memcpy(dst + used, escaped, n);
+		used += n;
+	}
+	dst[used] = '\0';
+	return 0;
+}
+
 static bool valid_autosnap_name(const char *name)
 {
 	if (!name || strncmp(name, AUTOSNAP_PREFIX,
@@ -528,16 +562,19 @@ static int cmd_autosnap_rollback(struct bdfs_cli *cli, int argc, char *argv[])
 	sleep(5);
 
 	/* Build the rollback request for the daemon */
-	char req[1024];
-	char uuid_str[37];
-	bdfs_uuid_to_str(uuid, uuid_str);
+	char req[4096];
+	char mount_json[3073];
+	if (json_escape_text(btrfs_mount, mount_json, sizeof(mount_json)) < 0) {
+		bdfs_err("BTRFS mount path is too long to encode safely");
+		return 1;
+	}
 
-	/* Socket handler reads flat fields (no nested "args" object) */
+	/* Socket handler reads flat fields (no nested "args" object). */
 	snprintf(req, sizeof(req),
 		 "{\"cmd\":\"autosnap_rollback\","
 		 "\"btrfs_mount\":\"%s\","
 		 "\"snapshot_name\":\"%s\"}\n",
-		 btrfs_mount, snap_name);
+		 mount_json, snap_name);
 
 	if (bdfs_cli_open_ctl(cli))
 		return 1;
@@ -635,8 +672,14 @@ static int cmd_autosnap_status(struct bdfs_cli *cli, int argc, char *argv[])
 			if (autosnap_run(show_argv) != 0)
 				bdfs_err("snapshot not found: %s", pre_path);
 		} else {
+			char path_json[6145];
+			if (json_escape_text(pre_path, path_json,
+					     sizeof(path_json)) < 0) {
+				bdfs_err("snapshot path is too long to encode");
+				return 1;
+			}
 			printf("{\"name\":\"%s\",\"path\":\"%s\"}\n",
-			       pre_name, pre_path);
+			       pre_name, path_json);
 		}
 	}
 	return 0;
@@ -704,7 +747,12 @@ static int cmd_autosnap_prune(struct bdfs_cli *cli, int argc, char *argv[])
 
 	/* Socket handler reads flat fields: "subvol", "pattern", "keep",
 	 * "demote_first", "dry_run" — not a nested "args" object. */
-	char req[1024];
+	char req[4096];
+	char mount_json[3073];
+	if (json_escape_text(btrfs_mount, mount_json, sizeof(mount_json)) < 0) {
+		bdfs_err("BTRFS mount path is too long to encode safely");
+		return 1;
+	}
 	snprintf(req, sizeof(req),
 		 "{\"cmd\":\"prune\","
 		 "\"subvol\":\"%s\","
@@ -712,7 +760,7 @@ static int cmd_autosnap_prune(struct bdfs_cli *cli, int argc, char *argv[])
 		 "\"keep\":%u,"
 		 "\"demote_first\":%s,"
 		 "\"dry_run\":%s}\n",
-		 btrfs_mount, keep,
+		 mount_json, keep,
 		 (flags & BDFS_PRUNE_DEMOTE_FIRST) ? "true" : "false",
 		 (flags & BDFS_PRUNE_DRY_RUN)      ? "true" : "false");
 
