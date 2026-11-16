@@ -120,7 +120,12 @@ int cmd_policy_add(struct bdfs_cli *cli, int argc, char *argv[])
 			strncpy(partition_uuid_str, optarg,
 				sizeof(partition_uuid_str) - 1);
 			break;
-		case 'a': age_days    = (uint32_t)atoi(optarg); break;
+		case 'a':
+			if (bdfs_parse_u32(optarg, 0, 36500, &age_days) < 0) {
+				bdfs_err("age-days must be between 0 and 36500");
+				return 2;
+			}
+			break;
 		case 'c': compression = bdfs_compression_from_name(optarg); break;
 		case 'n': strncpy(name_pattern, optarg,
 				  sizeof(name_pattern) - 1); break;
