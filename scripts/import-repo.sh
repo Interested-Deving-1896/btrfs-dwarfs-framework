@@ -63,7 +63,14 @@ info()  { echo "[import-repo] $*"; }
 warn()  { echo "[warn] $*" >&2; }
 error() { echo "[error] $*" >&2; exit 1; }
 
-sanitize() { sed "s/${GH_TOKEN}/***TOKEN***/g"; }
+sanitize() {
+  local output token
+  output=$(cat)
+  for token in "${GH_TOKEN}" "${GITLAB_TOKEN:-}" "${BITBUCKET_TOKEN:-}" "${GITEA_TOKEN:-}"; do
+    [[ -n "$token" ]] && output="${output//"$token"/***TOKEN***}"
+  done
+  printf '%s\n' "$output"
+}
 
 gh_api_get() {
   curl -sf \
