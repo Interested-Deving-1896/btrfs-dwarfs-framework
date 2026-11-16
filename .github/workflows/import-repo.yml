@@ -37,7 +37,7 @@ on:
         default: true
 
 permissions:
-  contents: write
+  contents: read
 
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
