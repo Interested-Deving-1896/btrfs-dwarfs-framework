@@ -70,7 +70,10 @@ int cmd_mount(struct bdfs_cli *cli, int argc, char *argv[])
 			}
 			break;
 		case 'I':
-			arg.image_id = (uint64_t)strtoull(optarg, NULL, 0);
+			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &arg.image_id) < 0) {
+				bdfs_err("invalid image ID: %s", optarg);
+				return 2;
+			}
 			break;
 		case 'm':
 			strncpy(arg.mount_point, optarg,
@@ -138,7 +141,10 @@ int cmd_umount(struct bdfs_cli *cli, int argc, char *argv[])
 			}
 			break;
 		case 'I':
-			arg.image_id = (uint64_t)strtoull(optarg, NULL, 0);
+			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &arg.image_id) < 0) {
+				bdfs_err("invalid image ID: %s", optarg);
+				return 2;
+			}
 			break;
 		case 'f':
 			arg.flags |= BDFS_UMOUNT_FORCE;
