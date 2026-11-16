@@ -100,7 +100,7 @@ for entry in "${REPOS[@]}"; do
   existing_tags=$(echo "$gl_releases" | python3 -c \
     "import sys,json; [print(r['tag_name']) for r in json.load(sys.stdin)]" 2>/dev/null || true)
 
-  echo "$gh_releases" | python3 - << 'PYEOF'
+  python3 -c 'exec(open("/dev/fd/3").read())' 3<<'PYEOF' <<< "$gh_releases"
 import sys, json, os, urllib.request, urllib.error
 
 releases = json.load(sys.stdin)

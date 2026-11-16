@@ -14,16 +14,19 @@ include_directories(
 )
 
 # ── test_uuid ────────────────────────────────────────────────────────────────
-add_executable(test_uuid test_uuid.c)
+add_executable(test_uuid test_uuid.c ../../userspace/cli/bdfs_common.c)
 target_compile_definitions(test_uuid PRIVATE BDFS_UNIT_TEST)
-target_link_options(test_uuid PRIVATE -Wl,--unresolved-symbols=ignore-in-object-files)
 add_test(NAME uuid COMMAND test_uuid)
 
 # ── test_compression_names ───────────────────────────────────────────────────
-add_executable(test_compression test_compression.c)
+add_executable(test_compression test_compression.c ../../userspace/cli/bdfs_common.c)
 target_compile_definitions(test_compression PRIVATE BDFS_UNIT_TEST)
-target_link_options(test_compression PRIVATE -Wl,--unresolved-symbols=ignore-in-object-files)
 add_test(NAME compression COMMAND test_compression)
+
+# ── test_numeric ────────────────────────────────────────────────────────────
+add_executable(test_numeric test_numeric.c ../../userspace/cli/bdfs_common.c)
+target_compile_definitions(test_numeric PRIVATE BDFS_UNIT_TEST)
+add_test(NAME numeric COMMAND test_numeric)
 
 # ── test_job_alloc ───────────────────────────────────────────────────────────
 add_executable(test_job_alloc test_job_alloc.c
@@ -32,7 +35,10 @@ add_executable(test_job_alloc test_job_alloc.c
     ../../userspace/daemon/bdfs_exec.c
     ../../userspace/daemon/bdfs_netlink.c
     ../../userspace/daemon/bdfs_socket.c
-    ../../userspace/daemon/bdfs_policy.c)
+    ../../userspace/daemon/bdfs_policy.c
+    ../../userspace/daemon/bdfs_mount_table.c
+    ../../userspace/daemon/bdfs_jobs_workspace.c
+    ../../userspace/daemon/bdfs_shutdown_log.c)
 target_compile_definitions(test_job_alloc PRIVATE BDFS_UNIT_TEST BDFS_CMAKE_BUILD)
 target_link_libraries(test_job_alloc PRIVATE pthread)
 add_test(NAME job_alloc COMMAND test_job_alloc)

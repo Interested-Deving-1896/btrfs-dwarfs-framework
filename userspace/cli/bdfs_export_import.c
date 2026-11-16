@@ -60,12 +60,30 @@ int cmd_export(struct bdfs_cli *cli, int argc, char *argv[])
 				return 1;
 			}
 			break;
-		case 'S': arg.btrfs_subvol_id = (uint64_t)strtoull(optarg, NULL, 0); break;
+		case 'S': {
+			uint64_t parsed_id;
+			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &parsed_id) < 0) {
+				bdfs_err("invalid subvolume ID: %s", optarg);
+				return 2;
+			}
+			arg.btrfs_subvol_id = parsed_id;
+			break;
+		}
 		case 'b': strncpy(arg.btrfs_mount,      optarg, sizeof(arg.btrfs_mount)      - 1); break;
 		case 'n': strncpy(arg.image_name,        optarg, sizeof(arg.image_name)        - 1); break;
 		case 'c': arg.compression     = bdfs_compression_from_name(optarg); break;
-		case 'B': arg.block_size_bits  = (uint32_t)atoi(optarg); break;
-		case 'w': arg.worker_threads   = (uint32_t)atoi(optarg); break;
+		case 'B':
+			if (bdfs_parse_u32(optarg, 12, 30, &arg.block_size_bits) < 0) {
+				bdfs_err("block-size-bits must be between 12 and 30");
+				return 2;
+			}
+			break;
+		case 'w':
+			if (bdfs_parse_u32(optarg, 1, 1024, &arg.worker_threads) < 0) {
+				bdfs_err("workers must be between 1 and 1024");
+				return 2;
+			}
+			break;
 		case 'i': arg.flags |= BDFS_EXPORT_INCREMENTAL; break;
 		case 'P': strncpy(arg.parent_snap_path, optarg, sizeof(arg.parent_snap_path) - 1); break;
 		case 'V': arg.flags |= BDFS_EXPORT_VERIFY;      break;
@@ -142,7 +160,15 @@ int cmd_import(struct bdfs_cli *cli, int argc, char *argv[])
 				return 1;
 			}
 			break;
-		case 'I': arg.image_id = (uint64_t)strtoull(optarg, NULL, 0); break;
+		case 'I': {
+			uint64_t parsed_id;
+			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &parsed_id) < 0) {
+				bdfs_err("invalid image ID: %s", optarg);
+				return 2;
+			}
+			arg.image_id = parsed_id;
+			break;
+		}
 		case 'b': strncpy(arg.btrfs_mount,  optarg, sizeof(arg.btrfs_mount)  - 1); break;
 		case 'n': strncpy(arg.subvol_name,  optarg, sizeof(arg.subvol_name)  - 1); break;
 		case 'r': arg.flags |= BDFS_IMPORT_READONLY; break;

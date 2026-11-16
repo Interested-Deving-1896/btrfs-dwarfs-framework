@@ -240,6 +240,9 @@ struct bdfs_ioctl_snapshot_dwarfs_container {
 	char  snapshot_name[BDFS_NAME_MAX + 1];
 	__u32 flags;
 #define BDFS_SNAP_READONLY (1 << 0)
+#define BDFS_SNAP_DELETE   (1 << 1)
+#define BDFS_PRUNE_DEMOTE_FIRST (1 << 0)
+#define BDFS_PRUNE_DRY_RUN      (1 << 1)
 	__u64 snapshot_subvol_id_out;
 };
 #define BDFS_IOC_SNAPSHOT_DWARFS_CONTAINER \

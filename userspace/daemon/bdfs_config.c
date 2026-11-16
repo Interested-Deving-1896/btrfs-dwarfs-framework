@@ -152,10 +152,26 @@ int bdfs_config_load(const char *path, struct bdfs_daemon_config *cfg)
 			else if (strcmp(key, "state_dir") == 0)
 				set_str(cfg->state_dir,
 					sizeof(cfg->state_dir), val);
-			else if (strcmp(key, "worker_threads") == 0)
-				cfg->worker_threads = atoi(val);
-			else if (strcmp(key, "mkdwarfs_timeout") == 0)
-				cfg->mkdwarfs_timeout_s = atoi(val);
+			else if (strcmp(key, "archive_dir") == 0)
+				set_str(cfg->archive_dir,
+					sizeof(cfg->archive_dir), val);
+			else if (strcmp(key, "worker_threads") == 0) {
+				uint32_t parsed;
+				if (bdfs_parse_u32(val, 1, 1024, &parsed) < 0)
+					syslog(LOG_WARNING,
+					       "bdfs: config %s:%d: invalid worker_threads",
+					       path, lineno);
+				else
+					cfg->worker_threads = (int)parsed;
+			} else if (strcmp(key, "mkdwarfs_timeout") == 0) {
+				uint32_t parsed;
+				if (bdfs_parse_u32(val, 1, 86400, &parsed) < 0)
+					syslog(LOG_WARNING,
+					       "bdfs: config %s:%d: invalid mkdwarfs_timeout",
+					       path, lineno);
+				else
+					cfg->mkdwarfs_timeout_s = (int)parsed;
+			}
 			else if (strcmp(key, "shutdown_log") == 0)
 				set_str(cfg->shutdown_log_path,
 					sizeof(cfg->shutdown_log_path), val);

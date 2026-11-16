@@ -70,14 +70,23 @@ int cmd_mount(struct bdfs_cli *cli, int argc, char *argv[])
 			}
 			break;
 		case 'I':
-			arg.image_id = (uint64_t)strtoull(optarg, NULL, 0);
+			uint64_t parsed_id;
+			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &parsed_id) < 0) {
+				bdfs_err("invalid image ID: %s", optarg);
+				return 2;
+			}
+			arg.image_id = parsed_id;
 			break;
 		case 'm':
 			strncpy(arg.mount_point, optarg,
 				sizeof(arg.mount_point) - 1);
 			break;
 		case 'c':
-			arg.cache_size_mb = (uint32_t)atoi(optarg);
+			if (bdfs_parse_u32(optarg, 0, UINT32_MAX,
+					   &arg.cache_size_mb) < 0) {
+				bdfs_err("invalid cache size: %s", optarg);
+				return 2;
+			}
 			break;
 		case 'h':
 			printf("Usage: bdfs mount --partition <uuid> "
@@ -134,7 +143,12 @@ int cmd_umount(struct bdfs_cli *cli, int argc, char *argv[])
 			}
 			break;
 		case 'I':
-			arg.image_id = (uint64_t)strtoull(optarg, NULL, 0);
+			uint64_t parsed_id;
+			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &parsed_id) < 0) {
+				bdfs_err("invalid image ID: %s", optarg);
+				return 2;
+			}
+			arg.image_id = parsed_id;
 			break;
 		case 'f':
 			arg.flags |= BDFS_UMOUNT_FORCE;
@@ -224,8 +238,8 @@ int cmd_blend_mount(struct bdfs_cli *cli, int argc, char *argv[])
 				sizeof(uarg.mount_point) - 1);
 			break;
 		case 'b':
-			strncpy(uarg.btrfs_upper, optarg,
-				sizeof(uarg.btrfs_upper) - 1);
+			strncpy(uarg.btrfs_mount, optarg,
+				sizeof(uarg.btrfs_mount) - 1);
 			break;
 		case 'd':
 			strncpy(uarg.dwarfs_image, optarg,
@@ -239,10 +253,16 @@ int cmd_blend_mount(struct bdfs_cli *cli, int argc, char *argv[])
 			karg.opts.compression =
 				bdfs_compression_from_name(optarg);
 			break;
-		case 'C':
-			karg.opts.cache_size_mb = (uint32_t)atoi(optarg);
-			uarg.cache_size_mb      = (uint32_t)atoi(optarg);
+		case 'C': {
+			uint32_t cache_mb;
+			if (bdfs_parse_u32(optarg, 0, UINT32_MAX, &cache_mb) < 0) {
+				bdfs_err("invalid cache size: %s", optarg);
+				return 2;
+			}
+			karg.opts.cache_size_mb = cache_mb;
+			uarg.cache_size_mb = cache_mb;
 			break;
+		}
 		case 'w':
 			karg.opts.flags |= BDFS_MOUNT_WRITEBACK;
 			uarg.flags      |= BDFS_MOUNT_WRITEBACK;
@@ -311,7 +331,7 @@ int cmd_blend_mount(struct bdfs_cli *cli, int argc, char *argv[])
 	 * Userspace path: validate the extra arguments that the kernel path
 	 * derives internally but fuse-overlayfs needs explicitly.
 	 */
-	if (!uarg.btrfs_upper[0]) {
+	if (!uarg.btrfs_mount[0]) {
 		bdfs_err("--btrfs-mount is required for userspace blend mount");
 		return 1;
 	}

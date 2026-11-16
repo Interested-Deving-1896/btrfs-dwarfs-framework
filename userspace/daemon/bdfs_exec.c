@@ -16,6 +16,8 @@
 #include <sys/sendfile.h>
 #include <sys/wait.h>
 #include <syslog.h>
+#include <signal.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "bdfs_daemon.h"
@@ -437,3 +439,119 @@ int bdfs_exec_wait_timeout(const char *const argv[], int timeout_s)
 	return -ETIMEDOUT;
 }
 
+
+
+/*
+ * Execute argv[] and capture bounded stdout. Continue draining after the
+ * caller's buffer fills so a verbose child cannot deadlock on a full pipe.
+ */
+int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
+			     char *buf, size_t bufsz)
+{
+	int pipefd[2], status = 0, child_done = 0, timed_out = 0;
+	int truncated = 0;
+	pid_t pid;
+	size_t used = 0;
+	struct timespec start, now;
+
+	if (!argv || !argv[0] || !buf || bufsz == 0)
+		return -EINVAL;
+	buf[0] = '\0';
+	if (pipe2(pipefd, O_CLOEXEC) < 0)
+		return -errno;
+
+	pid = fork();
+	if (pid < 0) {
+		int err = errno;
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return -err;
+	}
+	if (pid == 0) {
+		close(pipefd[0]);
+		if (dup2(pipefd[1], STDOUT_FILENO) < 0)
+			_exit(126);
+		close(pipefd[1]);
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+
+	close(pipefd[1]);
+	if (fcntl(pipefd[0], F_SETFL, O_NONBLOCK) < 0) {
+		int err = errno;
+		kill(pid, SIGKILL);
+		waitpid(pid, NULL, 0);
+		close(pipefd[0]);
+		return -err;
+	}
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	while (!child_done) {
+		char chunk[4096];
+		ssize_t n;
+
+		while ((n = read(pipefd[0], chunk, sizeof(chunk))) > 0) {
+			size_t room = bufsz - used - 1;
+			size_t copy = (size_t)n < room ? (size_t)n : room;
+			if (copy) {
+				memcpy(buf + used, chunk, copy);
+				used += copy;
+				buf[used] = '\0';
+			}
+			if (copy < (size_t)n)
+				truncated = 1;
+		}
+		if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK &&
+		    errno != EINTR) {
+			int err = errno;
+			kill(pid, SIGKILL);
+			waitpid(pid, NULL, 0);
+			close(pipefd[0]);
+			return -err;
+		}
+
+		if (waitpid(pid, &status, WNOHANG) == pid) {
+			child_done = 1;
+			break;
+		}
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		if (timeout_s > 0 &&
+		    (now.tv_sec - start.tv_sec) >= timeout_s) {
+			timed_out = 1;
+			kill(pid, SIGTERM);
+			usleep(5000000);
+			if (waitpid(pid, &status, WNOHANG) == 0) {
+				kill(pid, SIGKILL);
+				waitpid(pid, &status, 0);
+			}
+			child_done = 1;
+			break;
+		}
+		usleep(100000);
+	}
+
+	/* Drain any bytes written immediately before the child exited. */
+	for (;;) {
+		char chunk[4096];
+		ssize_t n = read(pipefd[0], chunk, sizeof(chunk));
+		if (n <= 0)
+			break;
+		size_t room = bufsz - used - 1;
+		size_t copy = (size_t)n < room ? (size_t)n : room;
+		if (copy) {
+			memcpy(buf + used, chunk, copy);
+			used += copy;
+			buf[used] = '\0';
+		}
+		if (copy < (size_t)n)
+			truncated = 1;
+	}
+	close(pipefd[0]);
+
+	if (timed_out)
+		return -ETIMEDOUT;
+	if (truncated)
+		return -ENOSPC;
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+		return -EIO;
+	return 0;
+}

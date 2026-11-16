@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/sendfile.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -137,9 +138,12 @@ int bdfs_job_export_to_dwarfs(struct bdfs_daemon *d, struct bdfs_job *job)
 cleanup:
 	bdfs_exec_btrfs_subvol_delete(d, snap_path);
 	{
-		char rm_cmd[BDFS_PATH_MAX + 8];
-		snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s", extract_dir);
-		system(rm_cmd);
+		const char *rm_argv[] = { "rm", "-rf", "--", extract_dir, NULL };
+		int rm_ret = bdfs_exec_wait(rm_argv);
+		if (rm_ret)
+			syslog(LOG_WARNING,
+			       "bdfs: export: cleanup of %s failed: %d",
+			       extract_dir, rm_ret);
 	}
 	if (ret && access(tmp_image, F_OK) == 0)
 		unlink(tmp_image);
@@ -532,34 +536,38 @@ int bdfs_job_prune(struct bdfs_daemon *d, struct bdfs_job *job)
 	bool        dry   = !!(j->prune.flags & BDFS_PRUNE_DRY_RUN);
 	bool        demote = !!(j->prune.flags & BDFS_PRUNE_DEMOTE_FIRST);
 
-	/* Run `btrfs subvolume list -o <mount>` and parse output */
-	char cmd[BDFS_PATH_MAX + 64];
-	snprintf(cmd, sizeof(cmd),
-		 "%s subvolume list -o %s 2>/dev/null",
-		 d->cfg.btrfs_bin, mount);
-
-	FILE *fp = popen(cmd, "r");
-	if (!fp) {
-		syslog(LOG_ERR, "bdfs: prune: popen btrfs list: %m");
-		return -errno;
+	/* Run btrfs directly; never interpolate the mount path through a shell. */
+	char output[262144];
+	const char *argv[] = {
+		d->cfg.btrfs_bin, "subvolume", "list", "-o", mount, NULL
+	};
+	int list_ret = bdfs_exec_capture_output(argv, 60, output,
+						sizeof(output));
+	if (list_ret) {
+		syslog(LOG_ERR, "bdfs: prune: btrfs subvolume list failed: %d",
+		       list_ret);
+		return list_ret;
 	}
 
 	struct snap_entry *snaps = NULL;
 	size_t count = 0, cap = 0;
-	char line[BDFS_PATH_MAX + 128];
-
-	while (fgets(line, sizeof(line), fp)) {
+	char *saveptr = NULL;
+	for (char *line = strtok_r(output, "\n", &saveptr);
+	     line; line = strtok_r(NULL, "\n", &saveptr)) {
 		/* Format: "ID <n> gen <n> top level <n> path <name>" */
 		char name[BDFS_PATH_MAX] = "";
-		if (sscanf(line, "%*s %*u %*s %*u %*s %*u %*s %s", name) != 1)
+		if (sscanf(line, "%*s %*u %*s %*u %*s %*u %*s %4095s",
+			   name) != 1)
 			continue;
 
-		/* Apply name pattern filter */
 		if (pat[0] && fnmatch(pat, name, 0) != 0)
 			continue;
 
 		char full_path[BDFS_PATH_MAX];
-		snprintf(full_path, sizeof(full_path), "%s/%s", mount, name);
+		int path_len = snprintf(full_path, sizeof(full_path),
+					"%s/%s", mount, name);
+		if (path_len < 0 || (size_t)path_len >= sizeof(full_path))
+			continue;
 
 		struct stat st;
 		if (stat(full_path, &st) < 0)
@@ -571,7 +579,6 @@ int bdfs_job_prune(struct bdfs_daemon *d, struct bdfs_job *job)
 						cap * sizeof(*snaps));
 			if (!tmp) {
 				syslog(LOG_ERR, "bdfs: prune: out of memory");
-				pclose(fp);
 				free(snaps);
 				return -ENOMEM;
 			}
@@ -579,10 +586,10 @@ int bdfs_job_prune(struct bdfs_daemon *d, struct bdfs_job *job)
 		}
 
 		strncpy(snaps[count].path, full_path, BDFS_PATH_MAX - 1);
+		snaps[count].path[BDFS_PATH_MAX - 1] = '\0';
 		snaps[count].mtime = st.st_mtime;
 		count++;
 	}
-	pclose(fp);
 
 	if (count == 0) {
 		syslog(LOG_INFO, "bdfs: prune: no snapshots found under %s "

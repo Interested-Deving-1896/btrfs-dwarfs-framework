@@ -62,7 +62,15 @@ int cmd_snapshot(struct bdfs_cli *cli, int argc, char *argv[])
 				return 1;
 			}
 			break;
-		case 'i': arg.image_id = (uint64_t)strtoull(optarg, NULL, 0); break;
+		case 'i': {
+			uint64_t parsed_id;
+			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &parsed_id) < 0) {
+				bdfs_err("invalid image ID: %s", optarg);
+				return 2;
+			}
+			arg.image_id = parsed_id;
+			break;
+		}
 		case 'n': strncpy(arg.snapshot_name, optarg,
 				  sizeof(arg.snapshot_name) - 1); break;
 		case 'r': arg.flags |= BDFS_SNAP_READONLY; break;
@@ -132,7 +140,10 @@ int cmd_snapshot_prune(struct bdfs_cli *cli, int argc, char *argv[])
 			strncpy(btrfs_mount, optarg, sizeof(btrfs_mount) - 1);
 			break;
 		case 'k':
-			keep = (uint32_t)atoi(optarg);
+			if (bdfs_parse_u32(optarg, 1, UINT32_MAX, &keep) < 0) {
+				bdfs_err("--keep must be a positive 32-bit integer");
+				return 2;
+			}
 			break;
 		case 'P':
 			strncpy(pattern, optarg, sizeof(pattern) - 1);
