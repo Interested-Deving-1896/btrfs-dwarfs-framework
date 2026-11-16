@@ -375,9 +375,15 @@ int main(int argc, char *argv[])
 			strncpy(cfg.state_dir, optarg,
 				sizeof(cfg.state_dir) - 1);
 			break;
-		case 'j':
-			cfg.worker_threads = atoi(optarg);
+		case 'j': {
+			uint32_t workers;
+			if (bdfs_parse_u32(optarg, 1, 1024, &workers) < 0) {
+				syslog(LOG_ERR, "bdfs: invalid worker count: %s", optarg);
+				return 2;
+			}
+			cfg.worker_threads = (int)workers;
 			break;
+		}
 		case 'C':
 			strncpy(config_path, optarg, sizeof(config_path) - 1);
 			break;
