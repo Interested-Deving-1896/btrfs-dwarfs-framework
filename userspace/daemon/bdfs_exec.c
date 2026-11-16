@@ -15,6 +15,9 @@
 #include <string.h>
 #include <sys/sendfile.h>
 #include <sys/wait.h>
+#include <poll.h>
+#include <signal.h>
+#include <time.h>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -437,3 +440,134 @@ int bdfs_exec_wait_timeout(const char *const argv[], int timeout_s)
 	return -ETIMEDOUT;
 }
 
+
+
+/*
+ * bdfs_exec_capture_output - Execute argv[] and capture stdout with a timeout.
+ * Excess output is drained but truncated to bufsz-1 bytes. The output is
+ * always NUL-terminated when bufsz is non-zero.
+ */
+int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
+                             char *buf, size_t bufsz)
+{
+    int pipefd[2];
+    pid_t pid;
+    size_t used = 0;
+    int result = 0;
+    struct timespec start;
+
+    if (!argv || !argv[0] || !buf || bufsz == 0)
+        return -EINVAL;
+    buf[0] = '\0';
+
+    if (pipe2(pipefd, O_CLOEXEC) < 0)
+        return -errno;
+
+    pid = fork();
+    if (pid < 0) {
+        int err = errno;
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return -err;
+    }
+
+    if (pid == 0) {
+        close(pipefd[0]);
+        if (dup2(pipefd[1], STDOUT_FILENO) < 0)
+            _exit(126);
+        close(pipefd[1]);
+        execvp(argv[0], (char *const *)argv);
+        _exit(127);
+    }
+
+    close(pipefd[1]);
+    if (clock_gettime(CLOCK_MONOTONIC, &start) < 0) {
+        result = -errno;
+        goto terminate_child;
+    }
+
+    for (;;) {
+        struct timespec now;
+        struct pollfd pfd = { .fd = pipefd[0], .events = POLLIN | POLLHUP };
+        int remaining_ms = timeout_s > 0 ? timeout_s * 1000 : 30000;
+        int poll_rc;
+
+        if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) {
+            result = -errno;
+            goto terminate_child;
+        }
+        if (timeout_s > 0) {
+            long elapsed_ms = (now.tv_sec - start.tv_sec) * 1000L +
+                              (now.tv_nsec - start.tv_nsec) / 1000000L;
+            remaining_ms -= (int)elapsed_ms;
+            if (remaining_ms <= 0) {
+                result = -ETIMEDOUT;
+                goto terminate_child;
+            }
+        }
+
+        poll_rc = poll(&pfd, 1, remaining_ms);
+        if (poll_rc < 0) {
+            if (errno == EINTR)
+                continue;
+            result = -errno;
+            goto terminate_child;
+        }
+        if (poll_rc == 0) {
+            result = -ETIMEDOUT;
+            goto terminate_child;
+        }
+
+        if (pfd.revents & (POLLIN | POLLHUP | POLLERR)) {
+            char chunk[4096];
+            ssize_t n = read(pipefd[0], chunk, sizeof(chunk));
+            if (n == 0)
+                break;
+            if (n < 0) {
+                if (errno == EINTR || errno == EAGAIN)
+                    continue;
+                result = -errno;
+                goto terminate_child;
+            }
+
+            if (used < bufsz - 1) {
+                size_t copy = (size_t)n;
+                if (copy > bufsz - 1 - used)
+                    copy = bufsz - 1 - used;
+                memcpy(buf + used, chunk, copy);
+                used += copy;
+                buf[used] = '\0';
+            }
+        }
+    }
+
+    close(pipefd[0]);
+    {
+        int status;
+        if (waitpid(pid, &status, 0) < 0)
+            return -errno;
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+            return -EIO;
+    }
+    return 0;
+
+terminate_child:
+    close(pipefd[0]);
+    kill(pid, SIGTERM);
+    {
+        int status;
+        int waited_ms;
+        for (waited_ms = 0; waited_ms < 5000; waited_ms += 100) {
+            pid_t waited = waitpid(pid, &status, WNOHANG);
+            if (waited == pid)
+                return result;
+            if (waited < 0 && errno != EINTR)
+                return result;
+            usleep(100000);
+        }
+        kill(pid, SIGKILL);
+        while (waitpid(pid, NULL, 0) < 0 && errno == EINTR)
+            ;
+    }
+    return result;
+}
