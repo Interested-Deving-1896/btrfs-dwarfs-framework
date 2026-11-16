@@ -22,7 +22,7 @@ on:
         description: "Dry run — print actions without applying changes"
         type: boolean
         required: false
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -36,6 +36,7 @@ permissions:
 
 jobs:
   setup:
+    if: vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_MIRRORS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -49,7 +50,7 @@ jobs:
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run || 'true' }}
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
             echo "SYNC_TOKEN not configured — skipping."
