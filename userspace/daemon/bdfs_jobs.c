@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/sendfile.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/wait.h>
