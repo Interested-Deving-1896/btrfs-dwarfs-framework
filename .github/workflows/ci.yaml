@@ -57,4 +57,10 @@ jobs:
           test -d tests/integration
           test -f tests/integration/run_all.sh
           bash -n tests/integration/run_all.sh
-          echo "Repository build, configuration, and test entry points are present."
+          bash -n scripts/sync-from-gitlab.sh
+          set +e
+          env -u GITLAB_TOKEN -u GH_TOKEN DRY_RUN=false bash scripts/sync-from-gitlab.sh
+          gate_status=$?
+          set -e
+          test "$gate_status" -eq 2
+          echo "Repository entry points and fail-closed GitLab sync guard are valid."
