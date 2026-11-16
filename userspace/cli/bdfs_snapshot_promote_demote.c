@@ -62,7 +62,12 @@ int cmd_snapshot(struct bdfs_cli *cli, int argc, char *argv[])
 				return 1;
 			}
 			break;
-		case 'i': arg.image_id = (uint64_t)strtoull(optarg, NULL, 0); break;
+		case 'i':
+			if (bdfs_parse_u64(optarg, 1, UINT64_MAX, &arg.image_id) < 0) {
+				bdfs_err("invalid image ID: %s", optarg);
+				return 2;
+			}
+			break;
 		case 'n': strncpy(arg.snapshot_name, optarg,
 				  sizeof(arg.snapshot_name) - 1); break;
 		case 'r': arg.flags |= BDFS_SNAP_READONLY; break;
