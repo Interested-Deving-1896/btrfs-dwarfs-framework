@@ -77,7 +77,11 @@ int cmd_mount(struct bdfs_cli *cli, int argc, char *argv[])
 				sizeof(arg.mount_point) - 1);
 			break;
 		case 'c':
-			arg.cache_size_mb = (uint32_t)atoi(optarg);
+			if (bdfs_parse_u32(optarg, 0, UINT32_MAX,
+					   &arg.cache_size_mb) < 0) {
+				bdfs_err("invalid cache size: %s", optarg);
+				return 2;
+			}
 			break;
 		case 'h':
 			printf("Usage: bdfs mount --partition <uuid> "
@@ -239,10 +243,16 @@ int cmd_blend_mount(struct bdfs_cli *cli, int argc, char *argv[])
 			karg.opts.compression =
 				bdfs_compression_from_name(optarg);
 			break;
-		case 'C':
-			karg.opts.cache_size_mb = (uint32_t)atoi(optarg);
-			uarg.cache_size_mb      = (uint32_t)atoi(optarg);
+		case 'C': {
+			uint32_t cache_mb;
+			if (bdfs_parse_u32(optarg, 0, UINT32_MAX, &cache_mb) < 0) {
+				bdfs_err("invalid cache size: %s", optarg);
+				return 2;
+			}
+			karg.opts.cache_size_mb = cache_mb;
+			uarg.cache_size_mb = cache_mb;
 			break;
+		}
 		case 'w':
 			karg.opts.flags |= BDFS_MOUNT_WRITEBACK;
 			uarg.flags      |= BDFS_MOUNT_WRITEBACK;
