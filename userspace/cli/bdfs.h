@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include "../../include/uapi/bdfs_ioctl.h"
 
 #define BDFS_CLI_VERSION  "1.0.0"
