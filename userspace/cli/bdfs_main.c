@@ -44,12 +44,7 @@ int cmd_workspace_shutdown(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* ── Command table ───────────────────────────────────────────────────────── */
 
-struct bdfs_command {
-	const char *name;
-	const char *alias;   /* optional short alias, NULL if none */
-	int (*fn)(struct bdfs_cli *cli, int argc, char *argv[]);
-	const char *summary;
-};
+
 
 static const struct bdfs_command COMMANDS[] = {
 	{ "partition", "part",   cmd_partition,
@@ -175,7 +170,7 @@ int main(int argc, char *argv[])
 			print_usage();
 			return 0;
 		case 'V':
-			printf("bdfs %s\n", BDFS_VERSION);
+			printf("bdfs %s\n", BDFS_CLI_VERSION);
 			return 0;
 		default:
 			print_usage();
