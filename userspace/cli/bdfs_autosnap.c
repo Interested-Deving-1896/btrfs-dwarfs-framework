@@ -40,6 +40,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -186,7 +187,14 @@ static int list_autosnap_subvols(const char *btrfs_mount, bool json)
 
         if (strncmp(name, AUTOSNAP_PREFIX, strlen(AUTOSNAP_PREFIX)) != 0)
             continue;
-        if (strchr(name, '/'))
+        bool safe_name = true;
+        for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+            if (!isalnum(*p) && *p != '-' && *p != '_') {
+                safe_name = false;
+                break;
+            }
+        }
+        if (!safe_name)
             continue;
 
         if (json) {
