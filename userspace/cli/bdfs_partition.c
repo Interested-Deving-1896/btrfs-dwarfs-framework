@@ -236,3 +236,25 @@ int cmd_partition_show(struct bdfs_cli *cli, int argc, char *argv[])
 	bdfs_err("partition %s not found", argv[1]);
 	return 1;
 }
+
+
+/* ── partition command group ─────────────────────────────────────────────── */
+int cmd_partition(struct bdfs_cli *cli, int argc, char *argv[])
+{
+    if (argc < 2) {
+        bdfs_err("Usage: bdfs partition <add|remove|list|show> [options]");
+        return 1;
+    }
+
+    if (strcmp(argv[1], "add") == 0)
+        return cmd_partition_add(cli, argc - 1, argv + 1);
+    if (strcmp(argv[1], "remove") == 0)
+        return cmd_partition_remove(cli, argc - 1, argv + 1);
+    if (strcmp(argv[1], "list") == 0)
+        return cmd_partition_list(cli, argc - 1, argv + 1);
+    if (strcmp(argv[1], "show") == 0)
+        return cmd_partition_show(cli, argc - 1, argv + 1);
+
+    bdfs_err("unknown partition subcommand: %s", argv[1]);
+    return 1;
+}
