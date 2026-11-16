@@ -107,8 +107,10 @@ int bdfs_userconf_load(struct bdfs_userconf *cfg)
 
 	char section[64] = "";
 	char line[512];
+	int lineno = 0;
 
 	while (fgets(line, sizeof(line), f)) {
+		lineno++;
 		char *s = trim(line);
 
 		/* Skip comments and blank lines */
