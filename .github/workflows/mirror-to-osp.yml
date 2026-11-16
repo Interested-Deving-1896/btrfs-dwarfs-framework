@@ -39,6 +39,7 @@ permissions:
 
 jobs:
   mirror:
+    if: vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_MIRRORS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -51,7 +52,7 @@ jobs:
           UPSTREAM_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run || 'true' }}
           FORCE: ${{ inputs.force || 'false' }}
         run: bash scripts/mirror-to-osp.sh
       - name: Write summary
