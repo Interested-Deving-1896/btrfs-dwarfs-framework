@@ -129,7 +129,12 @@ int cmd_policy_add(struct bdfs_cli *cli, int argc, char *argv[])
 		case 'c': compression = bdfs_compression_from_name(optarg); break;
 		case 'n': strncpy(name_pattern, optarg,
 				  sizeof(name_pattern) - 1); break;
-		case 'm': min_size_mb = (uint64_t)strtoull(optarg, NULL, 0); break;
+		case 'm':
+			if (bdfs_parse_u64(optarg, 0, UINT64_MAX, &min_size_mb) < 0) {
+				bdfs_err("invalid minimum size: %s", optarg);
+				return 2;
+			}
+			break;
 		case 'r': readonly     = true; break;
 		case 'd': delete_after = true; break;
 		case 'h':
