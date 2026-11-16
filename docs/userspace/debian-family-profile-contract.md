@@ -127,7 +127,7 @@ Allowed report states: `passed`, `failed`, `skipped`, `unavailable`, `legacy`, a
 
 ## 7. Integration boundary and explicit exclusions
 
-The existing bootc integration remains separate under `BDFS/Integrations`. It is not part of these userspace pipelines.
+The existing bootc integration remains separate under `integrations/bootc`. It is not part of these userspace pipelines.
 
 - Do not install, invoke, detect, configure, test, package, or require bootc in the Debian/Devuan/Ubuntu userspace pipeline.
 - Do not add bootc-specific build stages, image assembly, OCI/ostree semantics, filesystem layout assumptions, or bootc-specific validation to these pipelines.
