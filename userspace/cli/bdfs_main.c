@@ -44,6 +44,28 @@ int cmd_workspace_shutdown(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* ── Command table ───────────────────────────────────────────────────────── */
 
+/* Dispatch the partition command's second-level subcommands. */
+int cmd_partition(struct bdfs_cli *cli, int argc, char *argv[])
+{
+	if (argc < 1) {
+		fprintf(stderr,
+			"Usage: bdfs partition <add|remove|list|show> [options]\\n");
+		return 1;
+	}
+
+	if (strcmp(argv[0], "add") == 0)
+		return cmd_partition_add(cli, argc - 1, argv + 1);
+	if (strcmp(argv[0], "remove") == 0 || strcmp(argv[0], "rm") == 0)
+		return cmd_partition_remove(cli, argc - 1, argv + 1);
+	if (strcmp(argv[0], "list") == 0)
+		return cmd_partition_list(cli, argc - 1, argv + 1);
+	if (strcmp(argv[0], "show") == 0)
+		return cmd_partition_show(cli, argc - 1, argv + 1);
+
+	bdfs_err("unknown partition subcommand: %s", argv[0]);
+	return 1;
+}
+
 
 
 static const struct bdfs_command COMMANDS[] = {
