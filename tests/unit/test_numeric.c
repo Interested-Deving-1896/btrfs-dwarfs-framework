@@ -43,6 +43,18 @@ int main(void)
 	check("null output rejected",
 	      bdfs_parse_u32("1", 0, UINT32_MAX, NULL) < 0);
 
+	uint64_t wide = 0;
+	check("u64 maximum accepted",
+	      bdfs_parse_u64("18446744073709551615", 0, UINT64_MAX,
+			     &wide) == 0 && wide == UINT64_MAX);
+	check("u64 overflow rejected",
+	      bdfs_parse_u64("18446744073709551616", 0, UINT64_MAX,
+			     &wide) < 0);
+	check("u64 trailing junk rejected",
+	      bdfs_parse_u64("42x", 0, UINT64_MAX, &wide) < 0);
+	check("u64 negative rejected",
+	      bdfs_parse_u64("-42", 0, UINT64_MAX, &wide) < 0);
+
 	printf("%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);
 	return failures ? 1 : 0;
 }
