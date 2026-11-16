@@ -22,9 +22,19 @@ set -uo pipefail
 
 UPSTREAM_REPO="${UPSTREAM_REPO:-}"
 RELEASE_TAG="${RELEASE_TAG:-}"
-DRY_RUN="${DRY_RUN:-false}"
+DRY_RUN="${DRY_RUN:-true}"
 REPO_FILTER="${REPO_FILTER:-}"
 FORCE="${FORCE:-false}"
+
+if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
+  echo "ERROR: DRY_RUN must be exactly 'true' or 'false'." >&2
+  exit 2
+fi
+if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" ||
+      "${BDFS_MIRRORS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: artifact mirroring requires BDFS_SOURCE_AUDITS_COMPLETE=true and BDFS_MIRRORS_ENABLED=true." >&2
+  exit 2
+fi
 
 [[ "$DRY_RUN" == "true" ]] && echo "Dry run — no writes will occur."
 [[ "$FORCE"   == "true" ]] && echo "Force mode — existing releases will be re-mirrored."
@@ -120,14 +130,14 @@ mirror_packages_for_repo() {
     # Mirror Flatpak if .flatpak asset present
     if echo "$release" | jq -e '.assets[] | select(.name | endswith(".flatpak"))' > /dev/null 2>&1; then
       echo "    [flatpak] ${dst_org}/${src_repo}: $tag"
-      UPSTREAM_REPO="$src_repo" TARGET_ORG="$dst_org" RELEASE_TAG="$tag" \
+      UPSTREAM_REPO="$src_repo" TARGET_ORG="$dst_org" RELEASE_TAG="$tag" DRY_RUN="$DRY_RUN" \
         bash "${SCRIPT_DIR}/mirror-flatpak.sh" || echo "    flatpak mirror failed (non-fatal)"
     fi
 
     # Mirror RPM if .rpm asset present
     if echo "$release" | jq -e '.assets[] | select(.name | endswith(".rpm"))' > /dev/null 2>&1; then
       echo "    [rpm] ${dst_org}/${src_repo}: $tag"
-      UPSTREAM_REPO="$src_repo" TARGET_ORG="$dst_org" RELEASE_TAG="$tag" \
+      UPSTREAM_REPO="$src_repo" TARGET_ORG="$dst_org" RELEASE_TAG="$tag" DRY_RUN="$DRY_RUN" \
         bash "${SCRIPT_DIR}/mirror-rpm.sh" || echo "    rpm mirror failed (non-fatal)"
     fi
   done < <(echo "$releases" | jq -c '.[]')

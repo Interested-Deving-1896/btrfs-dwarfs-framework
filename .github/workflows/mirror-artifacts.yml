@@ -71,8 +71,10 @@ jobs:
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
           UPSTREAM_REPO: ${{ inputs.upstream_repo }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-          DRY_RUN: ${{ inputs.dry_run || 'true' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == false && 'false' || 'true' }}
           FORCE: ${{ inputs.force || 'false' }}
+          BDFS_SOURCE_AUDITS_COMPLETE: ${{ vars.BDFS_SOURCE_AUDITS_COMPLETE }}
+          BDFS_MIRRORS_ENABLED: ${{ vars.BDFS_MIRRORS_ENABLED }}
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
             echo "SYNC_TOKEN not configured — skipping."

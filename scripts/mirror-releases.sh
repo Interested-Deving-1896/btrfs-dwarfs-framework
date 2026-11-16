@@ -16,13 +16,23 @@ set -uo pipefail
 : "${UPSTREAM_OWNER:?UPSTREAM_OWNER is required}"
 : "${OSP_ORG:?OSP_ORG is required}"
 : "${OOC_ORG:?OOC_ORG is required}"
-DRY_RUN="${DRY_RUN:-false}"
+DRY_RUN="${DRY_RUN:-true}"
 # REPO_FILTER: substring — only process repos whose name contains this string
 REPO_FILTER="${REPO_FILTER:-}"
 # RELEASE_TAG: exact tag — only mirror this specific release (blank = all)
 RELEASE_TAG="${RELEASE_TAG:-}"
 # FORCE: re-mirror releases that already exist in the mirror org
 FORCE="${FORCE:-false}"
+
+if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
+  echo "ERROR: DRY_RUN must be exactly 'true' or 'false'." >&2
+  exit 2
+fi
+if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" ||
+      "${BDFS_MIRRORS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: release publication requires BDFS_SOURCE_AUDITS_COMPLETE=true and BDFS_MIRRORS_ENABLED=true." >&2
+  exit 2
+fi
 
 [[ -n "$REPO_FILTER"   ]] && echo "Repo filter:   '${REPO_FILTER}'"
 [[ -n "$RELEASE_TAG"   ]] && echo "Release tag:   '${RELEASE_TAG}'"

@@ -22,6 +22,20 @@ set -uo pipefail
 : "${UPSTREAM_REPO:?required}"
 : "${RELEASE_TAG:?required}"
 
+if [[ "${DRY_RUN:-true}" != "true" && "${DRY_RUN:-true}" != "false" ]]; then
+  echo "ERROR: DRY_RUN must be exactly 'true' or 'false'." >&2
+  exit 2
+fi
+if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" ||
+      "${BDFS_MIRRORS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: package publication requires BDFS_SOURCE_AUDITS_COMPLETE=true and BDFS_MIRRORS_ENABLED=true." >&2
+  exit 2
+fi
+if [[ "${DRY_RUN:-true}" == "true" ]]; then
+  echo "DRY RUN: package publication is disabled; no repository or gh-pages writes will occur."
+  exit 0
+fi
+
 API="https://api.github.com"
 AUTH=(-H "Authorization: token ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
 RPM_REPO_NAME="rpm-repo"
