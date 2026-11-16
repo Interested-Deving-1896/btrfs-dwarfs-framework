@@ -39,12 +39,106 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "bdfs.h"
 
 #define AUTOSNAP_PATTERN "autosnap-*"
 #define AUTOSNAP_PREFIX  "autosnap-"
+/* Execute an argv vector directly; never interpolate paths through a shell. */
+static int autosnap_run(const char *const argv[])
+{
+	pid_t pid = fork();
+	int status;
+
+	if (pid < 0)
+		return -errno;
+	if (pid == 0) {
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+	while (waitpid(pid, &status, 0) < 0) {
+		if (errno == EINTR)
+			continue;
+		return -errno;
+	}
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -EIO;
+}
+
+static int autosnap_capture(const char *const argv[], char *buf, size_t bufsz)
+{
+	int pipefd[2], status;
+	pid_t pid;
+	size_t used = 0;
+
+	if (!buf || bufsz < 2)
+		return -EINVAL;
+	buf[0] = '\0';
+	if (pipe(pipefd) < 0)
+		return -errno;
+	pid = fork();
+	if (pid < 0) {
+		int err = errno;
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return -err;
+	}
+	if (pid == 0) {
+		close(pipefd[0]);
+		if (dup2(pipefd[1], STDOUT_FILENO) < 0)
+			_exit(126);
+		close(pipefd[1]);
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+	close(pipefd[1]);
+	for (;;) {
+		char chunk[4096];
+		ssize_t n = read(pipefd[0], chunk, sizeof(chunk));
+		if (n == 0)
+			break;
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			int err = errno;
+			close(pipefd[0]);
+			kill(pid, SIGKILL);
+			waitpid(pid, NULL, 0);
+			return -err;
+		}
+		size_t room = bufsz - used - 1;
+		size_t copy = (size_t)n < room ? (size_t)n : room;
+		if (copy) {
+			memcpy(buf + used, chunk, copy);
+			used += copy;
+			buf[used] = '\0';
+		}
+	}
+	close(pipefd[0]);
+	while (waitpid(pid, &status, 0) < 0) {
+		if (errno == EINTR)
+			continue;
+		return -errno;
+	}
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -EIO;
+}
+
+static bool valid_autosnap_name(const char *name)
+{
+	if (!name || strncmp(name, AUTOSNAP_PREFIX,
+			     strlen(AUTOSNAP_PREFIX)) != 0)
+		return false;
+	for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+		if (!( (*p >= 'a' && *p <= 'z') ||
+		       (*p >= 'A' && *p <= 'Z') ||
+		       (*p >= '0' && *p <= '9') ||
+		       *p == '-' || *p == '_' || *p == '.' ))
+			return false;
+	}
+	return true;
+}
+
 
 /* ── Partition auto-detection ────────────────────────────────────────────── */
 
@@ -125,49 +219,40 @@ static int resolve_partition(struct bdfs_cli *cli,
  */
 static int list_autosnap_subvols(const char *btrfs_mount, bool json)
 {
-	char cmd[512];
-	snprintf(cmd, sizeof(cmd),
-		 "btrfs subvolume list -o '%s' 2>/dev/null"
-		 " | awk '$NF ~ /^" AUTOSNAP_PREFIX "/ {print $NF}'",
-		 btrfs_mount);
-
-	FILE *fp = popen(cmd, "r");
-	if (!fp) {
-		bdfs_err("popen: %s", strerror(errno));
+	char output[65536];
+	const char *argv[] = { "btrfs", "subvolume", "list", "-o",
+			       btrfs_mount, NULL };
+	int ret = autosnap_capture(argv, output, sizeof(output));
+	if (ret) {
+		bdfs_err("btrfs subvolume list failed for %s", btrfs_mount);
 		return 1;
 	}
 
-	char line[512];
 	int count = 0;
-
 	if (json)
 		printf("[");
-
-	while (fgets(line, sizeof(line), fp)) {
-		/* Strip trailing newline */
-		size_t len = strlen(line);
-		if (len > 0 && line[len - 1] == '\n')
-			line[len - 1] = '\0';
-
-		if (!line[0])
+	char *saveptr = NULL;
+	for (char *line = strtok_r(output, "\n", &saveptr);
+	     line; line = strtok_r(NULL, "\n", &saveptr)) {
+		char *last = strrchr(line, ' ');
+		const char *name = last ? last + 1 : line;
+		const char *base = strrchr(name, '/');
+		base = base ? base + 1 : name;
+		if (!valid_autosnap_name(base))
 			continue;
-
 		if (json) {
 			if (count)
 				printf(",");
-			printf("{\"name\":\"%s\"}", line);
+			printf("\"%s\"", base);
 		} else {
-			printf("  %s\n", line);
+			printf("  %s\n", base);
 		}
 		count++;
 	}
-
 	if (json)
 		printf("]\n");
-	else if (count == 0)
+	if (!count && !json)
 		printf("  (no autosnap snapshots found)\n");
-
-	pclose(fp);
 	return 0;
 }
 
