@@ -58,9 +58,21 @@ jobs:
           test -f tests/integration/run_all.sh
           bash -n tests/integration/run_all.sh
           bash -n scripts/sync-from-gitlab.sh
+          bash -n scripts/import-repo.sh
+          bash -n scripts/clone-org.sh
+          bash -n scripts/sync-pieroproietti-gl-forks.sh
           set +e
           env -u GITLAB_TOKEN -u GH_TOKEN DRY_RUN=false bash scripts/sync-from-gitlab.sh
-          gate_status=$?
+          gitlab_sync_status=$?
+          GH_TOKEN=test REPO_URL=https://example.invalid/source.git BDFS_SOURCE_AUDITS_COMPLETE=true BDFS_IMPORTS_ENABLED=true DRY_RUN=false bash scripts/import-repo.sh
+          import_status=$?
+          GH_TOKEN=test SOURCE_PLATFORM=github SOURCE_ORG=example BDFS_SOURCE_AUDITS_COMPLETE=true BDFS_IMPORTS_ENABLED=true BDFS_LIVE_IMPORTS_ENABLED=false bash scripts/clone-org.sh
+          clone_status=$?
+          GITLAB_TOKEN=test DRY_RUN=false bash scripts/sync-pieroproietti-gl-forks.sh
+          gitlab_fork_sync_status=$?
           set -e
-          test "$gate_status" -eq 2
-          echo "Repository entry points and fail-closed GitLab sync guard are valid."
+          test "$gitlab_sync_status" -eq 2
+          test "$import_status" -eq 2
+          test "$clone_status" -eq 2
+          test "$gitlab_fork_sync_status" -eq 2
+          echo "Repository entry points and import/mirror write guards fail closed by default."
