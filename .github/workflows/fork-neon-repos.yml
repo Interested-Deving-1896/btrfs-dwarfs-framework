@@ -73,6 +73,10 @@ jobs:
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
+          BDFS_SOURCE_AUDITS_COMPLETE: ${{ vars.BDFS_SOURCE_AUDITS_COMPLETE }}
+          BDFS_IMPORTS_ENABLED: ${{ vars.BDFS_IMPORTS_ENABLED }}
+          BDFS_LIVE_IMPORTS_ENABLED: ${{ vars.BDFS_LIVE_IMPORTS_ENABLED }}
+          BDFS_MIRRORS_ENABLED: ${{ vars.BDFS_MIRRORS_ENABLED }}
         run: bash scripts/import-repo.sh
 
       - name: Write summary
