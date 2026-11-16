@@ -71,7 +71,6 @@ jobs:
           GITHUB_OWNER: Interested-Deving-1896
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
-          GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
           BDFS_SOURCE_AUDITS_COMPLETE: ${{ vars.BDFS_SOURCE_AUDITS_COMPLETE }}
           BDFS_IMPORTS_ENABLED: ${{ vars.BDFS_IMPORTS_ENABLED }}
