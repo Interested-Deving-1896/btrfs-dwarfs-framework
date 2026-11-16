@@ -21,6 +21,7 @@
 #include <syslog.h>
 
 #include "../../include/uapi/bdfs_ioctl.h"
+#include "../../include/btrfs_dwarfs/parse.h"
 
 /* Daemon configuration */
 struct bdfs_daemon_config {
