@@ -1,21 +1,28 @@
 name: Rebuild LTS Branch (penguins-eggs)
 
 on:
-  # Also allow manual trigger
   workflow_dispatch:
     inputs:
       base_branch:
         description: "Branch to rebase onto (upstream default)"
         required: false
         default: "master"
+        type: string
       feature_branch:
         description: "Branch whose commits to rebase"
         required: false
         default: "all-features"
+        type: string
       lts_branch:
-        description: "Branch to force-push the result to"
+        description: "Branch to update with the rebased result"
         required: false
         default: "lts"
+        type: string
+      dry_run:
+        description: "Plan and validate without updating remote refs"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -24,21 +31,24 @@ jobs:
   rebase-lts:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # Manual-only and explicitly gated; keep disabled until the rebase implementation is audited.
-    if: ${{ github.event_name == 'workflow_dispatch' && vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_LTS_REBASE_ENABLED == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.dry_run == true || (vars.BDFS_SOURCE_AUDIT_COMPLETE == 'true' && vars.BDFS_LTS_REBASE_ENABLED == 'true')) }}
 
     steps:
-      - name: Checkout fork-sync-all
+      - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Rebuild lts on Interested-Deving-1896/penguins-eggs
+      - name: Rebuild LTS branch
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           TARGET_REPO: Interested-Deving-1896/penguins-eggs
           BASE_BRANCH: ${{ inputs.base_branch || 'master' }}
           FEATURE_BRANCH: ${{ inputs.feature_branch || 'all-features' }}
           LTS_BRANCH: ${{ inputs.lts_branch || 'lts' }}
+          DRY_RUN: ${{ inputs.dry_run == true && 'true' || 'false' }}
+          BDFS_SOURCE_AUDIT_COMPLETE: ${{ vars.BDFS_SOURCE_AUDIT_COMPLETE }}
+          BDFS_LTS_REBASE_ENABLED: ${{ vars.BDFS_LTS_REBASE_ENABLED }}
         run: bash scripts/rebase-lts.sh
+
       - name: Write summary
         if: always()
         env:
