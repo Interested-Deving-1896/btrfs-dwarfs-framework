@@ -53,7 +53,7 @@ permissions:
 jobs:
   mirror:
     # Fail closed until the source audit is complete and mirroring is explicitly enabled.
-    if: ${{ vars.BDFS_SOURCE_AUDIT_COMPLETE == 'true' && vars.BDFS_MIRRORS_ENABLED == 'true' }}
+    if: ${{ vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_MIRRORS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
