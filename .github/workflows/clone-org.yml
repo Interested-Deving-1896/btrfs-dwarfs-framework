@@ -107,7 +107,7 @@ permissions:
 
 jobs:
   clone:
-    if: vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_IMPORTS_ENABLED == 'true' && (inputs.mirror_to_osp != true || vars.BDFS_MIRRORS_ENABLED == 'true')
+    if: vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_IMPORTS_ENABLED == 'true' && vars.BDFS_LIVE_IMPORTS_ENABLED == 'true' && (inputs.mirror_to_osp != true || vars.BDFS_MIRRORS_ENABLED == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 355
     steps:
@@ -147,6 +147,10 @@ jobs:
           CONCURRENCY: ${{ inputs.concurrency }}
           CLONE_DEPTH: ${{ inputs.clone_depth }}
           BACKUP_MODE: ${{ inputs.backup_mode }}
+          BDFS_SOURCE_AUDITS_COMPLETE: ${{ vars.BDFS_SOURCE_AUDITS_COMPLETE }}
+          BDFS_IMPORTS_ENABLED: ${{ vars.BDFS_IMPORTS_ENABLED }}
+          BDFS_LIVE_IMPORTS_ENABLED: ${{ vars.BDFS_LIVE_IMPORTS_ENABLED }}
+          BDFS_MIRRORS_ENABLED: ${{ vars.BDFS_MIRRORS_ENABLED }}
           GITHUB_WORKSPACE: ${{ github.workspace }}
         run: bash scripts/clone-org.sh
 
