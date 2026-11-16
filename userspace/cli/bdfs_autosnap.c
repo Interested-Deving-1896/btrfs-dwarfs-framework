@@ -722,7 +722,12 @@ static int cmd_autosnap_prune(struct bdfs_cli *cli, int argc, char *argv[])
 		switch (opt) {
 		case 'p': strncpy(uuid_arg,    optarg, sizeof(uuid_arg) - 1);    break;
 		case 'm': strncpy(btrfs_mount, optarg, sizeof(btrfs_mount) - 1); break;
-		case 'k': keep = (uint32_t)atoi(optarg);                         break;
+		case 'k':
+			if (bdfs_parse_u32(optarg, 1, UINT32_MAX, &keep) < 0) {
+				bdfs_err("--keep must be a positive 32-bit integer");
+				return 2;
+			}
+			break;
 		case 'D': flags |= BDFS_PRUNE_DEMOTE_FIRST;                      break;
 		case 'c': compression = bdfs_compression_from_name(optarg);      break;
 		case 'n': flags |= BDFS_PRUNE_DRY_RUN;                           break;
