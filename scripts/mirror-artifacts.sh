@@ -22,9 +22,19 @@ set -uo pipefail
 
 UPSTREAM_REPO="${UPSTREAM_REPO:-}"
 RELEASE_TAG="${RELEASE_TAG:-}"
-DRY_RUN="${DRY_RUN:-false}"
+DRY_RUN="${DRY_RUN:-true}"
 REPO_FILTER="${REPO_FILTER:-}"
 FORCE="${FORCE:-false}"
+
+if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
+  echo "ERROR: DRY_RUN must be exactly 'true' or 'false'." >&2
+  exit 2
+fi
+if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" ||
+      "${BDFS_MIRRORS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: artifact mirroring requires BDFS_SOURCE_AUDITS_COMPLETE=true and BDFS_MIRRORS_ENABLED=true." >&2
+  exit 2
+fi
 
 [[ "$DRY_RUN" == "true" ]] && echo "Dry run — no writes will occur."
 [[ "$FORCE"   == "true" ]] && echo "Force mode — existing releases will be re-mirrored."
