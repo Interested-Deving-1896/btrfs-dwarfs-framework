@@ -11,6 +11,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/../../include/uapi
     ${CMAKE_SOURCE_DIR}/../../userspace/cli
     ${CMAKE_SOURCE_DIR}/../../userspace/daemon
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../userspace/cli
 )
 
 # ── test_uuid ────────────────────────────────────────────────────────────────
