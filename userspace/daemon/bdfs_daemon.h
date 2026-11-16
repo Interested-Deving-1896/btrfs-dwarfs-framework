@@ -224,8 +224,6 @@ struct bdfs_job {
 			char     name_pattern[256]; /* fnmatch glob, "" = all */
 			uint32_t keep_count;        /* number of snapshots to keep */
 			uint32_t flags;
-#define BDFS_PRUNE_DEMOTE_FIRST (1 << 0) /* demote to DwarFS before delete */
-#define BDFS_PRUNE_DRY_RUN      (1 << 1) /* log but do not delete */
 			uint32_t demote_compression;
 		} prune;
 
