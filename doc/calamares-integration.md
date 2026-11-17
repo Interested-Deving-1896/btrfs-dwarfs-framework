@@ -12,12 +12,17 @@ The repository currently contains Calamares references in the Eggs-AI assistant/
 
 The repository's `scripts/bdfs-dev.sh` is a developer-workspace manager. Its BTRFS, OverlayFS, and DwarFS modes create mutable workspaces; it is not a target-system installer and must not be called as one.
 
-The current BDFS CLI/daemon and storage integrations do not yet expose a verified end-to-end contract for creating/populating a target root filesystem, finalizing a bootable operating system, or recovering an interrupted installation. Therefore:
+BDFS does have a **partial immutable-root boot path** in `boot/doc/boot-integration.md`, `boot/install.sh`, the initramfs-tools/dracut hooks, and `boot/bdfs-image-update`. The documented model boots a DwarFS system image from a BTRFS image store with a BTRFS-backed writable OverlayFS upper layer; the guide also describes a manual initial-root-image example using `debootstrap` and `mkdwarfs`. This is valuable existing functionality and should be reused rather than replaced.
 
-- Do not ship a Calamares module that pretends those operations already exist.
+That boot path is not yet a complete installer contract. The documented initial root-image creation is manual; the boot installer installs boot support on the currently running host and rebuilds its initramfs; and the guide's GRUB configuration is a manual follow-up. The repository does not yet demonstrate a transactional target-device deployment that populates a selected Debian/Devuan/Ubuntu root, finalizes that target's identity/packages/init system, writes its boot configuration, and verifies/recoverably activates the result.
+
+The current BDFS CLI/daemon and storage integrations therefore do not yet expose a verified end-to-end installer API for target provisioning, distro finalization, or interrupted-install recovery. In particular:
+
+- Reuse and test the existing immutable-root boot path; do not invent a competing boot architecture.
+- Do not invoke `boot/install.sh` as if it were a target-root installer: its documented operations install boot components on the running host.
 - Do not translate a developer workspace into a system installation.
-- Do not advertise BTRFS/DwarFS workspace modes as installer-supported rootfs modes.
-- Keep Calamares selection configurable until the deploy path is implemented and tested.
+- Do not advertise BTRFS/DwarFS workspace modes as installer-supported rootfs modes without a bootable target lifecycle.
+- Keep Calamares selection configurable until transactional target deployment and disposable-VM tests pass.
 
 ## 2. Responsibility boundaries
 
