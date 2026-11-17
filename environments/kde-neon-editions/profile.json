@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0",
+  "id": "kde-neon-editions",
+  "name": "KDE Neon Editions",
+  "profileType": "operating-system-environment",
+  "defaultImportTarget": true,
+  "defaultExportTarget": true,
+  "source": {
+    "repository": "https://github.com/Interested-Deving-1896/kde-neon-editions",
+    "ref": "main",
+    "revision": null,
+    "revisionStatus": "unpinned"
+  },
+  "artifactContract": "doc/schemas/bdfs-artifact-manifest.schema.json",
+  "import": {
+    "selectionSupported": true,
+    "materializationImplemented": false
+  },
+  "export": {
+    "selectionSupported": true,
+    "materializationImplemented": false
+  },
+  "compatibility": {
+    "automaticConversion": false,
+    "mustValidateArchitectureAndBaseImage": true,
+    "unknownMetadataMustBeReported": true
+  },
+  "safety": {
+    "deploymentOnImport": false,
+    "hostMutation": false,
+    "executeImportedHooks": false,
+    "includeSecrets": false,
+    "includeMachineIdentity": false
+  }
+}

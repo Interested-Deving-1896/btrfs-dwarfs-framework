@@ -1,0 +1,38 @@
+name: BDFS environment target registry
+
+on:
+  pull_request:
+    paths:
+      - "environments/**"
+      - "integrations/kde-neon-editions/**"
+      - "tests/environment-targets/**"
+      - ".github/workflows/environment-target-registry.yml"
+  push:
+    branches: [main]
+    paths:
+      - "environments/**"
+      - "integrations/kde-neon-editions/**"
+      - "tests/environment-targets/**"
+      - ".github/workflows/environment-target-registry.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests/environment-targets -v
+      - name: Resolve default import and export
+        run: |
+          python3 environments/resolve_target.py --operation import
+          python3 environments/resolve_target.py --operation export
+      - name: Validate target registry JSON
+        run: python3 -m json.tool environments/target-registry.json >/dev/null
+      - name: Validate KDE Neon profile JSON
+        run: python3 -m json.tool environments/kde-neon-editions/profile.json >/dev/null
