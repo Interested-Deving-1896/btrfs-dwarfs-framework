@@ -19,3 +19,15 @@ while IFS= read -r workflow; do
     }
     echo "PASS: ${workflow#"$ROOT_DIR"/}"
 done
+
+# YAML parsing above catches syntax errors; actionlint additionally validates
+# GitHub Actions workflow structure, expressions, contexts and action inputs.
+cd "$ROOT_DIR"
+if command -v actionlint >/dev/null 2>&1; then
+    actionlint
+elif command -v go >/dev/null 2>&1; then
+    go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+else
+    echo "actionlint or Go is required for workflow semantic validation" >&2
+    exit 1
+fi
