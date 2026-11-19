@@ -15,8 +15,12 @@ static int valid_target(const struct bdfs_target_context *target)
         !memchr(target->object_format, '\0', sizeof(target->object_format)) ||
         !memchr(target->runtime, '\0', sizeof(target->runtime)))
         return 0;
-    if (target->os_family == BDFS_OS_UNKNOWN ||
-        target->kernel_family == BDFS_KERNEL_UNKNOWN ||
+    if (target->os_family < BDFS_OS_LINUX ||
+        target->os_family > BDFS_OS_DARWIN ||
+        target->kernel_family < BDFS_KERNEL_LINUX ||
+        target->kernel_family > BDFS_KERNEL_XNU ||
+        target->compatibility_tier < BDFS_TIER_UNSUPPORTED ||
+        target->compatibility_tier > BDFS_TIER_NATIVE ||
         target->architecture[0] == '\0' ||
         target->kernel_abi[0] == '\0' ||
         target->object_format[0] == '\0' ||
