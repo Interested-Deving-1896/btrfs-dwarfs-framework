@@ -27,6 +27,7 @@ class TreeInspectTests(unittest.TestCase):
         outside = pathlib.Path(self.temp.name) / "outside-secret"
         outside.write_text("must not be traversed", encoding="utf-8")
         os.symlink(outside, self.root / "outside-link")
+        os.mkfifo(self.root / "named-pipe")
 
     def tearDown(self):
         self.temp.cleanup()
@@ -51,6 +52,14 @@ class TreeInspectTests(unittest.TestCase):
         self.assertEqual(link["type"], "symlink")
         self.assertTrue(target.endswith("outside-secret"))
         self.assertNotIn("outside-secret", entries)
+
+    def test_special_objects_are_typed_but_not_recreated(self):
+        manifest = MODULE.inspect_tree(str(self.root))
+        entries = {entry["path"]: entry for entry in manifest["entries"]}
+        fifo = entries["named-pipe"]
+        self.assertEqual(fifo["type"], "fifo")
+        self.assertEqual(fifo["fidelity"]["special_objects"], "translated")
+        self.assertIn("never recreated", fifo["note"])
 
     def test_path_bytes_are_preserved(self):
         manifest = MODULE.inspect_tree(str(self.root))
