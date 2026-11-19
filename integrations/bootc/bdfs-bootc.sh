@@ -70,7 +70,8 @@ workspace_mountpoint() {
 # ── workspace ─────────────────────────────────────────────────────────────────
 
 cmd_workspace() {
-    local source="" name="bootc-workspace-$(date +%Y%m%d-%H%M%S)"
+    local source="" name
+    name="bootc-workspace-$(date +%Y%m%d-%H%M%S)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source) source="$2"; shift 2 ;;
@@ -117,7 +118,8 @@ cmd_commit() {
     # Create a minimal Containerfile that uses the workspace root as the base
     local tmpdir
     tmpdir="$(mktemp -d /tmp/bdfs-bootc-commit.XXXXXX)"
-    trap "rm -rf '$tmpdir'" EXIT
+    printf -v cleanup_command 'rm -rf -- %q' "$tmpdir"
+    trap "$cleanup_command" EXIT
 
     cat > "$tmpdir/Containerfile" <<EOF
 FROM scratch
