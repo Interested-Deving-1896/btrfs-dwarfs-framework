@@ -48,7 +48,6 @@ done
 
 [[ -n "$MODE" ]] || { echo "[dwarfs-pack] ERROR: mode required (--scan | --pack | --prune)" >&2; exit 1; }
 
-THRESHOLD_BYTES=$(( THRESHOLD_MB * 1024 * 1024 ))
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
