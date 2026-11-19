@@ -57,3 +57,6 @@ jobs:
 
       - name: Validate profiles
         run: sh profiles/validate.sh
+
+      - name: Validate workflow YAML syntax
+        run: sh scripts/validate-workflows.sh
