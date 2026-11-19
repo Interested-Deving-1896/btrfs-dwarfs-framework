@@ -143,6 +143,7 @@ struct bdfs_metadata_report {
 
 int bdfs_metadata_report_validate(const struct bdfs_metadata_report *report,
                                  int strict);
+const char *bdfs_target_error_string(int error);
 
 #ifdef __cplusplus
 }
