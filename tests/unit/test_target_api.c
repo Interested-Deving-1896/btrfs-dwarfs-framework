@@ -52,6 +52,9 @@ static void test_capability_negotiation(void)
     CHECK("incompatible kernel ABI is rejected",
           bdfs_target_negotiate(&target, &caps, &request, &result) ==
           BDFS_TARGET_E_ABI);
+    CHECK("ABI error has stable diagnostic text",
+          strcmp(bdfs_target_error_string(BDFS_TARGET_E_ABI),
+                 "kernel ABI does not match the requested ABI") == 0);
     request.required_kernel_abi[0] = '\0';
 
     caps.states[BDFS_CAP_DWARFS] = BDFS_CAP_UNKNOWN;
