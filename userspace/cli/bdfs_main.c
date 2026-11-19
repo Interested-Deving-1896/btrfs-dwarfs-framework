@@ -213,6 +213,6 @@ int main(int argc, char *argv[])
 
 	bdfs_err("unknown command: %s", cmd_name);
 	fprintf(stderr, "Run 'bdfs --help' for available commands.\n");
-	bdfs_cli_cleanup(&cli);
+	bdfs_cli_close(&cli);
 	return 1;
 }
