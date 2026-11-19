@@ -143,6 +143,7 @@ cmd_export() {
     local tmpdir
     tmpdir="$(mktemp -d /tmp/bdfs-ostree-export.XXXXXX)"
     printf -v cleanup_command 'rm -rf -- %q' "$tmpdir"
+    # shellcheck disable=SC2064 # cleanup_command is assembled with printf %q from mktemp paths.
     trap "$cleanup_command" EXIT
 
     info "Checking out OSTree ref '$ref' to $tmpdir"
@@ -180,6 +181,7 @@ cmd_import() {
     mp="$tmpdir/mount"
     mkdir -p "$mp"
     printf -v cleanup_command 'fusermount -u %q 2>/dev/null || true; rm -rf -- %q' "$mp" "$tmpdir"
+    # shellcheck disable=SC2064 # cleanup_command is assembled with printf %q from mktemp paths.
     trap "$cleanup_command" EXIT
 
     info "Mounting DwarFS image: $image"
