@@ -125,3 +125,19 @@ int bdfs_metadata_report_validate(const struct bdfs_metadata_report *report,
         return BDFS_TARGET_E_METADATA_LOSS;
     return BDFS_TARGET_OK;
 }
+
+
+const char *bdfs_target_error_string(int error)
+{
+    switch (error) {
+    case BDFS_TARGET_OK: return "success";
+    case BDFS_TARGET_E_VERSION: return "unsupported API structure version";
+    case BDFS_TARGET_E_ARGUMENT: return "invalid argument or malformed capability report";
+    case BDFS_TARGET_E_UNSUPPORTED: return "unsupported or inconsistent target identity";
+    case BDFS_TARGET_E_UNKNOWN_CAPABILITY: return "required capability is unknown or unaccounted";
+    case BDFS_TARGET_E_MISSING_CAPABILITY: return "required capability is unsupported";
+    case BDFS_TARGET_E_ABI: return "kernel ABI does not match the requested ABI";
+    case BDFS_TARGET_E_METADATA_LOSS: return "strict metadata policy rejected fidelity loss";
+    default: return "unrecognized target API error";
+    }
+}
