@@ -364,8 +364,8 @@ PIN_A=$(kubo_pin_ls "${CID_A:-INVALID}" 2>/dev/null || true)
 PIN_B=$(kubo_pin_ls "${CID_B:-INVALID}" 2>/dev/null || true)
 
 if [[ "$CID_A" != "INVALID" && "$CID_B" != "INVALID" ]]; then
-    if [[ "$PIN_A_STATUS" -eq 0 && "$PIN_B_STATUS" -eq 0 ]] \\
-        && echo "$PIN_A" | grep -q "$CID_A" \\
+    if [[ "$PIN_A_STATUS" -eq 0 && "$PIN_B_STATUS" -eq 0 ]] \
+        && echo "$PIN_A" | grep -q "$CID_A" \
         && echo "$PIN_B" | grep -q "$CID_B"; then
         pass "concurrent: both archives pinned after concurrent pin calls"
     elif [[ "$PIN_A_STATUS" -ne 0 || "$PIN_B_STATUS" -ne 0 ]]; then
