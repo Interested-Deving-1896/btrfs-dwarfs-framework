@@ -248,7 +248,6 @@ generate_license() {
 
   local spdx html_url
   spdx=$(echo "$license_data" | jq -r '.license.spdx_id // empty' 2>/dev/null)
-  name=$(echo "$license_data" | jq -r '.license.name // empty' 2>/dev/null)
   html_url=$(echo "$license_data" | jq -r '.html_url // empty' 2>/dev/null)
 
   if [[ -n "$spdx" && "$spdx" != "NOASSERTION" ]]; then
