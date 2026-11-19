@@ -64,6 +64,7 @@ add_test(NAME copyup_job COMMAND test_copyup_job)
 
 
 # ── test_target_api ──────────────────────────────────────────────────────────
-add_executable(test_target_api test_target_api.c ../../userspace/target/target.c)
+add_executable(test_target_api test_target_api.c)
 target_compile_definitions(test_target_api PRIVATE BDFS_UNIT_TEST)
+target_link_libraries(test_target_api PRIVATE bdfs_target)
 add_test(NAME target_api COMMAND test_target_api)
