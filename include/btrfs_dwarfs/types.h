@@ -139,6 +139,11 @@ struct bdfs_mount_opts {
 	__u32   _pad;
 };
 
+/* Snapshot-prune request flags shared by the CLI and daemon job dispatcher. */
+#define BDFS_PRUNE_DEMOTE_FIRST (1U << 0) /* archive before deleting */
+#define BDFS_PRUNE_DRY_RUN      (1U << 1) /* report without deleting */
+
+
 /* Event types emitted by the framework to userspace via netlink/uevent */
 enum bdfs_event_type {
 	BDFS_EVT_PARTITION_ADDED    = 1,
