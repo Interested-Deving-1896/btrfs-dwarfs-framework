@@ -33,7 +33,7 @@ while IFS=$'\t' read -r pid name gl_url; do
   kde_url="${KDE_BASE}/${name}.git"
   gl_auth_url="${gl_url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}"
 
-  info "Syncing ${name} ← ${kde_url} ..."
+  info "Syncing ${name} (GitLab project ${pid}) ← ${kde_url} ..."
   work_dir=$(mktemp -d)
 
   if git clone --mirror "${kde_url}" "${work_dir}" 2>&1 | tail -1; then
