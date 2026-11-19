@@ -16,6 +16,8 @@ BDFS does have a **partial immutable-root boot path** in `boot/doc/boot-integrat
 
 That boot path is not yet a complete installer contract. The documented initial root-image creation is manual; the boot installer installs boot support on the currently running host and rebuilds its initramfs; and the guide's GRUB configuration is a manual follow-up. The repository does not yet demonstrate a transactional target-device deployment that populates a selected Debian/Devuan/Ubuntu root, finalizes that target's identity/packages/init system, writes its boot configuration, and verifies/recoverably activates the result.
 
+The bootloader/firmware compatibility work is tracked separately in [issue #76](https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework/issues/76). Installer capability responses must consume that machine-readable support state rather than infer boot support from the presence of GRUB, an EFI system partition, or an initramfs hook. Firmware interface (BIOS/UEFI), partition-table format (MBR/GPT), bootloader, architecture, and kernel handoff method are separate compatibility dimensions. Until a combination has reproducible CI/emulator evidence, it must be reported as planned, unknown, or unsupported—not as installer-capable.
+
 The current BDFS CLI/daemon and storage integrations therefore do not yet expose a verified end-to-end installer API for target provisioning, distro finalization, or interrupted-install recovery. In particular:
 
 - Reuse and test the existing immutable-root boot path; do not invent a competing boot architecture.
