@@ -32,7 +32,10 @@ add_executable(test_job_alloc test_job_alloc.c
     ../../userspace/daemon/bdfs_exec.c
     ../../userspace/daemon/bdfs_netlink.c
     ../../userspace/daemon/bdfs_socket.c
-    ../../userspace/daemon/bdfs_policy.c)
+    ../../userspace/daemon/bdfs_policy.c
+    ../../userspace/daemon/bdfs_mount_table.c
+    ../../userspace/daemon/bdfs_jobs_workspace.c
+    ../../userspace/daemon/bdfs_shutdown_log.c)
 target_compile_definitions(test_job_alloc PRIVATE BDFS_UNIT_TEST BDFS_CMAKE_BUILD)
 target_link_libraries(test_job_alloc PRIVATE pthread)
 add_test(NAME job_alloc COMMAND test_job_alloc)
