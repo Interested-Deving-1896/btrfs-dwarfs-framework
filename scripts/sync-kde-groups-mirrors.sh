@@ -77,7 +77,7 @@ while IFS=$'\t' read -r gl_url kde_path default_branch; do
     kde_url="${KDE_BASE}/${kde_path}.git"
     gl_auth_url="${gl_url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}"
 
-    info "Syncing ${kde_path} ..."
+    info "Syncing ${kde_path} (default branch: ${default_branch}) ..."
     work_dir=$(mktemp -d)
 
     if git clone --mirror "${kde_url}" "${work_dir}" 2>/dev/null; then
