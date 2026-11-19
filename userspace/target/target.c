@@ -16,7 +16,11 @@ static int valid_target(const struct bdfs_target_context *target)
         !memchr(target->runtime, '\0', sizeof(target->runtime)))
         return 0;
     if (target->os_family == BDFS_OS_UNKNOWN ||
-        target->kernel_family == BDFS_KERNEL_UNKNOWN)
+        target->kernel_family == BDFS_KERNEL_UNKNOWN ||
+        target->architecture[0] == '\\0' ||
+        target->kernel_abi[0] == '\\0' ||
+        target->object_format[0] == '\\0' ||
+        target->runtime[0] == '\\0')
         return 0;
     if (target->os_family == BDFS_OS_LINUX &&
         target->kernel_family != BDFS_KERNEL_LINUX)
@@ -46,6 +50,12 @@ int bdfs_target_negotiate(const struct bdfs_target_context *target,
         return BDFS_TARGET_E_VERSION;
     if (!valid_target(target))
         return BDFS_TARGET_E_UNSUPPORTED;
+    if (!memchr(request->required_kernel_abi, '\\0',
+                sizeof(request->required_kernel_abi)))
+        return BDFS_TARGET_E_ARGUMENT;
+    if (request->required_kernel_abi[0] != '\\0' &&
+        strcmp(request->required_kernel_abi, target->kernel_abi) != 0)
+        return BDFS_TARGET_E_ABI;
     if (BDFS_CAP_COUNT > BDFS_TARGET_MAX_CAPABILITIES)
         return BDFS_TARGET_E_VERSION;
     if ((request->required_mask >> BDFS_CAP_COUNT) != 0)
