@@ -72,7 +72,12 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  cd "$work_dir/mirror"
+  cd "$work_dir/mirror" || {
+    warn "Cannot enter temporary mirror directory for ${gh_path}"
+    FAILED=$((FAILED + 1))
+    rm -rf "$work_dir"
+    continue
+  }
 
   # Push all refs (branches + tags) to GitLab
   # --prune would delete our local-only branches, so we push selectively:
