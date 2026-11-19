@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "target_id": "linux-btrfs-dwarfs",
+  "display_name": "BDFS Linux baseline (Btrfs + DwarFS)",
+  "os_family": "linux",
+  "kernel_family": "linux",
+  "kernel_abi": "Linux Kbuild; exact ABI supplied by build environment",
+  "architectures": [
+    "x86_64",
+    "aarch64"
+  ],
+  "object_format": "ELF",
+  "toolchain": [
+    "GCC or Clang",
+    "Linux kernel headers"
+  ],
+  "sdk_sysroot": "Host distribution sysroot",
+  "runtime": "glibc or compatible Linux userspace",
+  "boot_chain": "Linux initramfs/system boot integration (distribution-specific)",
+  "filesystem_capabilities": {
+    "btrfs": true,
+    "dwarfs": true,
+    "copy_on_write": true,
+    "snapshots": true,
+    "overlayfs": true,
+    "xattrs": true,
+    "acl": true
+  },
+  "build_backend": [
+    "Linux Kbuild",
+    "CMake"
+  ],
+  "source_revision": "unresolved",
+  "patchset_digest": "unresolved",
+  "provenance": {
+    "status": "declared",
+    "notes": "Existing Linux implementation baseline; exact source and patch digests must be generated per build."
+  },
+  "compatibility_tier": "native",
+  "integration_status": "baseline"
+}
