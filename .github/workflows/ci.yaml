@@ -19,7 +19,23 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
 
-      - name: Run shellcheck
+      - name: Fetch pull-request base
+        if: github.event_name == 'pull_request'
+        run: git fetch --no-tags --depth=1 origin "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+
+      - name: Run ShellCheck on changed scripts
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          mapfile -t files < <(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- '*.sh')
+          if (( ${#files[@]} )); then
+            shellcheck -x -S warning --exclude=SC1083 "${files[@]}"
+          else
+            echo "No shell scripts changed in this pull request."
+          fi
+
+      - name: Run full ShellCheck on main
+        if: github.event_name == 'push'
         run: find . -name '*.sh' -exec shellcheck -x -S warning --exclude=SC1083 {} +
 
   test:
