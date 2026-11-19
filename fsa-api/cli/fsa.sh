@@ -35,7 +35,6 @@ FSA_API_URL="${FSA_API_URL:-http://localhost:8090}"
 FSA_AUTH="${FSA_AUTH:-}"
 DRY_RUN="false"
 JSON_RAW="false"
-DIRECT="false"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 _die()  { echo "[fsa] error: $*" >&2; exit 1; }
