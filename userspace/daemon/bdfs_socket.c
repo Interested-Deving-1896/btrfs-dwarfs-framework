@@ -163,12 +163,17 @@ static void bdfs_handle_client(struct bdfs_daemon *d, int client_fd)
 
 	} else if (strstr(req, "\"cmd\":\"list_images\"")) {
 		/*
-		 * Return .dwarfs files found under the configured archive
-		 * directory (cfg.archive_dir, default /var/lib/bdfs/archives).
+		 * Return .dwarfs files under <state_dir>/archives.  Older
+		 * configurations without a state directory use the default path.
 		 */
-		const char *archive_dir = d->cfg.archive_dir[0]
-					  ? d->cfg.archive_dir
-					  : "/var/lib/bdfs/archives";
+		char archive_path[sizeof(d->cfg.state_dir) + sizeof("/archives")];
+		const char *archive_dir = "/var/lib/bdfs/archives";
+		if (d->cfg.state_dir[0]) {
+			int path_len = snprintf(archive_path, sizeof(archive_path),
+					"%s/archives", d->cfg.state_dir);
+			if (path_len > 0 && (size_t)path_len < sizeof(archive_path))
+				archive_dir = archive_path;
+		}
 		char *pos = resp;
 		size_t rem = sizeof(resp);
 		int written = snprintf(pos, rem,
