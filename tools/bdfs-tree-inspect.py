@@ -117,6 +117,14 @@ def _fidelity(xattr_status: str, kind: str, sparse_status: str) -> dict[str, str
     return result
 
 
+def _record_hardlink(entry: dict[str, Any], st: os.stat_result,
+                     rel_bytes: bytes,
+                     hardlinks: dict[tuple[int, int], str]) -> None:
+    if st.st_nlink > 1 and not stat.S_ISDIR(st.st_mode):
+        inode_key = (st.st_dev, st.st_ino)
+        entry["hardlink_group"] = hardlinks.setdefault(inode_key, _b64(rel_bytes))
+
+
 def _open_checked(parent_fd: int, name: str, flags: int,
                   before: os.stat_result) -> int:
     flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
@@ -226,11 +234,7 @@ def inspect_tree(source: str) -> dict[str, Any]:
                     "xattrs_b64": attrs,
                     "fidelity": _fidelity(attr_status, kind, sparse_status),
                 }
-                if st.st_nlink > 1:
-                    inode_key = (st.st_dev, st.st_ino)
-                    first = hardlinks.setdefault(inode_key, _b64(rel_bytes))
-                    entry["hardlink_group"] = first
-                    entry["fidelity"]["hard_links"] = "preserved"
+                _record_hardlink(entry, st, rel_bytes, hardlinks)
                 entries.append(entry)
                 continue
 
@@ -244,14 +248,16 @@ def inspect_tree(source: str) -> dict[str, Any]:
                 if not _same_object(st, after):
                     raise ScanError(f"symlink changed during scan: {rel_path!r}")
                 target_bytes = os.fsencode(target)
-                entries.append({
+                entry = {
                     "path": rel_path,
                     "path_b64": _b64(rel_bytes),
                     "type": kind,
                     "target_b64": _b64(target_bytes),
                     "metadata": _base_metadata(st),
                     "fidelity": _fidelity("unknown", kind, "unknown"),
-                })
+                }
+                _record_hardlink(entry, st, rel_bytes, hardlinks)
+                entries.append(entry)
                 continue
 
             if stat.S_ISFIFO(st.st_mode):
@@ -265,14 +271,20 @@ def inspect_tree(source: str) -> dict[str, Any]:
             else:
                 kind = "unknown"
 
-            entries.append({
+            metadata = _base_metadata(st)
+            if kind in ("character_device", "block_device"):
+                metadata["rdev_major"] = os.major(st.st_rdev)
+                metadata["rdev_minor"] = os.minor(st.st_rdev)
+            entry = {
                 "path": rel_path,
                 "path_b64": _b64(rel_bytes),
                 "type": kind,
-                "metadata": _base_metadata(st),
+                "metadata": metadata,
                 "fidelity": _fidelity("unknown", kind, "unknown"),
                 "note": "recorded only; never recreated by this inspector",
-            })
+            }
+            _record_hardlink(entry, st, rel_bytes, hardlinks)
+            entries.append(entry)
 
     try:
         walk(root_fd, ())
