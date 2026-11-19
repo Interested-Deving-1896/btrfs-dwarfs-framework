@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Interested-Deving-1896/btrfs-dwarfs-framework/blob/main/profiles/target-profile.schema.json",
+  "title": "BDFS target profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "target_id",
+    "display_name",
+    "os_family",
+    "kernel_family",
+    "kernel_abi",
+    "architectures",
+    "object_format",
+    "toolchain",
+    "sdk_sysroot",
+    "runtime",
+    "boot_chain",
+    "filesystem_capabilities",
+    "build_backend",
+    "source_revision",
+    "patchset_digest",
+    "provenance",
+    "compatibility_tier",
+    "integration_status"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "target_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "os_family": {
+      "enum": [
+        "linux",
+        "freebsd",
+        "darwin"
+      ]
+    },
+    "kernel_family": {
+      "enum": [
+        "linux",
+        "freebsd",
+        "xnu"
+      ]
+    },
+    "kernel_abi": {
+      "type": "string",
+      "minLength": 1
+    },
+    "architectures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "enum": [
+          "x86_64",
+          "aarch64",
+          "armv7",
+          "riscv64"
+        ]
+      }
+    },
+    "object_format": {
+      "enum": [
+        "ELF",
+        "Mach-O"
+      ]
+    },
+    "toolchain": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "sdk_sysroot": {
+      "type": "string"
+    },
+    "runtime": {
+      "type": "string"
+    },
+    "boot_chain": {
+      "type": "string"
+    },
+    "filesystem_capabilities": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "build_backend": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "source_revision": {
+      "type": "string"
+    },
+    "patchset_digest": {
+      "type": "string"
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "status",
+        "notes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "unresolved",
+            "declared",
+            "verified"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "compatibility_tier": {
+      "enum": [
+        "native",
+        "host-side-artifact-tooling",
+        "read-only-ingestion",
+        "experimental-port",
+        "unsupported"
+      ]
+    },
+    "integration_status": {
+      "enum": [
+        "baseline",
+        "profile-only",
+        "experimental",
+        "implemented"
+      ]
+    }
+  }
+}
