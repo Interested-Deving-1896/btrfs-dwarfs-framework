@@ -8,7 +8,6 @@ if ! command -v mdbook &>/dev/null; then
     info "Installing mdBook 0.4.40..."
     cargo install mdbook --version 0.4.40 --locked 2>/dev/null || {
         # Fallback: download pre-built binary
-        OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
         ARCH="$(uname -m)"
         [[ "${ARCH}" == "x86_64" ]] && ARCH="x86_64-unknown-linux-gnu"
         URL="https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-${ARCH}.tar.gz"

@@ -20,6 +20,18 @@ set -uo pipefail
 
 : "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
 
+DRY_RUN="${DRY_RUN:-true}"
+if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
+  echo "ERROR: DRY_RUN must be exactly 'true' or 'false'." >&2
+  exit 2
+fi
+if [[ "$DRY_RUN" == "false" &&
+      ( "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" ||
+        "${BDFS_GITLAB_SYNC_ENABLED:-}" != "true" ) ]]; then
+  echo "ERROR: GitLab writes require BDFS_SOURCE_AUDITS_COMPLETE=true and BDFS_GITLAB_SYNC_ENABLED=true." >&2
+  exit 2
+fi
+
 GL_API="https://gitlab.com/api/v4"
 
 info()  { echo "[sync] $*"; }
@@ -72,7 +84,20 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  cd "$work_dir/mirror"
+  cd "$work_dir/mirror" || {
+    warn "Could not enter clone for ${gh_path}"
+    rm -rf "$work_dir"
+    FAILED=$((FAILED + 1))
+    continue
+  }
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "DRY RUN: would push branches, tags, and releases for ${gh_path}"
+    cd /
+    rm -rf "$work_dir"
+    trap - RETURN
+    continue
+  fi
 
   # Push all refs (branches + tags) to GitLab
   # --prune would delete our local-only branches, so we push selectively:
@@ -100,10 +125,12 @@ for entry in "${REPOS[@]}"; do
   existing_tags=$(echo "$gl_releases" | python3 -c \
     "import sys,json; [print(r['tag_name']) for r in json.load(sys.stdin)]" 2>/dev/null || true)
 
-  echo "$gh_releases" | python3 - << 'PYEOF'
-import sys, json, os, urllib.request, urllib.error
+  GH_RELEASES="$gh_releases" GITLAB_TOKEN="$GITLAB_TOKEN" GL_API="$GL_API" \
+    GL_PID="$gl_pid" GH_PATH="$gh_path" EXISTING_TAGS="$existing_tags" \
+    python3 - << 'PYEOF'
+import json, os, urllib.request, urllib.error
 
-releases = json.load(sys.stdin)
+releases = json.loads(os.environ.get("GH_RELEASES", "[]"))
 token = os.environ.get("GITLAB_TOKEN", "")
 api = os.environ.get("GL_API", "")
 pid = os.environ.get("GL_PID", "")

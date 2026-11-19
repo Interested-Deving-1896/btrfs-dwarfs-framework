@@ -140,7 +140,6 @@ push_branches_encoded() {
   local remote="$1"; shift
   local extra_args=("$@")
   local refspecs=()
-  local skipped=0
 
   while IFS= read -r fullref; do
     [[ -z "$fullref" ]] && continue
@@ -152,7 +151,8 @@ push_branches_encoded() {
     [[ "$branch" == "HEAD" ]] && continue
     local encoded
     encoded=$(branch_encode "$branch")
-    refspecs+=("+refs/heads/${branch}:refs/heads/${encoded}")
+    # No leading "+" force marker: divergent destination refs must fail closed.
+    refspecs+=("refs/heads/${branch}:refs/heads/${encoded}")
   done < <(git for-each-ref --format='%(refname)' refs/heads/)
 
   if [[ ${#refspecs[@]} -eq 0 ]]; then
@@ -183,7 +183,8 @@ push_branches_decoded() {
     # not be round-tripped through GitLab. Multiple encoded variants can
     # decode to the same ref, causing "dst ref receives from more than one src".
     [[ "$decoded" == upstream-commits/* ]] && continue
-    refspecs+=("+refs/heads/${branch}:refs/heads/${decoded}")
+    # No leading "+" force marker: divergent destination refs must fail closed.
+    refspecs+=("refs/heads/${branch}:refs/heads/${decoded}")
   done < <(git for-each-ref --format='%(refname)' refs/heads/)
 
   if [[ ${#refspecs[@]} -eq 0 ]]; then

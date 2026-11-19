@@ -84,11 +84,11 @@ if [[ -n "${GITBOOK_SPACE_URL}" ]]; then
     sleep 8  # wait for Next.js to start
 
     # Use wget to crawl the local proxy
-    ENCODED_URL=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${GITBOOK_SPACE_URL}', safe=''))")
+    ENCODED_URL=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$GITBOOK_SPACE_URL")
     wget --recursive --no-parent --convert-links --adjust-extension \
          --page-requisites --no-verbose \
          --directory-prefix="${OUT_DIR}" \
-         "http://localhost:3000/url/${GITBOOK_SPACE_URL}" 2>/dev/null || true
+         "http://localhost:3000/url/${ENCODED_URL}" 2>/dev/null || true
 
     kill "${SERVER_PID}" 2>/dev/null || true
     info "Static export complete: ${OUT_DIR}/"

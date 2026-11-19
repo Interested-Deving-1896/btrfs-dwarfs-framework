@@ -35,6 +35,27 @@ OSP_ORG="${OSP_ORG:-OpenOS-Project-OSP}"
 OOC_ORG="${OOC_ORG:-OpenOS-Project-Ecosystem-OOC}"
 MIRROR_TO_OSP_OOC="${MIRROR_TO_OSP_OOC:-false}"
 ONGOING_SYNC="${ONGOING_SYNC:-false}"
+DRY_RUN="${DRY_RUN:-true}"
+
+if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
+  echo "ERROR: DRY_RUN must be exactly 'true' or 'false'." >&2
+  exit 2
+fi
+if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" ||
+      "${BDFS_IMPORTS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: imports require BDFS_SOURCE_AUDITS_COMPLETE=true and BDFS_IMPORTS_ENABLED=true." >&2
+  exit 2
+fi
+if [[ "$DRY_RUN" == "false" ]]; then
+  if [[ "${BDFS_LIVE_IMPORTS_ENABLED:-}" != "true" ]]; then
+    echo "ERROR: live imports require BDFS_LIVE_IMPORTS_ENABLED=true." >&2
+    exit 2
+  fi
+  if [[ "$MIRROR_TO_OSP_OOC" == "true" && "${BDFS_MIRRORS_ENABLED:-}" != "true" ]]; then
+    echo "ERROR: downstream mirrors require BDFS_MIRRORS_ENABLED=true." >&2
+    exit 2
+  fi
+fi
 
 GH_API="https://api.github.com"
 
@@ -42,7 +63,14 @@ info()  { echo "[import-repo] $*"; }
 warn()  { echo "[warn] $*" >&2; }
 error() { echo "[error] $*" >&2; exit 1; }
 
-sanitize() { sed "s/${GH_TOKEN}/***TOKEN***/g"; }
+sanitize() {
+  local output token
+  output=$(cat)
+  for token in "${GH_TOKEN}" "${SOURCE_TOKEN:-}"; do
+    [[ -n "$token" ]] && output="${output//"$token"/***TOKEN***}"
+  done
+  printf '%s\n' "$output"
+}
 
 gh_api_get() {
   curl -sf \
@@ -120,7 +148,7 @@ token_missing_hint() {
 
 case "$platform" in
   gitlab)
-    if [ -z "${GITLAB_TOKEN:-}" ]; then
+    if [ -z "${SOURCE_TOKEN:-}" ]; then
       if echo "$clean_url" | grep -q "gitlab.com"; then
         info "No GITLAB_SYNC_TOKEN set — will attempt unauthenticated clone."
         info "If the repo is private this will fail. To fix:"
@@ -130,7 +158,7 @@ case "$platform" in
     fi
     ;;
   bitbucket)
-    if [ -z "${BITBUCKET_TOKEN:-}" ]; then
+    if [ -z "${SOURCE_TOKEN:-}" ]; then
       info "No BITBUCKET_TOKEN set — will attempt unauthenticated clone."
       info "If the repo is private this will fail. To fix:"
       token_missing_hint "BITBUCKET_TOKEN" "Bitbucket"
@@ -138,7 +166,7 @@ case "$platform" in
     fi
     ;;
   gitea)
-    if [ -z "${GITEA_TOKEN:-}" ]; then
+    if [ -z "${SOURCE_TOKEN:-}" ]; then
       info "No GITEA_TOKEN set — will attempt unauthenticated clone."
       info "If the repo is private this will fail. To fix:"
       token_missing_hint "GITEA_TOKEN" "Gitea"
@@ -146,7 +174,7 @@ case "$platform" in
     fi
     ;;
   codeberg)
-    if [ -z "${GITEA_TOKEN:-}" ]; then
+    if [ -z "${SOURCE_TOKEN:-}" ]; then
       info "No GITEA_TOKEN set — Codeberg uses the same token as Gitea."
       info "If the repo is private this will fail. To fix:"
       token_missing_hint "GITEA_TOKEN" "Codeberg/Gitea"
@@ -164,28 +192,29 @@ clone_url="$clean_url"
 
 case "$platform" in
   github)
-    clone_url="${clean_url/https:\/\//https://x-access-token:${GH_TOKEN}@}.git"
+    source_auth_token="${SOURCE_TOKEN:-$GH_TOKEN}"
+    clone_url="${clean_url/https:\/\//https://x-access-token:${source_auth_token}@}.git"
     ;;
   gitlab)
-    if [ -n "${GITLAB_TOKEN:-}" ]; then
-      clone_url="${clean_url/https:\/\//https://oauth2:${GITLAB_TOKEN}@}.git"
+    if [ -n "${SOURCE_TOKEN:-}" ]; then
+      clone_url="${clean_url/https:\/\//https://oauth2:${SOURCE_TOKEN}@}.git"
     else
       clone_url="${clean_url}.git"
       info "No GITLAB_TOKEN set — attempting unauthenticated clone (public repos only)"
     fi
     ;;
   bitbucket)
-    if [ -n "${BITBUCKET_TOKEN:-}" ]; then
+    if [ -n "${SOURCE_TOKEN:-}" ]; then
       # Bitbucket: https://<user>:<app-password>@bitbucket.org/...
-      clone_url="${clean_url/https:\/\/bitbucket.org\//https://x-token-auth:${BITBUCKET_TOKEN}@bitbucket.org/}.git"
+      clone_url="${clean_url/https:\/\/bitbucket.org\//https://x-token-auth:${SOURCE_TOKEN}@bitbucket.org/}.git"
     else
       clone_url="${clean_url}.git"
       info "No BITBUCKET_TOKEN set — attempting unauthenticated clone (public repos only)"
     fi
     ;;
-  gitea)
-    if [ -n "${GITEA_TOKEN:-}" ]; then
-      clone_url="${clean_url/https:\/\//https://x-access-token:${GITEA_TOKEN}@}.git"
+  gitea|codeberg)
+    if [ -n "${SOURCE_TOKEN:-}" ]; then
+      clone_url="${clean_url/https:\/\//https://x-access-token:${SOURCE_TOKEN}@}.git"
     else
       clone_url="${clean_url}.git"
     fi
@@ -210,7 +239,9 @@ info "Checking ${GITHUB_OWNER}/${target_name}..."
 existing=$(gh_api_get "${GH_API}/repos/${GITHUB_OWNER}/${target_name}" 2>/dev/null \
   | grep -o '"name":"[^"]*"' | head -1 | sed 's/"name":"//;s/"//' || echo "")
 
-if [ -n "$existing" ]; then
+if [ "$DRY_RUN" = "true" ]; then
+  info "  DRY RUN — will not create or modify ${GITHUB_OWNER}/${target_name}."
+elif [ -n "$existing" ]; then
   info "  Already exists — will overwrite via push."
 else
   info "  Creating ${GITHUB_OWNER}/${target_name}..."
@@ -264,7 +295,15 @@ if ! git clone --mirror "$clone_url" "$work_dir/repo.git" 2>&1 | sanitize; then
   error "Clone failed — see above for the fix."
 fi
 
-cd "$work_dir/repo.git"
+cd "$work_dir/repo.git" || exit 1
+
+if [ "$DRY_RUN" = "true" ]; then
+  info "DRY RUN complete — source clone succeeded; no target repo, refs, mirrors, or registrations were changed."
+  info "Would import ${GITHUB_OWNER}/${target_name}; mirror=${MIRROR_TO_OSP_OOC}; ongoing_sync=${ONGOING_SYNC}."
+  cd /
+  rm -rf "$work_dir"
+  exit 0
+fi
 
 gh_push_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${target_name}.git"
 

@@ -15,7 +15,7 @@ on:
       dry_run:
         description: "Report without pushing to GitHub"
         required: false
-        default: false
+        default: true
         type: boolean
       subgroup_filter:
         description: "Only sync repos from this GitLab subgroup"
@@ -52,7 +52,9 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GITHUB_OWNER: Interested-Deving-1896
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == false && 'false' || 'true' }}
+          BDFS_SOURCE_AUDITS_COMPLETE: ${{ vars.BDFS_SOURCE_AUDITS_COMPLETE }}
+          BDFS_GITLAB_SYNC_ENABLED: ${{ vars.BDFS_GITLAB_SYNC_ENABLED }}
           SUBGROUP_FILTER: ${{ inputs.subgroup_filter || '' }}
         run: |
           if [ -z "${GITLAB_TOKEN}" ]; then

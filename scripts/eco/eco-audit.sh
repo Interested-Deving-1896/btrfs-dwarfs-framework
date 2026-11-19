@@ -44,13 +44,11 @@ ECO_OUTPUT_MD="${ECO_OUTPUT_MD:-${REPO_ROOT}/DOCS/generated/eco-audit.md}"
 ECO_JSON_OUT="${ECO_JSON_OUT:-/tmp/eco-audit.json}"
 DRY_RUN="${DRY_RUN:-false}"
 GH_TOKEN="${GH_TOKEN:-}"
-OUTPUT_JSON=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --repo)       REPO="$2"; shift 2 ;;
         --output-md)  ECO_OUTPUT_MD="$2"; shift 2 ;;
-        --json)       OUTPUT_JSON=true; shift ;;
         --dry-run)    DRY_RUN=true; shift ;;
         *) shift ;;
     esac
@@ -179,6 +177,15 @@ GRAPHQL_COUNT=$(grep -rl "graphql\|api/graphql\|gh_api_graphql" \
     "${REPO_ROOT}/scripts/" "${REPO_ROOT}/.github/workflows/" 2>/dev/null | wc -l | tr -d ' ')
 REST_LOOP_COUNT=$(grep -rn "for.*in.*repos\|while.*repos\|gh api.*repos" \
     "${REPO_ROOT}/scripts/" 2>/dev/null | grep -v "graphql\|#" | wc -l | tr -d ' ' || echo "0")
+
+# REST-loop inventory is included in the score so the collected metric is actionable.
+if [[ "${REST_LOOP_COUNT}" -le 10 ]]; then
+    score "rest_api_loops" 2 2 "REST API loops: ${REST_LOOP_COUNT} (within target)"
+elif [[ "${REST_LOOP_COUNT}" -le 25 ]]; then
+    score "rest_api_loops" 1 2 "REST API loops: ${REST_LOOP_COUNT} (moderate)"
+else
+    score "rest_api_loops" 0 2 "REST API loops: ${REST_LOOP_COUNT} (high; consider batching/GraphQL)"
+fi
 
 # Check for concurrency groups (prevents queue pile-ups)
 CONCURRENCY_COUNT=$(grep -l "^concurrency:" "${REPO_ROOT}/.github/workflows/"*.yml 2>/dev/null | wc -l | tr -d ' ')

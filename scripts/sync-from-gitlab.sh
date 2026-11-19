@@ -16,12 +16,26 @@
 
 set -uo pipefail
 
-: "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
-: "${GH_TOKEN:?GH_TOKEN is required}"
-
-DRY_RUN="${DRY_RUN:-false}"
+# A read-only dry run is the default. Any write requires both independent
+# repository policy gates to be explicitly enabled by an operator.
+DRY_RUN="${DRY_RUN:-true}"
 REPO_FILTER="${REPO_FILTER:-}"
 : "${GITHUB_OWNER:=Interested-Deving-1896}"
+
+if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
+  echo "ERROR: DRY_RUN must be exactly 'true' or 'false'." >&2
+  exit 2
+fi
+
+if [[ "$DRY_RUN" == "false" ]]; then
+  if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" || "${BDFS_GITLAB_SYNC_ENABLED:-}" != "true" ]]; then
+    echo "ERROR: GitLab sync writes require BDFS_SOURCE_AUDITS_COMPLETE=true and BDFS_GITLAB_SYNC_ENABLED=true." >&2
+    exit 2
+  fi
+fi
+
+: "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
+: "${GH_TOKEN:?GH_TOKEN is required}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/branch-name-conv.sh
@@ -44,7 +58,7 @@ SUBGROUP_FILTER="${SUBGROUP_FILTER:-}"
 
 if [[ -n "$SUBGROUP_FILTER" ]]; then
   if [[ -z "${SUBGROUP_NAME_TO_ID[$SUBGROUP_FILTER]+x}" ]]; then
-    echo "ERROR: Unknown subgroup filter '${SUBGROUP_FILTER}'. Valid values: ${!SUBGROUP_NAME_TO_ID[*]}" >&2
+    echo "ERROR: Unknown subgroup filter '$SUBGROUP_FILTER'. Valid values: ${!SUBGROUP_NAME_TO_ID[*]}" >&2
     exit 1
   fi
   SUBGROUP_IDS=( "${SUBGROUP_NAME_TO_ID[$SUBGROUP_FILTER]}" )
@@ -74,8 +88,8 @@ info() { echo "[sync-from-gitlab] $*"; }
 warn() { echo "[warn] $*" >&2; }
 
 [[ "$DRY_RUN" == "true" ]] && info "Dry run — no pushes will occur."
-[[ -n "$REPO_FILTER"    ]] && info "Repo filter: '${REPO_FILTER}'"
-[[ -n "$SUBGROUP_FILTER" ]] && info "Subgroup filter: ${SUBGROUP_FILTER} (id=${SUBGROUP_IDS[0]})"
+[[ -n "$REPO_FILTER" ]] && info "Repo filter: '$REPO_FILTER'"
+[[ -n "$SUBGROUP_FILTER" ]] && info "Subgroup filter: $SUBGROUP_FILTER (id=${SUBGROUP_IDS[0]})"
 
 # ── API helpers with rate-limit retry ────────────────────────────────────────
 # GitLab REST limit: 2 000 req/min per token (RateLimit-Reset header, epoch).
@@ -100,10 +114,10 @@ gl_api_get() {
       reset=$(grep -i "ratelimit-reset:" "$_SF_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
       now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
       if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
-        warn "[rate-limit] GitLab HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
+        warn "[rate-limit] GitLab HTTP $http_code — sleeping $wait s (attempt $attempt/$max_retries)"
         sleep "$wait"
       else
-        warn "[rate-limit] GitLab HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})"
+        warn "[rate-limit] GitLab HTTP $http_code — backing off 60s (attempt $attempt/$max_retries)"
         sleep 60
       fi
       continue
@@ -132,10 +146,10 @@ gh_api_check() {
       reset=$(grep -i "x-ratelimit-reset:" "$_SF_HEADER" 2>/dev/null | tr -d '\r' | awk '{print $2}')
       now=$(date +%s); wait=$(( ${reset:-0} - now + 5 ))
       if [[ -n "$reset" && "$wait" -gt 0 && "$wait" -lt 3700 ]]; then
-        warn "[rate-limit] GitHub HTTP ${http_code} — sleeping ${wait}s (attempt ${attempt}/${max_retries})"
+        warn "[rate-limit] GitHub HTTP $http_code — sleeping $wait s (attempt $attempt/$max_retries)"
         sleep "$wait"
       else
-        warn "[rate-limit] GitHub HTTP ${http_code} — backing off 60s (attempt ${attempt}/${max_retries})"
+        warn "[rate-limit] GitHub HTTP $http_code — backing off 60s (attempt $attempt/$max_retries)"
         sleep 60
       fi
       continue
@@ -179,51 +193,55 @@ github_repo_exists() {
 sync_repo() {
   local gl_path="$1" gh_name="$2"
 
+  # Credentials are embedded only in in-memory remote URLs. Never print raw
+  # Git stderr: diagnostics can include those URLs and therefore expose tokens.
   local gl_url="https://oauth2:${GITLAB_TOKEN}@gitlab.com/${gl_path}.git"
-  local gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
+  local gh_remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
 
+  local original_dir="$PWD"
   local work_dir
-  work_dir=$(mktemp -d)
-
-  info "  Cloning gitlab.com/${gl_path} ..."
-  local clone_out
-  clone_out=$(git clone --mirror "$gl_url" "$work_dir" 2>&1) || {
-    # Distinguish access-denied (token lacks scope) from other errors.
-    # Return 2 for access failures so the caller can skip rather than fail.
-    if echo "$clone_out" | grep -qiE "403|401|not found|access denied|repository not found"; then
-      warn "  Clone skipped (access denied) for ${gl_path} — check GITLAB_SYNC_TOKEN scope"
-      rm -rf "$work_dir"
-      return 2
-    fi
-    warn "  Clone failed for ${gl_path}: ${clone_out}"
-    rm -rf "$work_dir"
+  work_dir=$(mktemp -d) || {
+    warn "  Cannot create temporary clone directory for ${gl_path}"
     return 1
   }
 
-  cd "$work_dir"
+  info "  Cloning gitlab.com/${gl_path} ..."
+  if ! git clone --mirror "$gl_url" "$work_dir" >/dev/null 2>&1; then
+    warn "  Clone failed for ${gl_path}; Git diagnostics were suppressed to protect credentials"
+    rm -rf "$work_dir"
+    return 1
+  fi
+
+  if ! cd "$work_dir"; then
+    warn "  Cannot enter temporary clone directory for ${gl_path}"
+    rm -rf "$work_dir"
+    return 1
+  fi
 
   local push_ok=true
-  local gh_remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git"
 
-  # Push all branches back to GitHub, decoding any encoded names (e.g.
-  # upstream-commits--S--Org--S--repo--S--YYYY-MM-DD → upstream-commits/Org/repo/YYYY-MM-DD)
-  # that were encoded when originally pushed from GitHub to GitLab.
-  push_branches_decoded "$gh_remote" 2>&1 \
-    | sed "s/${GH_TOKEN}/***TOKEN***/g" \
-    | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
-    || push_ok=false
+  # Never print raw push diagnostics: Git may include credential-bearing URLs.
+  # Non-fast-forward branches and conflicting tags must fail closed.
+  if ! push_branches_decoded "$gh_remote" >/dev/null 2>&1; then
+    warn "  Branch push failed for ${gl_path}; Git diagnostics were suppressed to protect credentials"
+    push_ok=false
+  fi
 
-  # Push tags (non-fatal if some already exist)
-  git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_OWNER}/${gh_name}.git" \
-    '+refs/tags/*:refs/tags/*' 2>&1 \
-    | sed "s/${GH_TOKEN}/***TOKEN***/g" \
-    | sed "s/${GITLAB_TOKEN}/***TOKEN***/g" \
-    || true
+  if ! git push "$gh_remote" 'refs/tags/*:refs/tags/*' >/dev/null 2>&1; then
+    warn "  Tag push failed for ${gl_path}; Git diagnostics were suppressed to protect credentials"
+    push_ok=false
+  fi
 
-  cd /
-  rm -rf "$work_dir"
+  if ! cd "$original_dir"; then
+    warn "  Cannot return to the original working directory after syncing ${gl_path}"
+    return 1
+  fi
+  rm -rf "$work_dir" || {
+    warn "  Could not remove temporary clone directory for ${gl_path}"
+    return 1
+  }
 
-  $push_ok
+  "$push_ok"
 }
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -233,7 +251,7 @@ failed=0
 skipped=0
 
 for group_id in "${SUBGROUP_IDS[@]}"; do
-  info "Scanning subgroup ${group_id} ..."
+  info "Scanning subgroup $group_id ..."
 
   while IFS='|' read -r _gl_id gl_name gl_path; do
     [[ -z "$gl_name" ]] && continue
@@ -256,24 +274,24 @@ for group_id in "${SUBGROUP_IDS[@]}"; do
     fi
 
     info "──────────────────────────────────────────"
-    info "gitlab.com/${gl_path}  →  github.com/${GITHUB_OWNER}/${gl_name}"
+    info "gitlab.com/$gl_path  →  github.com/$GITHUB_OWNER/$gl_name"
 
     if [[ "$DRY_RUN" == "true" ]]; then
-      info "  DRY  would sync ${gl_name}"
+      info "  DRY  would sync $gl_name"
       (( synced++ )) || true
       continue
     fi
 
-    local sync_rc=0
+    sync_rc=0
     sync_repo "$gl_path" "$gl_name" || sync_rc=$?
     if [[ $sync_rc -eq 0 ]]; then
-      info "✅ ${gl_name} done"
+      info "✅ $gl_name done"
       (( synced++ )) || true
     elif [[ $sync_rc -eq 2 ]]; then
-      warn "⚠️  ${gl_name} skipped (access denied)"
+      warn "⚠️  $gl_name skipped (access denied)"
       (( skipped++ )) || true
     else
-      warn "❌ ${gl_name} failed"
+      warn "❌ $gl_name failed"
       (( failed++ )) || true
     fi
 
@@ -281,5 +299,5 @@ for group_id in "${SUBGROUP_IDS[@]}"; do
 done
 
 echo ""
-info "Complete — synced: ${synced} | skipped: ${skipped} | failed: ${failed}"
+info "Complete — synced: $synced | skipped: $skipped | failed: $failed"
 [ "$failed" -eq 0 ] || exit 1

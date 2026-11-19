@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2034 # Defaults are shared with scripts that source this library.
 # common.sh — shared helpers for autosnap (btrfs-dwarfs-framework edition)
 #
 # Backends: bdfs (primary), btrfs (fallback).

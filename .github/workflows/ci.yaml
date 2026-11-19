@@ -28,17 +28,51 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install shellcheck
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - name: Install build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq cmake build-essential
 
-      - name: Run tests
-        run: ./tests/run-tests.sh
+      - name: Configure unit tests
+        run: cmake -S userspace -B build/ci-tests -DCMAKE_BUILD_TYPE=Debug -DBUILD_DAEMON=OFF -DBUILD_CLI=OFF -DBUILD_TESTS=ON
+
+      - name: Build unit tests
+        run: cmake --build build/ci-tests --parallel 2
+
+      - name: Run unit tests
+        run: ctest --test-dir build/ci-tests --output-on-failure
 
   validate:
-    name: Profile Validation
+    name: Repository Layout Validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Validate profiles
-        run: ./profiles/validate.sh
+      - name: Validate checked-in CI and test entry points
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f userspace/CMakeLists.txt
+          test -f tests/unit/CMakeLists.txt
+          test -d configs
+          test -f configs/bdfs.conf
+          test -d tests/integration
+          test -f tests/integration/run_all.sh
+          bash -n tests/integration/run_all.sh
+          bash -n scripts/sync-from-gitlab.sh
+          bash -n scripts/import-repo.sh
+          bash -n scripts/clone-org.sh
+          bash -n scripts/sync-pieroproietti-gl-forks.sh
+          set +e
+          env -u GITLAB_TOKEN -u GH_TOKEN DRY_RUN=false bash scripts/sync-from-gitlab.sh
+          gitlab_sync_status=$?
+          GH_TOKEN=test REPO_URL=https://example.invalid/source.git BDFS_SOURCE_AUDITS_COMPLETE=true BDFS_IMPORTS_ENABLED=true DRY_RUN=false bash scripts/import-repo.sh
+          import_status=$?
+          GH_TOKEN=test SOURCE_PLATFORM=github SOURCE_ORG=example BDFS_SOURCE_AUDITS_COMPLETE=true BDFS_IMPORTS_ENABLED=true BDFS_LIVE_IMPORTS_ENABLED=false bash scripts/clone-org.sh
+          clone_status=$?
+          GITLAB_TOKEN=test DRY_RUN=false bash scripts/sync-pieroproietti-gl-forks.sh
+          gitlab_fork_sync_status=$?
+          set -e
+          test "$gitlab_sync_status" -eq 2
+          test "$import_status" -eq 2
+          test "$clone_status" -eq 2
+          test "$gitlab_fork_sync_status" -eq 2
+          echo "Repository entry points and import/mirror write guards fail closed by default."

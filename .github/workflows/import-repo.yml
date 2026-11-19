@@ -30,9 +30,27 @@ on:
         required: false
         type: boolean
         default: false
+      dry_run:
+        description: 'Clone and validate source without creating or modifying repositories'
+        required: true
+        type: boolean
+        default: true
+      source_credential:
+        description: 'Source credential (auto-select from URL by default)'
+        required: false
+        type: choice
+        options:
+          - '(auto — use platform default)'
+          - SYNC_TOKEN
+          - GITLAB_SYNC_TOKEN
+          - BITBUCKET_TOKEN
+          - GITEA_TOKEN
+          - GH_SYNC_TOKEN
+          - ADD_MIRROR_REPO_SYNC
+        default: '(auto — use platform default)'
 
 permissions:
-  contents: write
+  contents: read
 
 # ── Rate limits ──────────────────────────────────────────────────────────────
 # GitHub REST API (SYNC_TOKEN): 5 000 req/hr primary limit.
@@ -42,7 +60,7 @@ permissions:
 
 jobs:
   import:
-    if: vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_IMPORTS_ENABLED == 'true' && (inputs.mirror_to_osp_ooc != true || vars.BDFS_MIRRORS_ENABLED == 'true')
+    if: vars.BDFS_SOURCE_AUDITS_COMPLETE == 'true' && vars.BDFS_IMPORTS_ENABLED == 'true' && (inputs.dry_run == true || vars.BDFS_LIVE_IMPORTS_ENABLED == 'true') && (inputs.mirror_to_osp_ooc != true || vars.BDFS_MIRRORS_ENABLED == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -60,6 +78,11 @@ jobs:
           OSP_ORG: OpenOS-Project-OSP
           OOC_ORG: OpenOS-Project-Ecosystem-OOC
           GITLAB_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          BDFS_SOURCE_AUDITS_COMPLETE: ${{ vars.BDFS_SOURCE_AUDITS_COMPLETE }}
+          BDFS_IMPORTS_ENABLED: ${{ vars.BDFS_IMPORTS_ENABLED }}
+          BDFS_LIVE_IMPORTS_ENABLED: ${{ vars.BDFS_LIVE_IMPORTS_ENABLED }}
+          BDFS_MIRRORS_ENABLED: ${{ vars.BDFS_MIRRORS_ENABLED }}
           BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
         run: bash scripts/import-repo.sh

@@ -34,11 +34,15 @@
 
 #define _GNU_SOURCE
 #include <errno.h>
+#include <fcntl.h>
+#include <ctype.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "bdfs.h"
@@ -125,50 +129,99 @@ static int resolve_partition(struct bdfs_cli *cli,
  */
 static int list_autosnap_subvols(const char *btrfs_mount, bool json)
 {
-	char cmd[512];
-	snprintf(cmd, sizeof(cmd),
-		 "btrfs subvolume list -o '%s' 2>/dev/null"
-		 " | awk '$NF ~ /^" AUTOSNAP_PREFIX "/ {print $NF}'",
-		 btrfs_mount);
+    int pipefd[2];
+    pid_t pid;
+    FILE *fp;
+    int count = 0;
 
-	FILE *fp = popen(cmd, "r");
-	if (!fp) {
-		bdfs_err("popen: %s", strerror(errno));
-		return 1;
-	}
+    if (pipe2(pipefd, O_CLOEXEC) < 0) {
+        bdfs_err("pipe: %s", strerror(errno));
+        return 1;
+    }
 
-	char line[512];
-	int count = 0;
+    pid = fork();
+    if (pid < 0) {
+        int err = errno;
+        close(pipefd[0]);
+        close(pipefd[1]);
+        bdfs_err("fork: %s", strerror(err));
+        return 1;
+    }
 
-	if (json)
-		printf("[");
+    if (pid == 0) {
+        const char *const cmd[] = {
+            "btrfs", "subvolume", "list", "-o", btrfs_mount, NULL
+        };
+        close(pipefd[0]);
+        if (dup2(pipefd[1], STDOUT_FILENO) < 0)
+            _exit(126);
+        close(pipefd[1]);
+        execvp(cmd[0], (char *const *)cmd);
+        _exit(127);
+    }
 
-	while (fgets(line, sizeof(line), fp)) {
-		/* Strip trailing newline */
-		size_t len = strlen(line);
-		if (len > 0 && line[len - 1] == '\n')
-			line[len - 1] = '\0';
+    close(pipefd[1]);
+    fp = fdopen(pipefd[0], "r");
+    if (!fp) {
+        int err = errno;
+        close(pipefd[0]);
+        kill(pid, SIGTERM);
+        waitpid(pid, NULL, 0);
+        bdfs_err("fdopen: %s", strerror(err));
+        return 1;
+    }
 
-		if (!line[0])
-			continue;
+    if (json)
+        putchar('[');
 
-		if (json) {
-			if (count)
-				printf(",");
-			printf("{\"name\":\"%s\"}", line);
-		} else {
-			printf("  %s\n", line);
-		}
-		count++;
-	}
+    char line[4096];
+    while (fgets(line, sizeof(line), fp)) {
+        char *path = strstr(line, " path ");
+        char *name;
+        size_t len;
 
-	if (json)
-		printf("]\n");
-	else if (count == 0)
-		printf("  (no autosnap snapshots found)\n");
+        if (!path)
+            continue;
+        name = path + 6;
+        len = strcspn(name, "\r\n");
+        name[len] = '\0';
 
-	pclose(fp);
-	return 0;
+        if (strncmp(name, AUTOSNAP_PREFIX, strlen(AUTOSNAP_PREFIX)) != 0)
+            continue;
+        bool safe_name = true;
+        for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+            if (!isalnum(*p) && *p != '-' && *p != '_') {
+                safe_name = false;
+                break;
+            }
+        }
+        if (!safe_name)
+            continue;
+
+        if (json) {
+            if (count)
+                putchar(',');
+            printf("{\"name\":\"%s\"}", name);
+        } else {
+            printf("  %s\n", name);
+        }
+        count++;
+    }
+
+    fclose(fp);
+    int status = 0;
+    if (waitpid(pid, &status, 0) < 0 ||
+        !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        bdfs_err("btrfs subvolume list failed for %s", btrfs_mount);
+        return 1;
+    }
+
+    if (json)
+        puts("]");
+    else if (count == 0)
+        puts("  (no autosnap snapshots found)");
+
+    return 0;
 }
 
 /* ── bdfs autosnap list ──────────────────────────────────────────────────── */
@@ -255,38 +308,47 @@ static int cmd_autosnap_delete(struct bdfs_cli *cli, int argc, char *argv[])
 	}
 
 	uint8_t uuid[16];
+	char uuid_str[37];
 	if (resolve_partition(cli, uuid_arg, uuid) < 0)
 		return 1;
+	bdfs_uuid_to_str(uuid, uuid_str);
 
-	/* Build the full subvolume path and delete it */
-	char snap_path[1024];
-	snprintf(snap_path, sizeof(snap_path), "%s/%s",
-		 btrfs_mount, snap_name);
-
-	if (bdfs_cli_open_ctl(cli))
-		return 1;
-
-	struct bdfs_ioctl_snapshot_dwarfs_container del_arg;
-	memset(&del_arg, 0, sizeof(del_arg));
-	memcpy(del_arg.partition_uuid, uuid, 16);
-	strncpy(del_arg.snapshot_name, snap_name,
-		sizeof(del_arg.snapshot_name) - 1);
-	del_arg.flags |= BDFS_SNAP_DELETE;
-
-	if (ioctl(cli->ctl_fd, BDFS_IOC_SNAPSHOT_DWARFS_CONTAINER,
-		  &del_arg) < 0) {
-		/*
-		 * Fall back to direct btrfs subvolume delete if the ioctl
-		 * doesn't support BDFS_SNAP_DELETE yet.
-		 */
-		char cmd[1024];
-		snprintf(cmd, sizeof(cmd),
-			 "btrfs subvolume delete '%s' 2>&1", snap_path);
-		int rc = system(cmd);
-		if (rc != 0) {
-			bdfs_err("failed to delete snapshot: %s", snap_path);
+	/* Restrict the name to a single autosnap component, not a path. */
+	for (const unsigned char *p = (const unsigned char *)snap_name; *p; p++) {
+		if (!isalnum(*p) && *p != '-' && *p != '_') {
+			bdfs_err("invalid autosnap name: %s", snap_name);
 			return 1;
 		}
+	}
+
+	/* Build the full subvolume path and invoke btrfs without a shell. */
+	char snap_path[1024];
+	int path_len = snprintf(snap_path, sizeof(snap_path), "%s/%s",
+				btrfs_mount, snap_name);
+	if (path_len < 0 || (size_t)path_len >= sizeof(snap_path)) {
+		bdfs_err("snapshot path is too long");
+		return 1;
+	}
+
+	const char *delete_argv[] = {
+		"btrfs", "subvolume", "delete", snap_path, NULL
+	};
+	pid_t pid = fork();
+	if (pid < 0) {
+		bdfs_err("fork: %s", strerror(errno));
+		return 1;
+	}
+	if (pid == 0) {
+		execvp(delete_argv[0], (char *const *)delete_argv);
+		_exit(127);
+	}
+
+	int status;
+	if (waitpid(pid, &status, 0) < 0 ||
+	    !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+		bdfs_err("failed to delete autosnap snapshot %s on partition %s",
+			 snap_name, uuid_str);
+		return 1;
 	}
 
 	if (!cli->json_output)

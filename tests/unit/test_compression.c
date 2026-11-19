@@ -7,9 +7,8 @@
 #include <stdint.h>
 #include <assert.h>
 
-#define main bdfs_cli_main_unused
-#  include "../../userspace/cli/bdfs_main.c"
-#undef main
+/* Exercise the pure helper API without including the CLI entry point. */
+#include "bdfs.h"
 
 static int tests_run = 0, tests_failed = 0;
 

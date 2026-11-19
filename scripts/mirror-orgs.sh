@@ -132,7 +132,9 @@ mirror_repo() {
 
   local tmpdir
   tmpdir=$(mktemp -d)
-  trap "rm -rf '$tmpdir'" RETURN
+  printf -v cleanup_command 'rm -rf -- %q' "$tmpdir"
+  # shellcheck disable=SC2064 # cleanup_command is assembled with printf %q from mktemp paths.
+  trap "$cleanup_command" RETURN
 
   echo "  Cloning ${src_org}/${repo} (bare)..."
   if ! git clone --bare --quiet "$src_url" "$tmpdir/repo.git" 2>&1; then

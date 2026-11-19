@@ -58,6 +58,10 @@ enum bdfs_dwarfs_compression {
 	BDFS_COMPRESS_BROTLI = 4,
 };
 
+/* Snapshot-prune operation flags shared by the CLI and daemon. */
+#define BDFS_PRUNE_DEMOTE_FIRST (1 << 0)
+#define BDFS_PRUNE_DRY_RUN      (1 << 1)
+
 /* BTRFS subvolume/snapshot descriptor as seen by the framework */
 struct bdfs_btrfs_subvol {
 	__u64   subvol_id;

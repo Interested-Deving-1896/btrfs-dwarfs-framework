@@ -42,39 +42,9 @@ set -uo pipefail
 TARGET_ORG="${TARGET_ORG:-Interested-Deving-1896}"
 SOURCE_BASE_URL="${SOURCE_BASE_URL:-}"
 
-# ── Credential resolution ─────────────────────────────────────────────────────
-# SOURCE_CREDENTIAL may be set to a specific secret name by the workflow input,
-# or left as "(auto — use platform default)" / empty to use the platform default.
-# The workflow passes all secrets as _SECRET_<NAME> env vars so we can resolve
-# them here without hardcoding a single secret name.
-_resolve_source_token() {
-  local override="${SOURCE_CREDENTIAL:-}"
-  # Strip the auto-select sentinel
-  [[ "$override" == "(auto — use platform default)" ]] && override=""
-
-  if [[ -n "$override" ]]; then
-    # Caller selected a specific secret — look it up from _SECRET_<NAME>
-    local var="_SECRET_${override}"
-    local val="${!var:-}"
-    if [[ -z "$val" ]]; then
-      warn "SOURCE_CREDENTIAL='${override}' but _SECRET_${override} is empty or unset — falling back to platform default"
-    else
-      echo "$val"
-      return
-    fi
-  fi
-
-  # Platform defaults
-  case "${SOURCE_PLATFORM}" in
-    github)    echo "${_SECRET_SYNC_TOKEN:-${GH_TOKEN}}" ;;
-    gitlab)    echo "${_SECRET_GITLAB_SYNC_TOKEN:-}" ;;
-    bitbucket) echo "${_SECRET_BITBUCKET_TOKEN:-}" ;;
-    gitea)     echo "${_SECRET_GITEA_TOKEN:-}" ;;
-    *)         echo "" ;;
-  esac
-}
-
-SOURCE_TOKEN="$(_resolve_source_token)"
+# The workflow resolves exactly one source credential into SOURCE_TOKEN.
+# GH_TOKEN remains the separate target-repository credential.
+SOURCE_TOKEN="${SOURCE_TOKEN:-}"
 CLONE_TYPE="${CLONE_TYPE:-org}"
 SKIP_FORKS="${SKIP_FORKS:-false}"
 SKIP_ARCHIVED="${SKIP_ARCHIVED:-false}"
@@ -86,6 +56,17 @@ MIRROR_TO_OSP="${MIRROR_TO_OSP:-false}"
 CONCURRENCY="${CONCURRENCY:-5}"
 CLONE_DEPTH="${CLONE_DEPTH:-}"
 BACKUP_MODE="${BACKUP_MODE:-false}"
+
+if [[ "${BDFS_SOURCE_AUDITS_COMPLETE:-}" != "true" ||
+      "${BDFS_IMPORTS_ENABLED:-}" != "true" ||
+      "${BDFS_LIVE_IMPORTS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: org cloning requires BDFS_SOURCE_AUDITS_COMPLETE=true, BDFS_IMPORTS_ENABLED=true, and BDFS_LIVE_IMPORTS_ENABLED=true." >&2
+  exit 2
+fi
+if [[ "$MIRROR_TO_OSP" == "true" && "${BDFS_MIRRORS_ENABLED:-}" != "true" ]]; then
+  echo "ERROR: downstream mirrors require BDFS_MIRRORS_ENABLED=true." >&2
+  exit 2
+fi
 
 GH_API="https://api.github.com"
 
@@ -241,7 +222,7 @@ clone_and_push() {
   local name="$1" clone_url="$2"
   local work_dir
   work_dir=$(mktemp -d)
-  trap "rm -rf '${work_dir}'" RETURN
+  trap 'rm -rf "$work_dir"' RETURN
 
   info "  Cloning ${clone_url} ..."
 
@@ -275,7 +256,7 @@ clone_and_push() {
 
   local target_url="https://${GH_TOKEN}@github.com/${TARGET_ORG}/${name}.git"
 
-  cd "$work_dir"
+  cd "$work_dir" || return 1
 
   # Source branch-name-conv.sh for platform-safe push
   local script_dir

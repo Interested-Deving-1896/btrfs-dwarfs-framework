@@ -37,6 +37,7 @@
 #define BDFS_DEFAULT_CTL_DEVICE  "/dev/bdfs_ctl"
 #define BDFS_DEFAULT_SOCKET_PATH "/run/bdfs/daemon.sock"
 #define BDFS_DEFAULT_STATE_DIR   "/var/lib/bdfs"
+#define BDFS_DEFAULT_ARCHIVE_DIR "/var/lib/bdfs/archives"
 #define BDFS_DEFAULT_WORKERS     4
 #define BDFS_NETLINK_PROTO       31
 
@@ -146,6 +147,9 @@ int bdfs_daemon_init(struct bdfs_daemon *d, struct bdfs_daemon_config *cfg)
 	if (!d->cfg.state_dir[0])
 		strncpy(d->cfg.state_dir, BDFS_DEFAULT_STATE_DIR,
 			sizeof(d->cfg.state_dir) - 1);
+	if (!d->cfg.archive_dir[0])
+		strncpy(d->cfg.archive_dir, BDFS_DEFAULT_ARCHIVE_DIR,
+			sizeof(d->cfg.archive_dir) - 1);
 	if (!d->cfg.worker_threads)
 		d->cfg.worker_threads = BDFS_DEFAULT_WORKERS;
 	if (!d->cfg.netlink_proto)
@@ -318,54 +322,6 @@ void bdfs_daemon_shutdown(struct bdfs_daemon *d)
 	pthread_mutex_destroy(&d->queue_lock);
 	pthread_cond_destroy(&d->queue_cond);
 	pthread_mutex_destroy(&d->mounts_lock);
-}
-
-/* ── Mount table helpers ────────────────────────────────────────────────── */
-
-void bdfs_mount_track(struct bdfs_daemon *d, enum bdfs_mount_type type,
-		      const uint8_t uuid[16], uint64_t image_id,
-		      const char *mount_point)
-{
-	struct bdfs_mount_entry *me = calloc(1, sizeof(*me));
-	if (!me)
-		return;
-
-	me->type     = type;
-	me->image_id = image_id;
-	if (uuid)
-		memcpy(me->partition_uuid, uuid, 16);
-	strncpy(me->mount_point, mount_point, sizeof(me->mount_point) - 1);
-
-	pthread_mutex_lock(&d->mounts_lock);
-	TAILQ_INSERT_TAIL(&d->mounts, me, entry);
-	pthread_mutex_unlock(&d->mounts_lock);
-}
-
-void bdfs_mount_untrack(struct bdfs_daemon *d, const char *mount_point)
-{
-	struct bdfs_mount_entry *me, *tmp;
-
-	pthread_mutex_lock(&d->mounts_lock);
-	TAILQ_FOREACH_SAFE(me, &d->mounts, entry, tmp) {
-		if (strcmp(me->mount_point, mount_point) == 0) {
-			TAILQ_REMOVE(&d->mounts, me, entry);
-			free(me);
-			break;
-		}
-	}
-	pthread_mutex_unlock(&d->mounts_lock);
-}
-
-int bdfs_mount_count(struct bdfs_daemon *d)
-{
-	struct bdfs_mount_entry *me;
-	int n = 0;
-
-	pthread_mutex_lock(&d->mounts_lock);
-	TAILQ_FOREACH(me, &d->mounts, entry)
-		n++;
-	pthread_mutex_unlock(&d->mounts_lock);
-	return n;
 }
 
 /* ── Job allocation ─────────────────────────────────────────────────────── */
