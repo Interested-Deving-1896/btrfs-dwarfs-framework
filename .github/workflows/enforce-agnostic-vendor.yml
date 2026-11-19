@@ -48,15 +48,19 @@ jobs:
 
       - name: Determine scan target
         id: target
+        env:
+          VENDOR_SUBDIR: ${{ inputs.vendor_dir }}
         run: |
-          if [[ -n "${{ inputs.vendor_dir }}" ]]; then
-            echo "dir=vendor/${{ inputs.vendor_dir }}" >> "$GITHUB_OUTPUT"
+          if [[ -n "$VENDOR_SUBDIR" ]]; then
+            echo "dir=vendor/$VENDOR_SUBDIR" >> "$GITHUB_OUTPUT"
           else
             echo "dir=vendor" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run agnostic check
-        run: bash scripts/check-vendor-agnostic.sh "${{ steps.target.outputs.dir }}"
+        env:
+          VENDOR_SCAN_TARGET: ${{ steps.target.outputs.dir }}
+        run: bash scripts/check-vendor-agnostic.sh "$VENDOR_SCAN_TARGET"
 
       - name: Write summary
         if: always()
