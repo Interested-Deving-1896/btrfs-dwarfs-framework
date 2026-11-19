@@ -8,10 +8,18 @@ on:
         default: '50'
         type: string
       dry_run:
-        description: 'Report project IDs without pushing'
+        description: 'Report project IDs without pushing (safe default)'
+        required: false
+        default: true
+        type: boolean
+      confirm_force_push:
+        description: 'Explicitly acknowledge destructive force-push to GitLab mirrors'
         required: false
         default: false
         type: boolean
+
+permissions:
+  contents: read
 
 jobs:
   reclone:
@@ -48,8 +56,14 @@ jobs:
             "
           done
 
+      - name: Require explicit force-push acknowledgement
+        if: ${{ inputs.dry_run != true && inputs.confirm_force_push != true }}
+        run: |
+          echo "::error::Set confirm_force_push=true to authorize destructive mirror replacement."
+          exit 1
+
       - name: Shallow-reclone chromium
-        if: ${{ inputs.dry_run != true }}
+        if: ${{ inputs.dry_run != true && inputs.confirm_force_push == true }}
         env:
           UPSTREAM_URL: https://x-access-token:${{ secrets.SYNC_TOKEN }}@github.com/FydeOS-OpenFyde/chromium.git
           GITLAB_URL: https://oauth2:${{ secrets.GITLAB_SYNC_TOKEN }}@gitlab.com/openos-project/Chromium_Browser_OS_Deving/FydeOS-OpenFyde/OpenFyde/chromium.git
@@ -62,7 +76,7 @@ jobs:
           bash scripts/shallow-reclone-gl.sh
 
       - name: Shallow-reclone chromium-raspberry_pi
-        if: ${{ inputs.dry_run != true }}
+        if: ${{ inputs.dry_run != true && inputs.confirm_force_push == true }}
         env:
           UPSTREAM_URL: https://x-access-token:${{ secrets.SYNC_TOKEN }}@github.com/FydeOS-OpenFyde/chromium-raspberry_pi.git
           GITLAB_URL: https://oauth2:${{ secrets.GITLAB_SYNC_TOKEN }}@gitlab.com/openos-project/Chromium_Browser_OS_Deving/FydeOS-OpenFyde/Fyde%20Innovations/chromium-raspberry_pi.git
