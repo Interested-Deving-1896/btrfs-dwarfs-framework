@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
 
 	/* Look up in the command table */
 	for (size_t i = 0; i < sizeof(COMMANDS) / sizeof(COMMANDS[0]); i++) {
-		const struct bdfs_command *c = &COMMANDS[i];
+		const struct bdfs_main_command *c = &COMMANDS[i];
 		if (strcmp(cmd_name, c->name) == 0 ||
 		    (c->alias && strcmp(cmd_name, c->alias) == 0)) {
 			int ret = c->fn(&cli, cmd_argc, cmd_argv);
