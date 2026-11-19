@@ -25,7 +25,7 @@ done
 # findings in unrelated workflows do not block this PR.
 if [ -n "${GITHUB_BASE_REF:-}" ]; then
     git fetch --no-tags origin "+refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
-    changed=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" -- .github/workflows)
+    changed=$(git diff --name-only "origin/${GITHUB_BASE_REF}" HEAD -- .github/workflows)
 else
     changed=$(git diff --name-only HEAD^ HEAD -- .github/workflows)
 fi
