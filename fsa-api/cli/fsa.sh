@@ -92,7 +92,7 @@ while [[ $# -gt 0 ]]; do
     --token)    FSA_AUTH="$2";    shift 2 ;;
     --dry-run)  DRY_RUN="true";   shift ;;
     --json)     JSON_RAW="true";  shift ;;
-    --direct)   DIRECT="true";    shift ;;
+    --direct)   _die "--direct mode is not implemented; use the FSA API server" ;;
     --help|-h)  _usage ;;
     *)          POSITIONAL+=("$1"); shift ;;
   esac
