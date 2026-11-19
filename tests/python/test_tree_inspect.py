@@ -28,7 +28,7 @@ class TreeInspectTests(unittest.TestCase):
         outside.write_text("must not be traversed", encoding="utf-8")
         os.symlink(outside, self.root / "outside-link")
         os.mkfifo(self.root / "named-pipe")
-        raw_path = os.fsencode(self.root) + b"/raw-\\xff-name"
+        raw_path = os.fsencode(self.root) + b"/raw-\xff-name"
         raw_fd = os.open(raw_path, os.O_CREAT | os.O_WRONLY, 0o600)
         os.write(raw_fd, b"raw path bytes")
         os.close(raw_fd)
