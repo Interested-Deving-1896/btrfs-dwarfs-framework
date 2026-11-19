@@ -57,6 +57,8 @@ include_directories(
 add_library(bdfs_target STATIC target/target.c)
 target_include_directories(bdfs_target PUBLIC ${CMAKE_SOURCE_DIR}/../include)
 install(TARGETS bdfs_target ARCHIVE DESTINATION lib)
+install(FILES ${CMAKE_SOURCE_DIR}/../include/bdfs/target.h
+        DESTINATION include/bdfs)
 
 # ── bdfs_daemon ──────────────────────────────────────────────────────────────
 if(BUILD_DAEMON)
