@@ -195,7 +195,7 @@ from datetime import datetime, timezone
 print(datetime.fromtimestamp(${reset_epoch}, tz=timezone.utc).strftime('%H:%M UTC'))
 " 2>/dev/null || echo "${reset_epoch}")
 
-  info "Run ${run_id} (${name}) — reset at ${RESET_STR}, buffer +${RESET_BUFFER_SEC}s"
+  info "Run ${run_id} (${name}) — reset at ${RESET_STR} (snapshot: ${reset_in_sec}s), buffer +${RESET_BUFFER_SEC}s"
   info "  Workflow: ${wf_path}"
 
   if [[ "$DRY_RUN" == "true" ]]; then
