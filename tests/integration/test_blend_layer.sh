@@ -79,7 +79,7 @@ mount_dwarfs_lower() {
 # Mount fuse-overlayfs over LOWER_MNT + BTRFS_MNT/upper → BLEND_MNT
 mount_userspace_blend() {
 	fuse-overlayfs \
-		-o lowerdir="$LOWER_MNT",upperdir="$BTRFS_MNT/upper",workdir="$BTRFS_MNT/workdir" \
+		-o "lowerdir=$LOWER_MNT,upperdir=$BTRFS_MNT/upper,workdir=$BTRFS_MNT/workdir" \
 		"$BLEND_MNT"
 	local retries=10
 	while ! mountpoint -q "$BLEND_MNT" && (( retries-- > 0 )); do
