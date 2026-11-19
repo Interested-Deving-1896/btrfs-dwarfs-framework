@@ -177,12 +177,12 @@ const char *bdfs_compression_name(uint32_t compression)
 uint32_t bdfs_compression_from_name(const char *name)
 {
 	if (!name)
-		return BDFS_COMPRESS_NONE;
+		return BDFS_COMPRESS_ZSTD;
 	if (strcmp(name, "lzma") == 0) return BDFS_COMPRESS_LZMA;
 	if (strcmp(name, "zstd") == 0) return BDFS_COMPRESS_ZSTD;
 	if (strcmp(name, "lz4") == 0) return BDFS_COMPRESS_LZ4;
 	if (strcmp(name, "brotli") == 0) return BDFS_COMPRESS_BROTLI;
-	return BDFS_COMPRESS_NONE;
+	return BDFS_COMPRESS_ZSTD;
 }
 
 void bdfs_err(const char *fmt, ...)
