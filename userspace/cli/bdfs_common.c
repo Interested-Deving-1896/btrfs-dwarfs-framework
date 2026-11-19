@@ -182,6 +182,7 @@ uint32_t bdfs_compression_from_name(const char *name)
 	if (strcmp(name, "zstd") == 0) return BDFS_COMPRESS_ZSTD;
 	if (strcmp(name, "lz4") == 0) return BDFS_COMPRESS_LZ4;
 	if (strcmp(name, "brotli") == 0) return BDFS_COMPRESS_BROTLI;
+	if (strcmp(name, "none") == 0) return BDFS_COMPRESS_NONE;
 	return BDFS_COMPRESS_ZSTD;
 }
 
