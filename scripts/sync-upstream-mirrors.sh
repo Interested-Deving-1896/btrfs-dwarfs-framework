@@ -45,7 +45,7 @@ for p in json.load(sys.stdin):
     continue
   fi
 
-  info "Syncing ${name} ..."
+  info "Syncing ${name} (GitLab project ${pid}) ..."
   work_dir=$(mktemp -d)
 
   # Inject token into GitLab URL
