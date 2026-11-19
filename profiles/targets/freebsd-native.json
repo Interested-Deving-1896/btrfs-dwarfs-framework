@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "target_id": "freebsd-native",
+  "display_name": "FreeBSD native kernel target",
+  "os_family": "freebsd",
+  "kernel_family": "freebsd",
+  "kernel_abi": "FreeBSD kernel/module ABI; exact release unresolved",
+  "architectures": [
+    "x86_64",
+    "aarch64"
+  ],
+  "object_format": "ELF",
+  "toolchain": [
+    "FreeBSD base toolchain (Clang/LLVM)"
+  ],
+  "sdk_sysroot": "FreeBSD source tree and release sysroot (not bundled)",
+  "runtime": "FreeBSD userland",
+  "boot_chain": "FreeBSD loader and native boot process",
+  "filesystem_capabilities": {
+    "btrfs": false,
+    "dwarfs": false,
+    "copy_on_write": false,
+    "snapshots": false,
+    "overlayfs": false,
+    "xattrs": false,
+    "acl": false
+  },
+  "build_backend": [
+    "FreeBSD kernel build system",
+    "FreeBSD ports/pkg for userspace packaging"
+  ],
+  "source_revision": "unresolved",
+  "patchset_digest": "unresolved",
+  "provenance": {
+    "status": "unresolved",
+    "notes": "Read-only ingestion profile only. No native FreeBSD kernel adapter or module is implemented."
+  },
+  "compatibility_tier": "read-only-ingestion",
+  "integration_status": "profile-only"
+}

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "target_id": "chromiumos-linux",
+  "display_name": "ChromiumOS Linux downstream",
+  "os_family": "linux",
+  "kernel_family": "linux",
+  "kernel_abi": "ChromiumOS kernel branch and board-specific ABI; unresolved until pinned",
+  "architectures": [
+    "x86_64",
+    "aarch64"
+  ],
+  "object_format": "ELF",
+  "toolchain": [
+    "ChromiumOS/ChromeOS toolchain",
+    "Clang/LLVM where required"
+  ],
+  "sdk_sysroot": "ChromiumOS SDK and board sysroot (not bundled)",
+  "runtime": "ChromiumOS userspace/runtime",
+  "boot_chain": "ChromiumOS verified boot and board boot flow",
+  "filesystem_capabilities": {
+    "btrfs": false,
+    "dwarfs": false,
+    "copy_on_write": false,
+    "snapshots": false,
+    "overlayfs": false,
+    "xattrs": false,
+    "acl": false
+  },
+  "build_backend": [
+    "ChromiumOS kernel build system",
+    "board-specific build configuration"
+  ],
+  "source_revision": "unresolved",
+  "patchset_digest": "unresolved",
+  "provenance": {
+    "status": "unresolved",
+    "notes": "Profile only. No ChromiumOS kernel build or BDFS adapter is claimed."
+  },
+  "compatibility_tier": "host-side-artifact-tooling",
+  "integration_status": "profile-only"
+}

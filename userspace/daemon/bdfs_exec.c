@@ -9,12 +9,15 @@
  */
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/sendfile.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -435,5 +438,161 @@ int bdfs_exec_wait_timeout(const char *const argv[], int timeout_s)
 	kill(pid, SIGKILL);
 	waitpid(pid, &status, 0);
 	return -ETIMEDOUT;
+}
+
+/*
+ * bdfs_exec_capture_output - run argv[], capture stdout, and enforce a timeout.
+ *
+ * Output beyond bufsz-1 bytes is drained but discarded so a verbose child
+ * cannot block on a full pipe.  The caller always receives a NUL-terminated
+ * buffer when bufsz is non-zero.
+ */
+int bdfs_exec_capture_output(const char *const argv[], int timeout_s,
+			     char *buf, size_t bufsz)
+{
+	int pipefd[2];
+	pid_t pid;
+	int status = 0;
+	bool child_done = false;
+	bool pipe_eof = false;
+	size_t used = 0;
+	struct timespec started;
+
+	if (!argv || !argv[0] || !buf || bufsz == 0)
+		return -EINVAL;
+	buf[0] = '\0';
+
+	if (pipe2(pipefd, O_CLOEXEC) < 0)
+		return -errno;
+
+	pid = fork();
+	if (pid < 0) {
+		int err = errno;
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return -err;
+	}
+	if (pid == 0) {
+		int devnull;
+
+		close(pipefd[0]);
+		if (dup2(pipefd[1], STDOUT_FILENO) < 0)
+			_exit(126);
+		close(pipefd[1]);
+		devnull = open("/dev/null", O_WRONLY);
+		if (devnull >= 0) {
+			dup2(devnull, STDERR_FILENO);
+			close(devnull);
+		}
+		execvp(argv[0], (char *const *)argv);
+		_exit(127);
+	}
+
+	close(pipefd[1]);
+	int flags = fcntl(pipefd[0], F_GETFL, 0);
+	if (flags >= 0)
+		(void)fcntl(pipefd[0], F_SETFL, flags | O_NONBLOCK);
+	(void)clock_gettime(CLOCK_MONOTONIC, &started);
+
+	while (!child_done || !pipe_eof) {
+		struct pollfd pfd = {
+			.fd = pipe_eof ? -1 : pipefd[0],
+			.events = POLLIN | POLLHUP
+		};
+		int poll_rc = poll(&pfd, 1, 100);
+		if (poll_rc < 0 && errno != EINTR) {
+			int err = errno;
+			kill(pid, SIGKILL);
+			while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
+				;
+			close(pipefd[0]);
+			return -err;
+		}
+
+		if (!pipe_eof && poll_rc > 0 &&
+		    (pfd.revents & (POLLIN | POLLHUP | POLLERR))) {
+			for (;;) {
+				char chunk[4096];
+				ssize_t n = read(pipefd[0], chunk, sizeof(chunk));
+				if (n > 0) {
+					size_t available = bufsz - 1 - used;
+					size_t copy_len = (size_t)n < available
+						? (size_t)n : available;
+					if (copy_len) {
+						memcpy(buf + used, chunk, copy_len);
+						used += copy_len;
+						buf[used] = '\0';
+					}
+					continue;
+				}
+				if (n == 0) {
+					pipe_eof = true;
+					break;
+				}
+				if (errno == EINTR)
+					continue;
+				if (errno == EAGAIN || errno == EWOULDBLOCK)
+					break;
+				{
+					int err = errno;
+					kill(pid, SIGKILL);
+					while (waitpid(pid, &status, 0) < 0 &&
+					       errno == EINTR)
+						;
+					close(pipefd[0]);
+					return -err;
+				}
+			}
+		}
+
+		if (!child_done) {
+			pid_t waited = waitpid(pid, &status, WNOHANG);
+			if (waited == pid)
+				child_done = true;
+			else if (waited < 0 && errno != EINTR) {
+				int err = errno;
+				kill(pid, SIGKILL);
+				while (waitpid(pid, &status, 0) < 0 &&
+				       errno == EINTR)
+					;
+				close(pipefd[0]);
+				return -err;
+			}
+		}
+
+		if (timeout_s > 0) {
+			struct timespec now;
+			(void)clock_gettime(CLOCK_MONOTONIC, &now);
+			long long elapsed_ms =
+				(long long)(now.tv_sec - started.tv_sec) * 1000 +
+				(now.tv_nsec - started.tv_nsec) / 1000000;
+			if (elapsed_ms >= (long long)timeout_s * 1000) {
+				kill(pid, SIGTERM);
+				for (int grace = 0; grace < 5000; grace += 100) {
+					pid_t waited = waitpid(pid, &status, WNOHANG);
+					if (waited == pid) {
+						child_done = true;
+						break;
+					}
+					struct timespec pause = { .tv_sec = 0,
+						.tv_nsec = 100000000L };
+					nanosleep(&pause, NULL);
+				}
+				if (!child_done) {
+					kill(pid, SIGKILL);
+					while (waitpid(pid, &status, 0) < 0 &&
+					       errno == EINTR)
+						;
+				}
+				close(pipefd[0]);
+				return -ETIMEDOUT;
+			}
+		}
+	}
+
+	close(pipefd[0]);
+	if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+		return 0;
+	return -EIO;
 }
 

@@ -53,6 +53,13 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/../include/uapi
 )
 
+# ── Kernel-independent target capability API ─────────────────────────────────
+add_library(bdfs_target STATIC target/target.c)
+target_include_directories(bdfs_target PUBLIC ${CMAKE_SOURCE_DIR}/../include)
+install(TARGETS bdfs_target ARCHIVE DESTINATION lib)
+install(FILES ${CMAKE_SOURCE_DIR}/../include/bdfs/target.h
+        DESTINATION include/bdfs)
+
 # ── bdfs_daemon ──────────────────────────────────────────────────────────────
 if(BUILD_DAEMON)
     add_executable(bdfs_daemon
@@ -63,6 +70,9 @@ if(BUILD_DAEMON)
         daemon/bdfs_netlink.c
         daemon/bdfs_socket.c
         daemon/bdfs_policy.c
+        daemon/bdfs_mount_table.c
+        daemon/bdfs_jobs_workspace.c
+        daemon/bdfs_shutdown_log.c
     )
 
     target_include_directories(bdfs_daemon PRIVATE
@@ -102,6 +112,7 @@ endif()
 if(BUILD_CLI)
     add_executable(bdfs
         cli/bdfs_main.c
+        cli/bdfs_common.c
         cli/bdfs_partition.c
         cli/bdfs_export_import.c
         cli/bdfs_mount.c
@@ -111,6 +122,10 @@ if(BUILD_CLI)
         cli/bdfs_verify.c
         cli/bdfs_policy.c
         cli/bdfs_autosnap.c
+        cli/bdfs_home.c
+        cli/bdfs_setup.c
+        cli/bdfs_userconf.c
+        cli/bdfs_workspace_shutdown.c
     )
 
     target_include_directories(bdfs PRIVATE

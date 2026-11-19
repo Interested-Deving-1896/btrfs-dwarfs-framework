@@ -72,7 +72,12 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  cd "$work_dir/mirror"
+  cd "$work_dir/mirror" || {
+    warn "Cannot enter temporary mirror directory for ${gh_path}"
+    FAILED=$((FAILED + 1))
+    rm -rf "$work_dir"
+    continue
+  }
 
   # Push all refs (branches + tags) to GitLab
   # --prune would delete our local-only branches, so we push selectively:
@@ -100,10 +105,10 @@ for entry in "${REPOS[@]}"; do
   existing_tags=$(echo "$gl_releases" | python3 -c \
     "import sys,json; [print(r['tag_name']) for r in json.load(sys.stdin)]" 2>/dev/null || true)
 
-  echo "$gh_releases" | python3 - << 'PYEOF'
+  GH_RELEASES="$gh_releases" GL_API="$GL_API" EXISTING_TAGS="$existing_tags" GL_PID="$gl_pid" GH_PATH="$gh_path" python3 - << 'PYEOF'
 import sys, json, os, urllib.request, urllib.error
 
-releases = json.load(sys.stdin)
+releases = json.loads(os.environ.get("GH_RELEASES", "[]"))
 token = os.environ.get("GITLAB_TOKEN", "")
 api = os.environ.get("GL_API", "")
 pid = os.environ.get("GL_PID", "")

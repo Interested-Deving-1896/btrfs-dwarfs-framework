@@ -22,6 +22,11 @@
 
 set -euo pipefail
 
+: "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
+: "${UPSTREAM_URL:?UPSTREAM_URL is required}"
+: "${GITLAB_URL:?GITLAB_URL is required}"
+: "${GITLAB_PROJECT_ID:?GITLAB_PROJECT_ID is required}"
+
 DEPTH="${DEPTH:-50}"
 GL_API="${GL_API:-https://gitlab.com/api/v4}"
 
@@ -49,10 +54,21 @@ git -C "${work_dir}" fetch --depth=1 --tags origin 2>/dev/null || true
 
 # 3. Force-push all refs to GitLab
 info "Force-pushing to GitLab..."
-git -C "${work_dir}" push --force "${GITLAB_URL}" \
-    '+refs/heads/*:refs/heads/*' 2>&1 || true
-git -C "${work_dir}" push --force "${GITLAB_URL}" \
-    '+refs/tags/*:refs/tags/*' 2>&1 || true
+if ! git -C "${work_dir}" push --force "${GITLAB_URL}" \
+    '+refs/heads/*:refs/heads/*' 2>&1; then
+    warn "Branch force-push failed — aborting before housekeeping"
+    exit 1
+fi
+
+if git -C "${work_dir}" for-each-ref --format='%(refname)' refs/tags | grep -q .; then
+    if ! git -C "${work_dir}" push --force "${GITLAB_URL}" \
+        '+refs/tags/*:refs/tags/*' 2>&1; then
+        warn "Tag force-push failed"
+        exit 1
+    fi
+else
+    info "No upstream tags to push."
+fi
 
 info "Push complete."
 

@@ -44,14 +44,14 @@ int cmd_workspace_shutdown(struct bdfs_cli *cli, int argc, char *argv[]);
 
 /* ── Command table ───────────────────────────────────────────────────────── */
 
-struct bdfs_command {
+struct bdfs_main_command {
 	const char *name;
 	const char *alias;   /* optional short alias, NULL if none */
 	int (*fn)(struct bdfs_cli *cli, int argc, char *argv[]);
 	const char *summary;
 };
 
-static const struct bdfs_command COMMANDS[] = {
+static const struct bdfs_main_command COMMANDS[] = {
 	{ "partition", "part",   cmd_partition,
 	  "Register, unregister, and list BTRFS/DwarFS partitions" },
 	{ "export",    NULL,     cmd_export,
@@ -126,7 +126,7 @@ static void print_usage(void)
 	);
 
 	for (size_t i = 0; i < sizeof(COMMANDS) / sizeof(COMMANDS[0]); i++) {
-		const struct bdfs_command *c = &COMMANDS[i];
+		const struct bdfs_main_command *c = &COMMANDS[i];
 		if (c->alias)
 			printf("  %-14s (%-6s)  %s\n",
 			       c->name, c->alias, c->summary);
@@ -159,7 +159,11 @@ int main(int argc, char *argv[])
 		{ NULL, 0, NULL, 0 }
 	};
 
-	bdfs_cli_init(&cli);
+	memset(&cli, 0, sizeof(cli));
+	cli.ctl_fd = -1;
+	cli.sock_fd = -1;
+	strncpy(cli.ctl_device, "/dev/bdfs_ctl", sizeof(cli.ctl_device) - 1);
+	strncpy(cli.socket_path, "/run/bdfs/daemon.sock", sizeof(cli.socket_path) - 1);
 
 	/* Parse global options — stop at first non-option (the command name) */
 	while ((opt = getopt_long(argc, argv, "+vjs:hV",
@@ -175,7 +179,7 @@ int main(int argc, char *argv[])
 			print_usage();
 			return 0;
 		case 'V':
-			printf("bdfs %s\n", BDFS_VERSION);
+			printf("bdfs %s\n", BDFS_CLI_VERSION);
 			return 0;
 		default:
 			print_usage();
@@ -198,17 +202,17 @@ int main(int argc, char *argv[])
 
 	/* Look up in the command table */
 	for (size_t i = 0; i < sizeof(COMMANDS) / sizeof(COMMANDS[0]); i++) {
-		const struct bdfs_command *c = &COMMANDS[i];
+		const struct bdfs_main_command *c = &COMMANDS[i];
 		if (strcmp(cmd_name, c->name) == 0 ||
 		    (c->alias && strcmp(cmd_name, c->alias) == 0)) {
 			int ret = c->fn(&cli, cmd_argc, cmd_argv);
-			bdfs_cli_cleanup(&cli);
+			bdfs_cli_close(&cli);
 			return ret;
 		}
 	}
 
 	bdfs_err("unknown command: %s", cmd_name);
 	fprintf(stderr, "Run 'bdfs --help' for available commands.\n");
-	bdfs_cli_cleanup(&cli);
+	bdfs_cli_close(&cli);
 	return 1;
 }

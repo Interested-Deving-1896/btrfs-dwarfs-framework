@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "target_id": "android-gki-linux",
+  "display_name": "AOSP / Android GKI downstream",
+  "os_family": "linux",
+  "kernel_family": "linux",
+  "kernel_abi": "GKI KMI plus device/vendor module ABI; version and symbol list unresolved",
+  "architectures": [
+    "aarch64"
+  ],
+  "object_format": "ELF",
+  "toolchain": [
+    "Android LLVM/Clang toolchain"
+  ],
+  "sdk_sysroot": "AOSP platform tree and device/vendor sysroot (not bundled)",
+  "runtime": "Android userspace and Bionic",
+  "boot_chain": "Android boot/vendor_boot/init_boot and verified boot chain",
+  "filesystem_capabilities": {
+    "btrfs": false,
+    "dwarfs": false,
+    "copy_on_write": false,
+    "snapshots": false,
+    "overlayfs": false,
+    "xattrs": false,
+    "acl": false
+  },
+  "build_backend": [
+    "Kleaf/Bazel or platform-documented kernel build"
+  ],
+  "source_revision": "unresolved",
+  "patchset_digest": "unresolved",
+  "provenance": {
+    "status": "unresolved",
+    "notes": "Profile only. Requires per-device GKI/KMI and vendor ABI validation; no module is claimed."
+  },
+  "compatibility_tier": "host-side-artifact-tooling",
+  "integration_status": "profile-only"
+}

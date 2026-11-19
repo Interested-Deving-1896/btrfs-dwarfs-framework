@@ -24,7 +24,7 @@ on:
         description: "Detect new workflows without opening PRs"
         type: boolean
         required: false
-        default: false
+        default: true
 
 permissions:
   contents: write
@@ -48,13 +48,13 @@ jobs:
       - name: Derive OSP-bound repo list from config
         run: |
           repos=$(python3 -c "
-import yaml
-data = yaml.safe_load(open('config/gitlab-subgroups.yml'))
-repos = []
-for sg in data.get('subgroups', {}).values():
-    repos.extend(sg.get('repos', []))
-print(' '.join(sorted(set(repos))))
-" 2>/dev/null || echo "")
+          import yaml
+          data = yaml.safe_load(open('config/gitlab-subgroups.yml'))
+          repos = []
+          for sg in data.get('subgroups', {}).values():
+              repos.extend(sg.get('repos', []))
+          print(' '.join(sorted(set(repos))))
+          " 2>/dev/null || echo "")
           echo "OSP_REPOS=${repos}" >> "$GITHUB_ENV"
 
       - name: Propose new upstream workflows
@@ -63,5 +63,5 @@ print(' '.join(sorted(set(repos))))
           SOURCE_OWNER: Interested-Deving-1896
           TARGET_REPO: ${{ github.repository }}
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ github.event_name == 'schedule' || inputs.dry_run }}
         run: bash scripts/upstream-workflow-proposal.sh
