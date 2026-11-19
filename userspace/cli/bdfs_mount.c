@@ -224,8 +224,8 @@ int cmd_blend_mount(struct bdfs_cli *cli, int argc, char *argv[])
 				sizeof(uarg.mount_point) - 1);
 			break;
 		case 'b':
-			strncpy(uarg.btrfs_upper, optarg,
-				sizeof(uarg.btrfs_upper) - 1);
+			strncpy(uarg.btrfs_mount, optarg,
+				sizeof(uarg.btrfs_mount) - 1);
 			break;
 		case 'd':
 			strncpy(uarg.dwarfs_image, optarg,
@@ -311,7 +311,7 @@ int cmd_blend_mount(struct bdfs_cli *cli, int argc, char *argv[])
 	 * Userspace path: validate the extra arguments that the kernel path
 	 * derives internally but fuse-overlayfs needs explicitly.
 	 */
-	if (!uarg.btrfs_upper[0]) {
+	if (!uarg.btrfs_mount[0]) {
 		bdfs_err("--btrfs-mount is required for userspace blend mount");
 		return 1;
 	}
