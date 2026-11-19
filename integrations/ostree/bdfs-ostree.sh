@@ -27,7 +27,6 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BDFS_CMD="${BDFS_CMD:-bdfs}"
 OSTREE_CMD="${OSTREE_CMD:-ostree}"
 
@@ -59,7 +58,8 @@ workspace_mountpoint() {
 # ── commit ────────────────────────────────────────────────────────────────────
 
 cmd_commit() {
-    local name="" repo="" branch="" message="bdfs-ostree commit $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    local name="" repo="" branch="" message
+    message="bdfs-ostree commit $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --repo)    repo="$2";    shift 2 ;;
@@ -142,7 +142,8 @@ cmd_export() {
 
     local tmpdir
     tmpdir="$(mktemp -d /tmp/bdfs-ostree-export.XXXXXX)"
-    trap "rm -rf '$tmpdir'" EXIT
+    printf -v cleanup_command 'rm -rf -- %q' "$tmpdir"
+    trap "$cleanup_command" EXIT
 
     info "Checking out OSTree ref '$ref' to $tmpdir"
     $OSTREE_CMD checkout --repo="$repo" "$ref" "$tmpdir/checkout"
@@ -178,7 +179,8 @@ cmd_import() {
     tmpdir="$(mktemp -d /tmp/bdfs-ostree-import.XXXXXX)"
     mp="$tmpdir/mount"
     mkdir -p "$mp"
-    trap "fusermount -u '$mp' 2>/dev/null; rm -rf '$tmpdir'" EXIT
+    printf -v cleanup_command 'fusermount -u %q 2>/dev/null || true; rm -rf -- %q' "$mp" "$tmpdir"
+    trap "$cleanup_command" EXIT
 
     info "Mounting DwarFS image: $image"
     dwarfs "$image" "$mp"
