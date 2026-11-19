@@ -17,7 +17,6 @@ set -uo pipefail
 GITLAB_API="https://gitlab.com/api/v4"
 KDE_BASE="https://invent.kde.org"
 KDE_GROUPS_GL_ID="130743027"  # openos-project/kde-ecosystem-deving/kde-groups
-KDE_GROUPS_GL_PATH="openos-project/kde-ecosystem-deving/kde-groups"
 
 : "${GITLAB_TOKEN:?GITLAB_TOKEN is required}"
 
