@@ -131,8 +131,8 @@ chain=\$(bash "\${_FSA_ROOT}/fsa-api/core/adapters/chain/status.sh" 2>/dev/null 
 
 python3 -c "
 import json, sys
-quota = json.loads('''${quota}''') if '''${quota}''' != '{}' else {}
-chain = json.loads('''${chain}''') if '''${chain}''' != '{}' else {}
+quota = json.loads('''\${quota}''') if '''\${quota}''' != '{}' else {}
+chain = json.loads('''\${chain}''') if '''\${chain}''' != '{}' else {}
 print(json.dumps({
     'ok': True,
     'brand': '${BRAND}',
