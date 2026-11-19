@@ -347,17 +347,29 @@ fi
 
 # ── Test 10: Concurrent pin of A and B completes without error ───────────────
 
-CID_A3=$(kubo_pin "$IMG_A" &) || true
-CID_B2=$(kubo_pin "$IMG_B" &) || true
-wait
+# Run both pin operations concurrently and wait for each process explicitly.
+# The CIDs were already verified above; discard duplicate CID output here.
+kubo_pin "$IMG_A" >/dev/null &
+PIN_A_PID=$!
+kubo_pin "$IMG_B" >/dev/null &
+PIN_B_PID=$!
+
+PIN_A_STATUS=0
+PIN_B_STATUS=0
+wait "$PIN_A_PID" || PIN_A_STATUS=$?
+wait "$PIN_B_PID" || PIN_B_STATUS=$?
 
 # Both should still be pinned
 PIN_A=$(kubo_pin_ls "${CID_A:-INVALID}" 2>/dev/null || true)
 PIN_B=$(kubo_pin_ls "${CID_B:-INVALID}" 2>/dev/null || true)
 
 if [[ "$CID_A" != "INVALID" && "$CID_B" != "INVALID" ]]; then
-    if echo "$PIN_A" | grep -q "$CID_A" && echo "$PIN_B" | grep -q "$CID_B"; then
+    if [[ "$PIN_A_STATUS" -eq 0 && "$PIN_B_STATUS" -eq 0 ]] \\
+        && echo "$PIN_A" | grep -q "$CID_A" \\
+        && echo "$PIN_B" | grep -q "$CID_B"; then
         pass "concurrent: both archives pinned after concurrent pin calls"
+    elif [[ "$PIN_A_STATUS" -ne 0 || "$PIN_B_STATUS" -ne 0 ]]; then
+        fail "concurrent: one or both concurrent pin operations failed"
     else
         skip "concurrent: pin/ls inconclusive after concurrent calls (Kubo GC may have run)"
     fi
