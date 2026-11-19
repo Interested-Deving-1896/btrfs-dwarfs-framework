@@ -45,3 +45,6 @@ the validator additionally enforces cross-field kernel/OS invariants.
 
 
 The portable capability negotiation contract and metadata-fidelity policy are documented in [`docs/target-capability-api.md`](../docs/target-capability-api.md).
+
+
+The first read-only POSIX root-tree inspection adapter and manifest contract are documented in [`docs/root-tree-inspection.md`](../docs/root-tree-inspection.md); its manifest schema is [`root-tree-manifest.schema.json`](root-tree-manifest.schema.json).

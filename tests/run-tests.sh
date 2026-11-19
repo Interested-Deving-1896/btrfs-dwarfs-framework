@@ -13,6 +13,8 @@ cmake -S "$ROOT_DIR/userspace" -B "$BUILD_DIR" \
 cmake --build "$BUILD_DIR" --parallel
 ctest --test-dir "$BUILD_DIR" --output-on-failure
 
+python3 -m unittest discover -s "$ROOT_DIR/tests/python" -v
+
 INSTALL_DIR=${BDFS_INSTALL_DIR:-"$BUILD_DIR/stage"}
 cmake --install "$BUILD_DIR" --prefix "$INSTALL_DIR"
 test -s "$INSTALL_DIR/include/bdfs/target.h"

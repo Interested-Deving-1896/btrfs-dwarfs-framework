@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bdfs.example/schemas/root-tree-manifest-v1.json",
+  "title": "BDFS Root Tree Inspection Manifest",
+  "type": "object",
+  "required": ["manifest_version", "tool", "source", "entries", "summary"],
+  "properties": {
+    "manifest_version": { "const": 1 },
+    "tool": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "bdfs-tree-inspect" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["os_family", "architecture", "root_device_id"],
+      "properties": {
+        "os_family": { "type": "string" },
+        "architecture": { "type": "string" },
+        "root_device_id": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "path_b64", "type", "metadata", "fidelity"],
+        "properties": {
+          "path": { "type": "string" },
+          "path_b64": { "type": "string", "contentEncoding": "base64" },
+          "type": {
+            "enum": ["directory", "file", "symlink", "fifo", "socket",
+                     "character_device", "block_device", "mount_boundary", "unknown"]
+          },
+          "target_b64": { "type": "string", "contentEncoding": "base64" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "hardlink_group": { "type": "string", "contentEncoding": "base64" },
+          "metadata": { "type": "object" },
+          "xattrs_b64": {
+            "type": "object",
+            "additionalProperties": { "type": "string", "contentEncoding": "base64" }
+          },
+          "fidelity": {
+            "type": "object",
+            "required": ["owner", "mode", "timestamps", "xattrs", "acls",
+                         "security_labels", "file_capabilities", "sparse_extents",
+                         "hard_links", "symlinks", "special_objects",
+                         "case_semantics", "path_encoding"],
+            "additionalProperties": {
+              "enum": ["preserved", "translated", "unsupported",
+                       "omitted_by_policy", "unknown"]
+            }
+          },
+          "note": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "summary": { "type": "object" }
+  },
+  "additionalProperties": false
+}
