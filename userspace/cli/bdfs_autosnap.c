@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "bdfs.h"
@@ -258,35 +259,32 @@ static int cmd_autosnap_delete(struct bdfs_cli *cli, int argc, char *argv[])
 	if (resolve_partition(cli, uuid_arg, uuid) < 0)
 		return 1;
 
-	/* Build the full subvolume path and delete it */
+	/* Delete the named autosnap using argv-based execution. */
 	char snap_path[1024];
 	snprintf(snap_path, sizeof(snap_path), "%s/%s",
 		 btrfs_mount, snap_name);
 
-	if (bdfs_cli_open_ctl(cli))
+	pid_t pid = fork();
+	if (pid < 0) {
+		bdfs_err("fork for snapshot deletion: %s", strerror(errno));
 		return 1;
+	}
+	if (pid == 0) {
+		execlp("btrfs", "btrfs", "subvolume", "delete",
+		       snap_path, (char *)NULL);
+		_exit(127);
+	}
 
-	struct bdfs_ioctl_snapshot_dwarfs_container del_arg;
-	memset(&del_arg, 0, sizeof(del_arg));
-	memcpy(del_arg.partition_uuid, uuid, 16);
-	strncpy(del_arg.snapshot_name, snap_name,
-		sizeof(del_arg.snapshot_name) - 1);
-	del_arg.flags |= BDFS_SNAP_DELETE;
-
-	if (ioctl(cli->ctl_fd, BDFS_IOC_SNAPSHOT_DWARFS_CONTAINER,
-		  &del_arg) < 0) {
-		/*
-		 * Fall back to direct btrfs subvolume delete if the ioctl
-		 * doesn't support BDFS_SNAP_DELETE yet.
-		 */
-		char cmd[1024];
-		snprintf(cmd, sizeof(cmd),
-			 "btrfs subvolume delete '%s' 2>&1", snap_path);
-		int rc = system(cmd);
-		if (rc != 0) {
-			bdfs_err("failed to delete snapshot: %s", snap_path);
-			return 1;
-		}
+	int status;
+	while (waitpid(pid, &status, 0) < 0) {
+		if (errno == EINTR)
+			continue;
+		bdfs_err("waitpid for snapshot deletion: %s", strerror(errno));
+		return 1;
+	}
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+		bdfs_err("failed to delete snapshot: %s", snap_path);
+		return 1;
 	}
 
 	if (!cli->json_output)
