@@ -85,8 +85,13 @@ static void test_kernel_family_boundaries(void)
           BDFS_TARGET_E_UNSUPPORTED);
     target.os_family = BDFS_OS_DARWIN;
     target.kernel_family = BDFS_KERNEL_XNU;
-    CHECK("Darwin/XNU remains a distinct target family",
+    target.compatibility_tier = BDFS_TIER_READ_ONLY_INGESTION;
+    CHECK("Darwin/XNU remains a distinct read-only target family",
           bdfs_target_negotiate(&target, &caps, &request, &result) == 0);
+    target.kernel_family = BDFS_KERNEL_FREEBSD;
+    CHECK("Darwin cannot be paired with FreeBSD kernel family",
+          bdfs_target_negotiate(&target, &caps, &request, &result) ==
+          BDFS_TARGET_E_UNSUPPORTED);
 }
 
 static void test_metadata_policy(void)
@@ -119,6 +124,12 @@ static void test_metadata_policy(void)
     report.preserved_mask = UINT64_C(1) << BDFS_META_OWNER;
     report.translated_mask = UINT64_C(1) << BDFS_META_OWNER;
     CHECK("overlapping metadata dispositions are rejected",
+          bdfs_metadata_report_validate(&report, 0) ==
+          BDFS_TARGET_E_ARGUMENT);
+    report.preserved_mask = 0;
+    report.translated_mask = 0;
+    report.required_mask = UINT64_C(1) << BDFS_META_FIELD_COUNT;
+    CHECK("out-of-range metadata field bits are rejected",
           bdfs_metadata_report_validate(&report, 0) ==
           BDFS_TARGET_E_ARGUMENT);
 }
