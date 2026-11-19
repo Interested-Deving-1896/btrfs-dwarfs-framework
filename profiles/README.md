@@ -42,3 +42,6 @@ the validator additionally enforces cross-field kernel/OS invariants.
   secure-boot bypass or filesystem migration.
 - Linux Kbuild, Btrfs, overlayfs and Linux VFS assumptions must not be reused
   as native FreeBSD or XNU implementations.
+
+
+The portable capability negotiation contract and metadata-fidelity policy are documented in [`docs/target-capability-api.md`](../docs/target-capability-api.md).
