@@ -135,7 +135,6 @@ WORKFLOW_TIER["Mirror Artifacts"]=4
 WORKFLOW_TIER["Mirror Releases"]=4
 WORKFLOW_TIER["Upstream PRs from OSP + OOC"]=4
 WORKFLOW_TIER["Upstream Direct Commits from OSP + OOC"]=4
-WORKFLOW_TIER["Repo Manifest"]=4
 
 # ── Fetch queued runs ─────────────────────────────────────────────────────────
 
