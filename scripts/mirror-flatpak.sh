@@ -62,6 +62,7 @@ fi
 # 3. Clone or init the ostree repo from gh-pages
 tmpdir=$(mktemp -d)
 printf -v cleanup_command 'rm -rf -- %q' "$tmpdir"
+# shellcheck disable=SC2064 # cleanup_command is assembled with printf %q from mktemp paths.
 trap "$cleanup_command" EXIT
 
 git clone --branch "$PAGES_BRANCH" --depth 1 \
