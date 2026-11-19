@@ -133,6 +133,7 @@ mirror_repo() {
   local tmpdir
   tmpdir=$(mktemp -d)
   printf -v cleanup_command 'rm -rf -- %q' "$tmpdir"
+  # shellcheck disable=SC2064 # cleanup_command is assembled with printf %q from mktemp paths.
   trap "$cleanup_command" RETURN
 
   echo "  Cloning ${src_org}/${repo} (bare)..."
