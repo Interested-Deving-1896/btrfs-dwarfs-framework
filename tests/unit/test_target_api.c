@@ -41,12 +41,18 @@ static void test_capability_negotiation(void)
     caps.states[BDFS_CAP_DWARFS] = BDFS_CAP_SUPPORTED;
     request.required_mask = (UINT64_C(1) << BDFS_CAP_BTRFS) |
                             (UINT64_C(1) << BDFS_CAP_DWARFS);
+    strcpy(request.required_kernel_abi, "linux-kbuild");
     CHECK("Linux baseline negotiates declared Btrfs and DwarFS",
           bdfs_target_negotiate(&target, &caps, &request, &result) == 0);
     CHECK("negotiated result preserves target identity",
           strcmp(result.target.target_id, target.target_id) == 0);
-    CHECK("negotiated result exposes only declared capabilities",
+    CHECK("negotiated result exposes declared capabilities",
           result.supported_mask == request.required_mask);
+    strcpy(request.required_kernel_abi, "incompatible-kernel-abi");
+    CHECK("incompatible kernel ABI is rejected",
+          bdfs_target_negotiate(&target, &caps, &request, &result) ==
+          BDFS_TARGET_E_ABI);
+    request.required_kernel_abi[0] = '\\0';
 
     caps.states[BDFS_CAP_DWARFS] = BDFS_CAP_UNKNOWN;
     CHECK("unknown required capability fails closed",
@@ -110,6 +116,11 @@ static void test_metadata_policy(void)
     CHECK("missing disposition is rejected",
           bdfs_metadata_report_validate(&report, 0) ==
           BDFS_TARGET_E_UNKNOWN_CAPABILITY);
+    report.preserved_mask = UINT64_C(1) << BDFS_META_OWNER;
+    report.translated_mask = UINT64_C(1) << BDFS_META_OWNER;
+    CHECK("overlapping metadata dispositions are rejected",
+          bdfs_metadata_report_validate(&report, 0) ==
+          BDFS_TARGET_E_ARGUMENT);
 }
 
 int main(void)
