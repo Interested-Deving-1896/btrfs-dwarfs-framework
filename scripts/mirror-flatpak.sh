@@ -69,7 +69,7 @@ git clone --branch "$PAGES_BRANCH" --depth 1 \
   "${tmpdir}/pages" 2>/dev/null || {
   # gh-pages doesn't exist yet — create orphan branch
   mkdir -p "${tmpdir}/pages"
-  cd "${tmpdir}/pages" || exit || exit
+  cd "${tmpdir}/pages" || exit
   git init
   git checkout --orphan "$PAGES_BRANCH"
   git config user.email "ci@github.com"
