@@ -3,7 +3,7 @@
 # Build and run the unprivileged C unit-test suite.
 set -eu
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 BUILD_DIR=${BDFS_BUILD_DIR:-"$ROOT_DIR/build/unit-tests"}
 
 cmake -S "$ROOT_DIR/userspace" -B "$BUILD_DIR" \
