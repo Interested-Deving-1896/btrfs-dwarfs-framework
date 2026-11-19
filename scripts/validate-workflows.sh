@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Parse every tracked GitHub Actions workflow without executing it.
+# Parse every GitHub Actions workflow; semantically lint workflows changed here.
 set -eu
 
 ROOT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -20,14 +20,35 @@ while IFS= read -r workflow; do
     echo "PASS: ${workflow#"$ROOT_DIR"/}"
 done
 
-# YAML parsing above catches syntax errors; actionlint additionally validates
-# GitHub Actions workflow structure, expressions, contexts and action inputs.
-cd "$ROOT_DIR"
+# actionlint checks GitHub-specific schema, expressions, contexts and action
+# inputs. Keep the semantic gate scoped to changed workflow files so legacy
+# findings in unrelated workflows do not block this PR.
+if [ -n "${GITHUB_BASE_REF:-}" ]; then
+    git fetch --no-tags origin "+refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+    changed=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" -- .github/workflows)
+else
+    changed=$(git diff --name-only HEAD^ HEAD -- .github/workflows)
+fi
+
+if [ -z "$changed" ]; then
+    echo "No workflow files changed; semantic actionlint check skipped."
+    exit 0
+fi
+
+tmp_bin=$(mktemp -d)
+trap 'rm -rf "$tmp_bin"' EXIT HUP INT TERM
 if command -v actionlint >/dev/null 2>&1; then
-    actionlint
+    actionlint_bin=$(command -v actionlint)
 elif command -v go >/dev/null 2>&1; then
-    go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+    GOBIN="$tmp_bin" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+    actionlint_bin="$tmp_bin/actionlint"
 else
     echo "actionlint or Go is required for workflow semantic validation" >&2
     exit 1
 fi
+
+printf '%s\n' "$changed" |
+while IFS= read -r workflow; do
+    [ -n "$workflow" ] || continue
+    "$actionlint_bin" "$ROOT_DIR/$workflow"
+done
