@@ -264,7 +264,7 @@ for group_id in "${SUBGROUP_IDS[@]}"; do
       continue
     fi
 
-    local sync_rc=0
+    sync_rc=0
     sync_repo "$gl_path" "$gl_name" || sync_rc=$?
     if [[ $sync_rc -eq 0 ]]; then
       info "✅ ${gl_name} done"
