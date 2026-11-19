@@ -61,7 +61,7 @@ git clone --branch "$PAGES_BRANCH" --depth 1 \
   "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_ORG}/${RPM_REPO_NAME}.git" \
   "${tmpdir}/pages" 2>/dev/null || {
   mkdir -p "${tmpdir}/pages"
-  cd "${tmpdir}/pages" || exit || exit
+  cd "${tmpdir}/pages" || exit
   git init
   git checkout --orphan "$PAGES_BRANCH"
   git config user.email "ci@github.com"
