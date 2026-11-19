@@ -353,7 +353,7 @@ run_watch_mode() {
       return 1
     }
 
-    local run_id status conclusion created_epoch updated_epoch fetch_rc
+    local run_id status conclusion created_epoch fetch_rc
     fetch_latest_run "$WATCH_WORKFLOW" > /tmp/_qm_run_line 2>/dev/null
     fetch_rc=$?
     if [[ "$fetch_rc" -eq 2 ]]; then
