@@ -92,6 +92,7 @@ struct bdfs_capability_set {
 struct bdfs_capability_request {
     uint32_t struct_version;
     uint64_t required_mask;
+    char required_kernel_abi[BDFS_TARGET_TEXT_MAX];
 };
 
 struct bdfs_negotiated_target {
