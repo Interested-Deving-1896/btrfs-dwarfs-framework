@@ -24,7 +24,7 @@ on:
         description: "Detect new workflows without opening PRs"
         type: boolean
         required: false
-        default: false
+        default: true
 
 permissions:
   contents: write
@@ -63,5 +63,5 @@ jobs:
           SOURCE_OWNER: Interested-Deving-1896
           TARGET_REPO: ${{ github.repository }}
           REPO_FILTER: ${{ inputs.repo_filter || '' }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ github.event_name == 'schedule' || inputs.dry_run }}
         run: bash scripts/upstream-workflow-proposal.sh
