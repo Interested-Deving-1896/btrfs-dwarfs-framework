@@ -61,3 +61,10 @@ add_test(NAME exec_wrappers COMMAND test_exec_wrappers)
 add_executable(test_copyup_job test_copyup_job.c)
 target_compile_definitions(test_copyup_job PRIVATE BDFS_UNIT_TEST)
 add_test(NAME copyup_job COMMAND test_copyup_job)
+
+
+# ── test_target_api ──────────────────────────────────────────────────────────
+add_executable(test_target_api test_target_api.c)
+target_compile_definitions(test_target_api PRIVATE BDFS_UNIT_TEST)
+target_link_libraries(test_target_api PRIVATE bdfs_target)
+add_test(NAME target_api COMMAND test_target_api)

@@ -12,3 +12,8 @@ cmake -S "$ROOT_DIR/userspace" -B "$BUILD_DIR" \
     -DBUILD_TESTS=ON
 cmake --build "$BUILD_DIR" --parallel
 ctest --test-dir "$BUILD_DIR" --output-on-failure
+
+INSTALL_DIR=${BDFS_INSTALL_DIR:-"$BUILD_DIR/stage"}
+cmake --install "$BUILD_DIR" --prefix "$INSTALL_DIR"
+test -s "$INSTALL_DIR/include/bdfs/target.h"
+test -s "$INSTALL_DIR/lib/libbdfs_target.a"
