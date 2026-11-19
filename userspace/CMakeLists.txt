@@ -53,6 +53,11 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/../include/uapi
 )
 
+# ── Kernel-independent target capability API ─────────────────────────────────
+add_library(bdfs_target STATIC target/target.c)
+target_include_directories(bdfs_target PUBLIC ${CMAKE_SOURCE_DIR}/../include)
+install(TARGETS bdfs_target ARCHIVE DESTINATION lib)
+
 # ── bdfs_daemon ──────────────────────────────────────────────────────────────
 if(BUILD_DAEMON)
     add_executable(bdfs_daemon
