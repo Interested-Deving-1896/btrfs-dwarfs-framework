@@ -28,6 +28,10 @@ class TreeInspectTests(unittest.TestCase):
         outside.write_text("must not be traversed", encoding="utf-8")
         os.symlink(outside, self.root / "outside-link")
         os.mkfifo(self.root / "named-pipe")
+        raw_path = os.fsencode(self.root) + b"/raw-\\xff-name"
+        raw_fd = os.open(raw_path, os.O_CREAT | os.O_WRONLY, 0o600)
+        os.write(raw_fd, b"raw path bytes")
+        os.close(raw_fd)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -42,7 +46,7 @@ class TreeInspectTests(unittest.TestCase):
         self.assertEqual(alias["sha256"], expected)
         self.assertEqual(payload["hardlink_group"], alias["hardlink_group"])
         self.assertEqual(manifest["manifest_version"], 1)
-        self.assertEqual(manifest["summary"]["type_counts"]["file"], 2)
+        self.assertEqual(manifest["summary"]["type_counts"]["file"], 3)
 
     def test_symlink_is_recorded_but_target_is_not_traversed(self):
         manifest = MODULE.inspect_tree(str(self.root))
