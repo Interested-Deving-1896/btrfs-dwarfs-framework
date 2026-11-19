@@ -127,10 +127,10 @@ _dt_compatible() {
   # Source 1: upstream kernels expose the full DT under /sys/firmware/devicetree.
   local dt_strings=""
   dt_strings=$(
-    find /sys/firmware/devicetree/base -name 'compatible' 2>/dev/null \
-      | xargs grep -ail 'mali\|panfrost\|powervr\|pvr\|adreno\|msm\|apple-agx\|img' \
+    find /sys/firmware/devicetree/base -name 'compatible' -print0 2>/dev/null \
+      | xargs -0 grep -ail 'mali\|panfrost\|powervr\|pvr\|adreno\|msm\|apple-agx\|img' \
         2>/dev/null | head -5 \
-      | xargs -r cat 2>/dev/null | tr '\0' '\n' | tr '[:upper:]' '[:lower:]'
+      | xargs -0 -r cat 2>/dev/null | tr '\0' '\n' | tr '[:upper:]' '[:lower:]'
   )
 
   # Source 2: downstream/vendor kernels (QCOM, Android-derived) often omit
@@ -141,7 +141,7 @@ _dt_compatible() {
   local uevent_strings=""
   uevent_strings=$(
     grep -rl 'OF_COMPATIBLE' /sys/bus/platform/devices/*/uevent 2>/dev/null \
-      | xargs grep -h 'OF_COMPATIBLE' 2>/dev/null \
+      | xargs -0 grep -h 'OF_COMPATIBLE' 2>/dev/null \
       | grep -iE 'adreno|msm|mali|panfrost|powervr|pvr|apple-agx|img' \
       | sed 's/OF_COMPATIBLE[_0-9]*=//g' \
       | tr '[:upper:]' '[:lower:]' \
