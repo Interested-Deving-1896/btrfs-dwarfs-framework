@@ -95,6 +95,10 @@ static void test_kernel_family_boundaries(void)
     CHECK("Darwin cannot be paired with FreeBSD kernel family",
           bdfs_target_negotiate(&target, &caps, &request, &result) ==
           BDFS_TARGET_E_UNSUPPORTED);
+    target.kernel_family = (enum bdfs_kernel_family)99;
+    CHECK("out-of-range kernel family is rejected",
+          bdfs_target_negotiate(&target, &caps, &request, &result) ==
+          BDFS_TARGET_E_UNSUPPORTED);
 }
 
 static void test_metadata_policy(void)
