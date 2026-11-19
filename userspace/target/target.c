@@ -94,6 +94,25 @@ int bdfs_metadata_report_validate(const struct bdfs_metadata_report *report,
     if (report->struct_version != BDFS_TARGET_API_VERSION)
         return BDFS_TARGET_E_VERSION;
 
+    {
+        const uint64_t valid = (UINT64_C(1) << BDFS_META_FIELD_COUNT) - 1;
+        const uint64_t masks[] = {
+            report->preserved_mask, report->translated_mask,
+            report->unsupported_mask, report->omitted_mask,
+            report->unknown_mask
+        };
+        uint64_t seen = 0;
+        size_t i;
+
+        if ((report->required_mask & ~valid) != 0)
+            return BDFS_TARGET_E_ARGUMENT;
+        for (i = 0; i < sizeof(masks) / sizeof(masks[0]); ++i) {
+            if ((masks[i] & ~valid) != 0 || (seen & masks[i]) != 0)
+                return BDFS_TARGET_E_ARGUMENT;
+            seen |= masks[i];
+        }
+    }
+
     accounted = report->preserved_mask | report->translated_mask |
                 report->unsupported_mask | report->omitted_mask |
                 report->unknown_mask;
