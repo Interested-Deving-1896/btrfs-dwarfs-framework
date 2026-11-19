@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import errno
 import hashlib
 import json
 import os
@@ -81,7 +82,7 @@ def _sparse_status(fd: int, size: int) -> str:
                 data = os.lseek(fd, pos, seek_data)
             except OSError as exc:
                 # ENXIO means no more data; the remaining range is a hole.
-                if exc.errno == getattr(os, "ENXIO", 6):
+                if exc.errno == errno.ENXIO:
                     break
                 raise
             hole = os.lseek(fd, data, seek_hole)
@@ -103,15 +104,16 @@ def _fidelity(xattr_status: str, kind: str, sparse_status: str) -> dict[str, str
         "acls": xattr_status,
         "security_labels": xattr_status,
         "file_capabilities": xattr_status,
-        "sparse_extents": sparse_status,
+        "sparse_extents": sparse_status if kind == "file" else "preserved",
+        "hard_links": "preserved",
+        "symlinks": "preserved",
+        "special_objects": "preserved",
         "path_encoding": "preserved",
     })
-    if kind in ("symlink", "directory", "file", "fifo", "socket",
-                "character_device", "block_device"):
-        result["symlinks"] = "preserved" if kind == "symlink" else "preserved"
-        result["special_objects"] = "preserved"
-    if kind == "file":
-        result["hard_links"] = "preserved"
+    if kind in ("fifo", "socket", "character_device", "block_device"):
+        result["special_objects"] = "translated"
+    elif kind == "unknown":
+        result["special_objects"] = "unknown"
     return result
 
 
